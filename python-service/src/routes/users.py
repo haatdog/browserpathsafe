@@ -17,20 +17,43 @@ def get_all_users():
 
         conn   = get_db()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
-        cursor.execute('SELECT role FROM user_profiles WHERE id = %s', (user_id,))
+        cursor.execute(
+            'SELECT role, group_id, is_head FROM user_profiles WHERE id = %s',
+            (user_id,)
+        )
         me = cursor.fetchone()
 
-        if not me or me['role'] != 'admin':
+        if not me:
             cursor.close(); conn.close()
-            return jsonify({"error": "Admin access required"}), 403
+            return jsonify({"error": "User not found"}), 404
 
-        cursor.execute('''
-            SELECT u.id, u.email, u.role, u.group_id, u.is_head,
-                   g.name as group_name, u.created_at, u.updated_at
-            FROM user_profiles u
-            LEFT JOIN groups g ON u.group_id = g.id
-            ORDER BY u.created_at DESC
-        ''')
+        is_admin     = me['role'] == 'admin'
+        is_unit_head = bool(me['is_head']) and me['group_id'] is not None
+
+        if not is_admin and not is_unit_head:
+            cursor.close(); conn.close()
+            return jsonify({"error": "Access required"}), 403
+
+        if is_admin:
+            cursor.execute('''
+                SELECT u.id, u.email, u.role, u.group_id, u.is_head,
+                       g.name as group_name, u.created_at, u.updated_at
+                FROM user_profiles u
+                LEFT JOIN groups g ON u.group_id = g.id
+                ORDER BY u.created_at DESC
+            ''')
+        else:
+            # Unit Heads: their group members + unassigned members (for the add-member picker)
+            cursor.execute('''
+                SELECT u.id, u.email, u.role, u.group_id, u.is_head,
+                       g.name as group_name, u.created_at, u.updated_at
+                FROM user_profiles u
+                LEFT JOIN groups g ON u.group_id = g.id
+                WHERE u.role = 'member'
+                  AND (u.group_id = %s OR u.group_id IS NULL)
+                ORDER BY u.group_id NULLS LAST, u.created_at DESC
+            ''', (me['group_id'],))
+
         users = cursor.fetchall()
         cursor.close(); conn.close()
 

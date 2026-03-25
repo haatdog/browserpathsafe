@@ -12,6 +12,8 @@ interface Group {
 interface UserProfile {
   id: string;
   email: string;
+  first_name?: string | null;
+  last_name?: string | null;
   role: 'admin' | 'executive' | 'member';
   group_id: number | null;
   group_name: string | null;
@@ -35,9 +37,21 @@ const GROUP_COLORS = [
   { bg: 'bg-indigo-50',  border: 'border-indigo-200', accent: 'bg-indigo-500', text: 'text-indigo-700', badge: 'bg-indigo-100 text-indigo-700' },
 ];
 
+// ── Display name helper ───────────────────────────────────────────────────────
+function getDisplayName(user: UserProfile) {
+  if (user.first_name || user.last_name) {
+    return [user.first_name, user.last_name].filter(Boolean).join(' ');
+  }
+  return user.email.split('@')[0];
+}
+
 // Initials avatar
-function Avatar({ email, size = 'md', highlight = false }: { email: string; size?: 'sm' | 'md' | 'lg'; highlight?: boolean }) {
-  const initials = email.split('@')[0].slice(0, 2).toUpperCase();
+function Avatar({ email, firstName, lastName, size = 'md', highlight = false }: { email: string; firstName?: string | null; lastName?: string | null; size?: 'sm' | 'md' | 'lg'; highlight?: boolean }) {
+  const initials = firstName && lastName
+    ? (firstName[0] + lastName[0]).toUpperCase()
+    : firstName
+    ? firstName.slice(0, 2).toUpperCase()
+    : email.split('@')[0].slice(0, 2).toUpperCase();
   const sz = size === 'lg' ? 'w-14 h-14 text-lg' : size === 'sm' ? 'w-7 h-7 text-xs' : 'w-9 h-9 text-sm';
   return (
     <div className={`${sz} rounded-full flex items-center justify-center font-bold flex-shrink-0
@@ -58,8 +72,8 @@ function RoleIcon({ role }: { role: string }) {
 
 // ── Member card ────────────────────────────────────────────────────────────────
 function MemberCard({ user, isHead, colorIdx }: { user: UserProfile; isHead: boolean; colorIdx: number }) {
-  const c = GROUP_COLORS[colorIdx % GROUP_COLORS.length];
-  const username = user.email.split('@')[0];
+  const c = GROUP_COLORS[((colorIdx % GROUP_COLORS.length) + GROUP_COLORS.length) % GROUP_COLORS.length];
+  const username = getDisplayName(user);
 
   return (
     <div className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border
@@ -70,11 +84,11 @@ function MemberCard({ user, isHead, colorIdx }: { user: UserProfile; isHead: boo
 
       {isHead && (
         <span className={`absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${c.badge} border ${c.border}`}>
-          Head
+          Unit Head
         </span>
       )}
 
-      <Avatar email={user.email} size={isHead ? 'md' : 'sm'} highlight={isHead} />
+      <Avatar email={user.email} firstName={user.first_name} lastName={user.last_name} size={isHead ? 'md' : 'sm'} highlight={isHead} />
 
       <div className="text-center min-w-0 w-full">
         <div className="font-semibold text-gray-900 text-sm truncate" title={user.email}>
@@ -94,7 +108,7 @@ function MemberCard({ user, isHead, colorIdx }: { user: UserProfile; isHead: boo
 // ── Group card ────────────────────────────────────────────────────────────────
 function GroupCard({ group, members, colorIdx }: { group: Group | null; members: UserProfile[]; colorIdx: number }) {
   const [collapsed, setCollapsed] = useState(false);
-  const c = GROUP_COLORS[colorIdx % GROUP_COLORS.length];
+  const c = GROUP_COLORS[((colorIdx % GROUP_COLORS.length) + GROUP_COLORS.length) % GROUP_COLORS.length];
 
   const head    = members.find(m => m.is_head);
   const regular = members.filter(m => !m.is_head);
@@ -193,11 +207,11 @@ function LeadershipRow({ users }: { users: UserProfile[] }) {
 
       <div className="flex flex-wrap gap-4 justify-center">
         {all.map(u => {
-          const username = u.email.split('@')[0];
+          const username = getDisplayName(u);
           const isAdmin  = u.role === 'admin';
           return (
             <div key={u.id} className="flex flex-col items-center gap-2.5 w-32 text-center">
-              <Avatar email={u.email} size="lg" highlight />
+              <Avatar email={u.email} firstName={u.first_name} lastName={u.last_name} size="lg" highlight />
               <div>
                 <div className="text-white font-semibold text-sm truncate w-full">{username}</div>
                 <div className="text-white/40 text-[11px] truncate">{u.email.split('@')[1]}</div>

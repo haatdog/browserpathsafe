@@ -1,6 +1,7 @@
 // SimulationPlayback.tsx
 import { useState, useEffect, useRef } from 'react';
 import { Play, Pause, RotateCcw, ZoomIn, ZoomOut, X } from 'lucide-react';
+import { T, C } from '../design/DesignTokens';
 
 interface SimulationPlaybackProps {
   simulation: any;
@@ -647,7 +648,7 @@ export default function SimulationPlayback({ simulation, projectData, onClose }:
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 rounded-t-2xl flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-white">Simulation Playback</h2>
+            <h2 className="text-xl font-bold text-white">Simulation Playback</h2>
             <p className="text-blue-100 text-sm mt-1">
               {simulation.project_name} • {disasterType.toUpperCase()} Drill • Floor {currentFloor + 1}
             </p>

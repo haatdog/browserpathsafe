@@ -8,6 +8,8 @@ interface SidebarProps {
     id: string;
     email: string;
     role: 'admin' | 'executive' | 'member';
+    group_id?: number | null;
+    is_head?: boolean;
   } | null;
   currentPage: Page;
   onNavigate: (page: Page) => void;
@@ -21,6 +23,7 @@ export default function Sidebar({ profile, currentPage, onNavigate, isOpen, onCl
   const isExecutive = profile?.role === 'executive';
   const isAdmin     = profile?.role === 'admin';
   const isMember    = profile?.role === 'member';
+  const isUnitHead  = !!(profile?.is_head && profile?.group_id);
 
   const NavBtn = ({ page, icon: Icon, label }: { page: Page; icon: any; label: string }) => (
     <button
@@ -75,6 +78,7 @@ export default function Sidebar({ profile, currentPage, onNavigate, isOpen, onCl
           {isExecutive && <NavBtn page="projects"    icon={FolderOpen} label="Projects"          />}
           {isExecutive && <NavBtn page="create"      icon={Plus}       label="Create Simulation" />}
           {isAdmin     && <NavBtn page="users"       icon={Users}      label="User Management"   />}
+          {isUnitHead && !isAdmin && <NavBtn page="users" icon={Users} label="My Group" />}
         </nav>
 
         {/* Footer */}

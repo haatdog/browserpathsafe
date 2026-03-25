@@ -11,6 +11,8 @@ export type DisasterType = 'fire' | 'earthquake' | 'bomb';
 export interface UserProfile {
   id: string;
   email: string;
+  first_name?: string | null;
+  last_name?: string | null;
   role: Role;
   group_id?: number | null;
   group_name?: string | null;
@@ -21,6 +23,8 @@ export interface UserProfile {
 
 export interface Simulation {
   id: number;
+  user_id?: string;
+  project_id?: number;
   status: 'pending' | 'running' | 'completed' | 'failed';
   disaster_type: DisasterType;
   config: any;

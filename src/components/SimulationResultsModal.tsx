@@ -1,253 +1,485 @@
-//SimulationResultsModal
+// UserManagement.tsx
 import { useState, useEffect } from 'react';
-import { X, Play, Clock, Users, CheckCircle, XCircle, TrendingUp, Map as MapIcon, AlertCircle } from 'lucide-react';
-import SimulationPlayback from './SimulationPlayback';
-import PathVisualization from './PathVisualization';
+import { profileAPI, authAPI } from '../lib/api';
+import { T, C } from '../design/DesignTokens';
+import {
+  Users, UserPlus, Trash2, Shield, User, Crown, Loader,
+  ChevronDown, Tag, Star, Plus, X, Pencil, Check
+} from 'lucide-react';
 
-interface SimulationResultsModalProps {
-  simulation: any;
-  onClose: () => void;
+// ── Types ────────────────────────────────────────────────────────────────────
+interface Group {
+  id: number;
+  name: string;
+  is_custom: boolean;
 }
 
-export default function SimulationResultsModal({ simulation, onClose }: SimulationResultsModalProps) {
-  const [showPlayback, setShowPlayback] = useState(false);
-  const [showPathViz, setShowPathViz] = useState(false);
+interface UserProfile {
+  id: string;
+  email: string;
+  role: 'admin' | 'executive' | 'member';
+  group_id: number | null;
+  group_name: string | null;
+  is_head: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
-  // ✅ DEBUG: Log simulation data
+// ── Default groups ────────────────────────────────────────────────────────────
+const DEFAULT_GROUPS = [
+  'First Aid Group',
+  'Site Security Group',
+  'Communication Group',
+  'Fire Safety Group',
+  'Evacuation Group',
+  'Building Safety Inspection Group',
+];
+
+// ── Role helpers ──────────────────────────────────────────────────────────────
+const getRoleIcon = (role: string) => {
+  switch (role) {
+    case 'admin':     return <Crown className="w-4 h-4 text-yellow-600" />;
+    case 'executive': return <Shield className="w-4 h-4 text-blue-600" />;
+    default:          return <User className="w-4 h-4 text-gray-500" />;
+  }
+};
+
+const getRoleBadge = (role: string) => {
+  switch (role) {
+    case 'admin':     return 'bg-yellow-100 text-yellow-800';
+    case 'executive': return 'bg-blue-100 text-blue-800';
+    default:          return 'bg-gray-100 text-gray-700';
+  }
+};
+
+// ── Main component ────────────────────────────────────────────────────────────
+export default function UserManagement() {
+  const [users, setUsers]     = useState<UserProfile[]>([]);
+  const [groups, setGroups]   = useState<Group[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState<string | null>(null);
+
+  // Create user modal
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newUser, setNewUser] = useState({
+    email: '', password: '',
+    role: 'member' as 'admin' | 'executive' | 'member',
+    group_id: '' as number | '',
+    is_head: false,
+  });
+
+  // Edit group modal (inline on user row)
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editGroup, setEditGroup]   = useState<number | ''>('');
+  const [editIsHead, setEditIsHead] = useState(false);
+
+  // Create custom group
+  const [showGroupModal, setShowGroupModal] = useState(false);
+  const [newGroupName, setNewGroupName]     = useState('');
+  const [creatingGroup, setCreatingGroup]   = useState(false);
+
   useEffect(() => {
-    console.log('📊 SimulationResultsModal mounted with data:');
-    console.log('  - simulation:', simulation);
-    console.log('  - project_data exists?', !!simulation?.project_data);
-    console.log('  - project_data:', simulation?.project_data);
-    console.log('  - results exists?', !!simulation?.results);
-    console.log('  - paths exist?', !!simulation?.results?.paths);
-    console.log('  - paths:', simulation?.results?.paths);
-    
-    if (simulation?.project_data) {
-      console.log('  - buildings count:', simulation.project_data.buildings?.length);
-      console.log('  - buildings:', simulation.project_data.buildings);
-    }
-  }, [simulation]);
+    loadAll();
+  }, []);
 
-  const stats = [
-    {
-      label: 'Simulation Time',
-      value: `${simulation.evacuation_time || '0'}s`,
-      icon: Clock,
-      color: 'text-blue-600',
-      bg: 'bg-blue-50'
-    },
-    {
-      label: 'Agents Spawned',
-      value: simulation.agents_spawned || 0,
-      icon: Users,
-      color: 'text-purple-600',
-      bg: 'bg-purple-50'
-    },
-    {
-      label: 'Successfully Evacuated',
-      value: simulation.agents_evacuated || 0,
-      icon: CheckCircle,
-      color: 'text-green-600',
-      bg: 'bg-green-50'
-    },
-    {
-      label: 'Trapped',
-      value: simulation.agents_trapped || 0,
-      icon: XCircle,
-      color: 'text-red-600',
-      bg: 'bg-red-50'
-    },
-    {
-      label: 'Evacuation Rate',
-      value: simulation.agents_spawned 
-        ? `${Math.round((simulation.agents_evacuated / simulation.agents_spawned) * 100)}%`
-        : '0%',
-      icon: TrendingUp,
-      color: 'text-emerald-600',
-      bg: 'bg-emerald-50'
+  const loadAll = async () => {
+    setLoading(true);
+    try {
+      const [usersData, groupsData] = await Promise.all([
+        fetch('http://localhost:5000/api/users', { credentials: 'include' }).then(r => r.json()),
+        fetch('http://localhost:5000/api/groups', { credentials: 'include' }).then(r => r.json()),
+      ]);
+      setUsers(Array.isArray(usersData) ? usersData : []);
+      setGroups(Array.isArray(groupsData) ? groupsData : []);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-  ];
-
-  // ✅ Check if we have required data
-  const hasProjectData = !!simulation?.project_data;
-  const hasResults = !!simulation?.results;
-  const hasPaths = !!simulation?.results?.paths;
-
-  const handleShowPlayback = () => {
-    console.log('▶️ Watch Playback clicked');
-    console.log('  - Has project_data?', hasProjectData);
-    console.log('  - Has results?', hasResults);
-    
-    if (!hasProjectData) {
-      alert('Error: Project data is missing. Cannot show playback.');
-      return;
-    }
-    
-    if (!hasResults) {
-      alert('Error: Simulation results are missing. Cannot show playback.');
-      return;
-    }
-    
-    setShowPlayback(true);
   };
 
-  const handleShowPaths = () => {
-    console.log('🗺️ View Paths clicked');
-    console.log('  - Has project_data?', hasProjectData);
-    console.log('  - Has results?', hasResults);
-    console.log('  - Has paths?', hasPaths);
-    
-    if (!hasProjectData) {
-      alert('Error: Project data is missing. Cannot show paths.');
-      console.error('Missing project_data in simulation object');
-      return;
+  // ── Create user ─────────────────────────────────────────────────────────────
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreating(true);
+    setError(null);
+    try {
+      await fetch('http://localhost:5000/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          email: newUser.email,
+          password: newUser.password,
+          role: newUser.role,
+          group_id: newUser.group_id || null,
+          is_head: newUser.is_head,
+        }),
+      });
+      setShowCreateModal(false);
+      setNewUser({ email: '', password: '', role: 'member', group_id: '', is_head: false });
+      await loadAll();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setCreating(false);
     }
-    
-    if (!hasResults || !hasPaths) {
-      alert('Error: Path data is missing. Cannot show visualization.');
-      console.error('Missing results.paths in simulation object');
-      return;
-    }
-    
-    setShowPathViz(true);
   };
 
-  if (showPlayback) {
+  // ── Delete user ─────────────────────────────────────────────────────────────
+  const handleDeleteUser = async (userId: string) => {
+    if (!confirm('Delete this user? This cannot be undone.')) return;
+    try {
+      await fetch(`http://localhost:5000/api/users/${userId}`, {
+        method: 'DELETE', credentials: 'include',
+      });
+      await loadAll();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  // ── Save group/head assignment ───────────────────────────────────────────────
+  const handleSaveAssignment = async (userId: string) => {
+    try {
+      await fetch(`http://localhost:5000/api/users/${userId}/group`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          group_id: editGroup || null,
+          is_head: editIsHead,
+        }),
+      });
+      setEditingUserId(null);
+      await loadAll();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const startEditing = (user: UserProfile) => {
+    setEditingUserId(user.id);
+    setEditGroup(user.group_id ?? '');
+    setEditIsHead(user.is_head);
+  };
+
+  // ── Create custom group ─────────────────────────────────────────────────────
+  const handleCreateGroup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newGroupName.trim()) return;
+    setCreatingGroup(true);
+    try {
+      await fetch('http://localhost:5000/api/groups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name: newGroupName.trim() }),
+      });
+      setNewGroupName('');
+      setShowGroupModal(false);
+      await loadAll();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setCreatingGroup(false);
+    }
+  };
+
+  // ── Delete custom group ─────────────────────────────────────────────────────
+  const handleDeleteGroup = async (groupId: number) => {
+    if (!confirm('Delete this group? Members in it will be unassigned.')) return;
+    try {
+      await fetch(`http://localhost:5000/api/groups/${groupId}`, {
+        method: 'DELETE', credentials: 'include',
+      });
+      await loadAll();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  if (loading) {
     return (
-      <div className="fixed inset-0 z-50 bg-black">
-        <SimulationPlayback
-          simulation={simulation}
-          projectData={simulation.project_data}
-          onClose={() => setShowPlayback(false)}
-        />
+      <div className="flex items-center justify-center p-8">
+        <Loader className="w-8 h-8 animate-spin text-blue-600" />
       </div>
     );
   }
 
   return (
-    <>
-      {/* Results Modal */}
-      <div 
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
-        onClick={onClose}
-      >
-        <div 
-          className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-auto"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Header */}
-          <div className="bg-gradient-to-r from-green-500 to-emerald-600 px-8 py-6 relative">
-            <button
-              onClick={onClose}
-              className="absolute top-4 right-4 p-2 hover:bg-white/20 rounded-lg transition text-white"
-            >
-              <X className="w-6 h-6" />
-            </button>
-            
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
-                <CheckCircle className="w-10 h-10 text-white" />
-              </div>
-              <div>
-                <h2 className="text-3xl font-bold text-white">Simulation Complete!</h2>
-                <p className="text-green-100 mt-1">
-                  {simulation.project_name || 'Unnamed Project'} • {(simulation.steps || 0).toLocaleString()} steps
-                </p>
-              </div>
-            </div>
-          </div>
+    <div className="space-y-6">
 
-          {/* Stats Grid */}
-          <div className="p-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-              {stats.map((stat, index) => (
-                <div 
-                  key={index}
-                  className={`${stat.bg} rounded-xl p-6 border-2 border-transparent hover:border-${stat.color.replace('text-', '')} transition`}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <stat.icon className={`w-8 h-8 ${stat.color}`} />
-                    <span className="text-3xl font-bold text-gray-900">
-                      {stat.value}
-                    </span>
-                  </div>
-                  <div className="text-sm font-medium text-gray-600">
-                    {stat.label}
-                  </div>
-                </div>
-              ))}
-            </div>
+      {/* ── Groups panel ──────────────────────────────────────────────────── */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="flex items-center gap-2" style={T.pageTitle}>
+            <Tag className="w-5 h-5 text-blue-600" />
+            Groups
+          </h3>
+          <button
+            onClick={() => setShowGroupModal(true)}
+            className="flex items-center gap-1.5 text-sm px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition"
+          >
+            <Plus className="w-4 h-4" />
+            New Group
+          </button>
+        </div>
 
-            {/* ✅ Data Status Warning */}
-            {(!hasProjectData || !hasResults) && (
-              <div className="mb-6 bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4 flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold text-yellow-900 mb-1">Warning: Incomplete Data</p>
-                  <p className="text-sm text-yellow-800">
-                    {!hasProjectData && '• Project data is missing. '}
-                    {!hasResults && '• Simulation results are missing. '}
-                    Some features may not be available.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="flex gap-4">
+        <div className="flex flex-wrap gap-2">
+          {groups.map(g => (
+            <div key={g.id}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border ${
+                g.is_custom
+                  ? 'bg-purple-50 text-purple-700 border-purple-200'
+                  : 'bg-blue-50 text-blue-700 border-blue-200'
+              }`}>
+              {g.name}
               <button
-                onClick={handleShowPlayback}
-                disabled={!hasProjectData || !hasResults}
-                className="flex-1 px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl font-semibold transition flex items-center justify-center gap-3 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Play className="w-5 h-5" />
-                <span>Watch Playback</span>
-              </button>
-
-              <button
-                onClick={handleShowPaths}
-                disabled={!hasProjectData || !hasPaths}
-                className="flex-1 px-6 py-4 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-xl font-semibold transition flex items-center justify-center gap-3 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <MapIcon className="w-5 h-5" />
-                <span>View Evacuation Paths</span>
+                onClick={() => handleDeleteGroup(g.id)}
+                className="ml-1 hover:text-red-600 transition"
+                title="Delete group">
+                <X className="w-3 h-3" />
               </button>
             </div>
-
-            {/* Performance Info */}
-            <div className="mt-6 bg-gray-50 rounded-xl p-6">
-              <h3 className="font-semibold text-gray-900 mb-3">Performance Summary</h3>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-gray-600">Completion Status:</span>
-                  <span className="ml-2 font-semibold text-gray-900">
-                    {(simulation.agents_trapped || 0) === 0 ? '✅ All Evacuated' : '⚠️ Some Trapped'}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-gray-600">Elapsed Time:</span>
-                  <span className="ml-2 font-semibold text-gray-900">
-                    {simulation.elapsed_s?.toFixed(2) || '0.00'}s
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
+          ))}
         </div>
       </div>
 
-      {/* ✅ Path Visualization - Only show if we have data */}
-      {showPathViz && hasProjectData && hasPaths && (
-        <PathVisualization
-          projectData={simulation.project_data}
-          simulationResults={simulation.results}
-          onClose={() => {
-            console.log('✕ Closing path visualization');
-            setShowPathViz(false);
-          }}
-        />
+      {/* ── User list ─────────────────────────────────────────────────────── */}
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <Users className="w-6 h-6 text-blue-600" />
+            <h2 style={T.pageTitle}>User Management</h2>
+          </div>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition flex items-center gap-2"
+          >
+            <UserPlus className="w-5 h-5" />
+            Create User
+          </button>
+        </div>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
+            {error}
+          </div>
+        )}
+
+        <div className="space-y-2">
+          {users.map(user => (
+            <div key={user.id}
+              className="border border-gray-200 rounded-lg p-4 hover:shadow-sm transition">
+
+              {/* Top row */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {getRoleIcon(user.role)}
+                  <div>
+                    <div className="font-medium text-gray-900">{user.email}</div>
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getRoleBadge(user.role)}`}>
+                        {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                      </span>
+                      {user.group_name && (
+                        <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200" style={T.bodyMedium}>
+                          {user.is_head && <Star className="w-3 h-3 fill-indigo-500 text-indigo-500" />}
+                          {user.is_head ? `Head — ${user.group_name}` : user.group_name}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {user.role === 'member' && (
+                    <button onClick={() => startEditing(user)}
+                      className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                      title="Assign group">
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                  )}
+                  <button onClick={() => handleDeleteUser(user.id)}
+                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                    title="Delete user">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Inline edit row */}
+              {editingUserId === user.id && (
+                <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-3 flex-wrap">
+                  <select
+                    value={editGroup}
+                    onChange={e => setEditGroup(e.target.value ? Number(e.target.value) : '')}
+                    className="flex-1 min-w-[180px] px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">— No Group —</option>
+                    {groups.map(g => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                  </select>
+
+                  <label className="flex items-center gap-2 cursor-pointer select-none" style={T.body}>
+                    <input
+                      type="checkbox"
+                      checked={editIsHead}
+                      onChange={e => setEditIsHead(e.target.checked)}
+                      className="w-4 h-4 rounded text-blue-600"
+                    />
+                    <Star className="w-4 h-4 text-indigo-500" />
+                    Assign as Head
+                  </label>
+
+                  <div className="flex gap-2 ml-auto">
+                    <button onClick={() => setEditingUserId(null)}
+                      className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                      Cancel
+                    </button>
+                    <button onClick={() => handleSaveAssignment(user.id)}
+                      className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-1">
+                      <Check className="w-4 h-4" />
+                      Save
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+
+          {users.length === 0 && (
+            <p className="text-center py-8" style={{...T.body, color: C.inkMuted}}>No users found.</p>
+          )}
+        </div>
+      </div>
+
+      {/* ── Create User Modal ─────────────────────────────────────────────── */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-2xl p-8 max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 style={T.pageTitle}>Create New User</h3>
+              <button onClick={() => setShowCreateModal(false)}
+                className="text-gray-400 hover:text-gray-600 transition">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">
+                {error}
+              </div>
+            )}
+
+            <form onSubmit={handleCreateUser} className="space-y-4">
+              <div>
+                <label className="block mb-1" style={T.bodyMedium}>Email</label>
+                <input type="email" required value={newUser.email}
+                  onChange={e => setNewUser({ ...newUser, email: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="user@example.com" />
+              </div>
+
+              <div>
+                <label className="block mb-1" style={T.bodyMedium}>Password</label>
+                <input type="password" required minLength={8} value={newUser.password}
+                  onChange={e => setNewUser({ ...newUser, password: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="••••••••" />
+              </div>
+
+              <div>
+                <label className="block mb-1" style={T.bodyMedium}>Role</label>
+                <select value={newUser.role}
+                  onChange={e => setNewUser({ ...newUser, role: e.target.value as any })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                  <option value="member">Member</option>
+                  <option value="executive">Executive</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+
+              {/* Group assignment — only for members */}
+              {newUser.role === 'member' && (
+                <>
+                  <div>
+                    <label className="block mb-1" style={T.bodyMedium}>Group (Optional)</label>
+                    <select value={newUser.group_id}
+                      onChange={e => setNewUser({ ...newUser, group_id: e.target.value ? Number(e.target.value) : '' })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                      <option value="">— No Group —</option>
+                      {groups.map(g => (
+                        <option key={g.id} value={g.id}>{g.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {newUser.group_id && (
+                    <label className="flex items-center gap-2 cursor-pointer" style={T.body}>
+                      <input type="checkbox" checked={newUser.is_head}
+                        onChange={e => setNewUser({ ...newUser, is_head: e.target.checked })}
+                        className="w-4 h-4 rounded text-blue-600" />
+                      <Star className="w-4 h-4 text-indigo-500" />
+                      Assign as Group Head
+                    </label>
+                  )}
+                </>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowCreateModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                  Cancel
+                </button>
+                <button type="submit" disabled={creating}
+                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition disabled:opacity-50 flex items-center justify-center gap-2">
+                  {creating ? <><Loader className="w-4 h-4 animate-spin" />Creating...</> : 'Create User'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
-    </>
+
+      {/* ── Create Group Modal ────────────────────────────────────────────── */}
+      {showGroupModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full">
+            <div className="flex items-center justify-between mb-4">
+              <h3 style={T.pageTitle}>Create Custom Group</h3>
+              <button onClick={() => setShowGroupModal(false)}
+                className="text-gray-400 hover:text-gray-600 transition">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateGroup} className="space-y-4">
+              <div>
+                <label className="block mb-1" style={T.bodyMedium}>Group Name</label>
+                <input type="text" required value={newGroupName}
+                  onChange={e => setNewGroupName(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="e.g. Medical Response Team" />
+              </div>
+
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setShowGroupModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                  Cancel
+                </button>
+                <button type="submit" disabled={creatingGroup}
+                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition disabled:opacity-50">
+                  {creatingGroup ? 'Creating...' : 'Create'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

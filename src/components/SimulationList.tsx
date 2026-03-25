@@ -1,35 +1,18 @@
 // SimulationList.tsx
 import { useState, useEffect } from 'react';
-import { pythonSimulationAPI, projectAPI } from '../lib/api';
+import { simulationAPI, projectAPI } from '../lib/api';
+import type { Simulation } from '../lib/api';
 import SimulationPlayback from './SimulationPlayback';
 import PathVisualization from './PathVisualization';
 import { Clock, CheckCircle, XCircle, Loader, Eye, Trash2, Route } from 'lucide-react';
+import { T, C } from '../design/DesignTokens';
 
 const API_BASE =
   (import.meta.env.VITE_API_URL as string) ??
   (import.meta.env.VITE_PYTHON_API_URL as string) ??
   `${location.protocol}//${location.hostname}:5000`;
 
-interface Simulation {
-  id: string;
-  user_id?: string;
-  status: 'running' | 'completed' | 'failed';
-  project_id?: number;
-  project_name?: string;
-  config?: {
-    grid_size?: [number, number];
-    num_evacuees?: number;
-    num_responders?: number;
-    disaster_type?: string;
-  };
-  results?: any;
-  created_at: string;
-  completed_at?: string | null;
-  elapsed_s?: number;
-  agents_spawned?: number;
-  agents_evacuated?: number;
-  agents_trapped?: number;
-}
+
 
 const disasterEmoji: Record<string, string> = { fire: '🔥', earthquake: '🌍', bomb: '💣' };
 
@@ -37,7 +20,7 @@ export default function SimulationList() {
   const [simulations,       setSimulations]       = useState<Simulation[]>([]);
   const [loading,           setLoading]           = useState(true);
   const [error,             setError]             = useState<string | null>(null);
-  const [deletingId,        setDeletingId]        = useState<string | null>(null);
+  const [deletingId,        setDeletingId]        = useState<number | null>(null);
   const [loadingPlayback,   setLoadingPlayback]   = useState<string | null>(null); // sim id
 
   // Playback
@@ -56,7 +39,7 @@ export default function SimulationList() {
 
   const loadSimulations = async () => {
     try {
-      const data = await pythonSimulationAPI.getAll();
+      const data = await simulationAPI.getAll();
       setSimulations(data || []);
       setError(null);
     } catch (err: any) {
@@ -145,8 +128,8 @@ export default function SimulationList() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Simulations</h2>
-          <p className="text-gray-500 text-sm mt-0.5">{simulations.length} simulation{simulations.length!==1?'s':''} saved</p>
+          <h2 style={T.pageTitle}>Simulations</h2>
+          <p className="mt-0.5" style={{...T.body, color: C.inkMuted}}>{simulations.length} simulation{simulations.length!==1?'s':''} saved</p>
         </div>
         <button onClick={loadSimulations}
           className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition flex items-center gap-1.5">
@@ -161,8 +144,8 @@ export default function SimulationList() {
       {simulations.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 text-center py-16">
           <Clock className="w-16 h-16 text-gray-300 mx-auto mb-4"/>
-          <p className="text-gray-600 font-medium">No simulations yet</p>
-          <p className="text-gray-400 text-sm mt-1">Run a simulation from the Projects page to get started.</p>
+          <p style={T.bodyMedium}>No simulations yet</p>
+          <p className="mt-1" style={T.body}>Run a simulation from the Projects page to get started.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -185,11 +168,11 @@ export default function SimulationList() {
                       <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusBadge(sim.status)}`}>
                         {sim.status.charAt(0).toUpperCase()+sim.status.slice(1)}
                       </span>
-                      <span className="text-base font-semibold text-gray-700">
+                      <span style={T.sectionHeader}>
                         {disasterEmoji[dtype]} {dtype.charAt(0).toUpperCase()+dtype.slice(1)} Drill
                       </span>
                       {sim.project_name && (
-                        <span className="text-xs text-gray-400 truncate">· {sim.project_name}</span>
+                        <span className="truncate" style={T.meta}>· {sim.project_name}</span>
                       )}
                     </div>
 

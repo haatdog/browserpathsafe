@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 
 import type { Point, MapObject, ObjectType, ToolType, MapEditorProps } from './MapEditorTypes';
+import { T, C } from '../design/DesignTokens'; // available for any future light-mode panels
 import type { MapProjectSummary } from '../lib/api';
 import {
   drawGrid, drawObject, drawRulers, drawEraserPreview,
@@ -1278,7 +1279,7 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
       {showSetupDialog && (
         <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto">
           <div className="bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 p-8 max-w-xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-2xl font-bold text-white mb-1" style={{ fontFamily: 'inherit' }}>Floor Plan Editor</h2>
+            <h2 className="text-xl font-bold text-white mb-1" style={{ fontFamily: 'inherit' }}>Floor Plan Editor</h2>
             <p className="text-slate-400 text-sm mb-6">Configure your canvas or load an existing project.</p>
 
             <div className="grid grid-cols-2 gap-3 mb-6">
@@ -1344,7 +1345,7 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
           <div className="bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 p-6 w-full max-w-sm mx-4"
             onClick={(e: React.MouseEvent) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-bold text-white">Save Project</h3>
+              <h3 className="text-xl font-bold text-white">Save Project</h3>
               <button onClick={() => setShowSaveMenu(false)} className="text-slate-500 hover:text-white"><X size={20} /></button>
             </div>
             <div className="space-y-3 mb-5">
@@ -1378,7 +1379,7 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
           <div className="bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 p-6 w-full max-w-xl mx-4 max-h-[80vh] overflow-auto"
             onClick={(e: React.MouseEvent) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-bold text-white">Load Project</h3>
+              <h3 className="text-xl font-bold text-white">Load Project</h3>
               <button onClick={() => setShowLoadMenu(false)} className="text-slate-500 hover:text-white"><X size={20} /></button>
             </div>
             <div className="grid grid-cols-2 gap-3 mb-5">

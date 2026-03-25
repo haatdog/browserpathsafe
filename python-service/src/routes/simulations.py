@@ -212,6 +212,11 @@ def cancel_simulation(job_id):
 def get_simulations():
     if request.method == "OPTIONS":
         return '', 200
+
+    auth_err = require_auth()
+    if auth_err:
+        return auth_err
+
     try:
         project_id = request.args.get('project_id')
         limit      = int(request.args.get('limit', 100))
@@ -237,10 +242,13 @@ def get_simulations():
         result = []
         for sim in simulations:
             d = dict(sim)
-            if d.get('created_at'):   d['created_at']   = d['created_at'].isoformat()
-            if d.get('completed_at'): d['completed_at'] = d['completed_at'].isoformat()
-            if d.get('elapsed_s'):    d['elapsed_s']    = float(d['elapsed_s'])
+            if d.get('created_at'):      d['created_at']      = d['created_at'].isoformat()
+            if d.get('completed_at'):    d['completed_at']    = d['completed_at'].isoformat()
+            if d.get('elapsed_s'):       d['elapsed_s']       = float(d['elapsed_s'])
             if d.get('evacuation_time'): d['evacuation_time'] = float(d['evacuation_time'])
+            # Parse JSON columns so frontend receives objects, not strings
+            if isinstance(d.get('config'),  str): d['config']  = json.loads(d['config'])
+            if isinstance(d.get('results'), str): d['results'] = json.loads(d['results'])
             result.append(d)
         return jsonify(result)
 
@@ -253,6 +261,11 @@ def get_simulations():
 def get_simulation(sim_id):
     if request.method == "OPTIONS":
         return '', 200
+
+    auth_err = require_auth()
+    if auth_err:
+        return auth_err
+
     try:
         conn   = get_db()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
@@ -272,6 +285,10 @@ def get_simulation(sim_id):
         if d.get('completed_at'):    d['completed_at']    = d['completed_at'].isoformat()
         if d.get('elapsed_s'):       d['elapsed_s']       = float(d['elapsed_s'])
         if d.get('evacuation_time'): d['evacuation_time'] = float(d['evacuation_time'])
+        # Parse JSON columns
+        if isinstance(d.get('config'),       str): d['config']       = json.loads(d['config'])
+        if isinstance(d.get('results'),      str): d['results']      = json.loads(d['results'])
+        if isinstance(d.get('project_data'), str): d['project_data'] = json.loads(d['project_data'])
         return jsonify(d)
 
     except Exception as e:
@@ -282,6 +299,11 @@ def get_simulation(sim_id):
 def delete_simulation(sim_id):
     if request.method == "OPTIONS":
         return '', 200
+
+    auth_err = require_auth()
+    if auth_err:
+        return auth_err
+
     try:
         conn   = get_db()
         cursor = conn.cursor()

@@ -350,10 +350,6 @@ class Simulation:
 
         return grid, cost_grid, walkable_cells
 
-        blocked = sum(grid[y][x] for y in range(self.grid_height) for x in range(self.grid_width))
-        total   = self.grid_width * self.grid_height
-        print(f"  🗺️  Grid built: {blocked}/{total} cells blocked ({100*blocked/total:.1f}%)")
-
     def load_environment_from_file(self, path="environment.json"):
         try:
             with open(path, "r") as f:
@@ -552,13 +548,7 @@ class Simulation:
             for o in layer
         )
 
-        # ── Path cache: (start_cell, goal_cell, bidx, fidx) → smoothed path ──
-        _path_cache: dict = {}
-
-        # ONE best path per (zone_centre, goal) — shared by all agents from that zone.
-        # path_walkable tiles are strongly preferred via cost_grid (-0.5 modifier).
-        # PathVisualization shows this optimal route.
-        # Agents follow it but spread laterally so they don't stack on each other.
+        # Path cache and opening cache — computed once, shared by all agents
         _path_cache:    dict = {}   # (sx, sy, gx, gy, bidx, fidx) → smoothed path
         _opening_cache: dict = {}   # (bidx, fidx) → list of opening cells (computed once)
         _exit_cache:    dict = {}   # (zone_id, bidx, fidx) → nearest exit object
