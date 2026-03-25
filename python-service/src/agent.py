@@ -53,7 +53,7 @@ class PersonAgent:
         self.path             = None
         self.path_index       = 0
         self.evacuated        = False
-        self.radius           = 4
+        self.radius           = 2   # smaller radius = cleaner doorway passage
 
         # Social-force parameters
         self.goal_strength  = 1.2
@@ -68,7 +68,7 @@ class PersonAgent:
         # Stuck detection
         self._stuck_steps   = 0
         self._last_pos      = tuple(pos)
-        self._STUCK_LIMIT   = 60   # steps before re-pathing
+        self._STUCK_LIMIT   = 80   # steps before re-pathing
 
     # ── Target selection ──────────────────────────────────────────────────────
 
@@ -154,11 +154,12 @@ class PersonAgent:
         return None
 
     def set_random_exit_point(self, exit_obj):
-        """Pick a random point inside the exit rectangle."""
+        """Pick a random point inside the exit rectangle with a small edge margin."""
         if exit_obj:
+            margin = max(2, min(exit_obj.w, exit_obj.h) * 0.15)
             self.exit_target_point = (
-                random.uniform(exit_obj.x, exit_obj.x + exit_obj.w),
-                random.uniform(exit_obj.y, exit_obj.y + exit_obj.h)
+                random.uniform(exit_obj.x + margin, exit_obj.x + exit_obj.w - margin),
+                random.uniform(exit_obj.y + margin, exit_obj.y + exit_obj.h - margin)
             )
 
     # ── Step ──────────────────────────────────────────────────────────────────
@@ -215,14 +216,23 @@ class PersonAgent:
                 return
 
         # ── FIRE / BOMB: reach exit and disappear ────────────────────────────
-        if self.target and self.exit_target_point:
-            tx, ty = self.exit_target_point
-            if math.hypot(tx - self.pos[0], ty - self.pos[1]) < 10:
+        if self.target and self.target.type == 'exit':
+            # Evacuate as soon as agent enters the exit rectangle — no precise point needed
+            if (self.target.x <= self.pos[0] <= self.target.x + self.target.w and
+                    self.target.y <= self.pos[1] <= self.target.y + self.target.h):
                 self.evacuated      = True
                 self.time_evacuated = self.model.time
                 if hasattr(self.target, 'id'):
                     self.exit_used = self.target.id
-                print(f"🚪 Agent {self.id} evacuated via {self.target.type}")
+                return
+        elif self.target and self.exit_target_point:
+            # Fallback for non-exit targets with a specific point
+            tx, ty = self.exit_target_point
+            if math.hypot(tx - self.pos[0], ty - self.pos[1]) < 12:
+                self.evacuated      = True
+                self.time_evacuated = self.model.time
+                if hasattr(self.target, 'id'):
+                    self.exit_used = self.target.id
                 return
 
         # Check if agent reached a staircase (needs floor transport)
@@ -286,7 +296,7 @@ class PersonAgent:
         wx, wy = self.path[self.path_index]
         dist   = math.hypot(wx - self.pos[0], wy - self.pos[1])
 
-        if dist < 5:
+        if dist < 8:
             self.path_index += 1
             if self.path_index >= len(self.path) and self.exit_target_point:
                 self._move_toward(self.exit_target_point)
@@ -339,16 +349,25 @@ class PersonAgent:
             if blocked(lead_x, lead_y) or blocked(self.pos[0], self.pos[1]):
                 self.pos[0] = old_x
                 self.pos[1] = old_y
+                moved_x = False
+                moved_y = False
                 # Try sliding X only
                 test_x = old_x + self.vel[0]
                 lead_x2 = test_x + (self.vel[0] / vel_len * r if vel_len > 0 else 0)
                 if not (blocked(lead_x2, old_y) or blocked(test_x, old_y)):
                     self.pos[0] = test_x
+                    moved_x = True
                 # Try sliding Y only
                 test_y = old_y + self.vel[1]
                 lead_y2 = old_y + (self.vel[1] / vel_len * r if vel_len > 0 else 0)
                 if not (blocked(old_x, test_y) or blocked(old_x, lead_y2)):
                     self.pos[1] = test_y
+                    moved_y = True
+                # Fully blocked — kill velocity so agent doesn't keep hammering the wall
+                if not moved_x:
+                    self.vel[0] *= -0.1
+                if not moved_y:
+                    self.vel[1] *= -0.1
 
         moved = math.hypot(self.pos[0] - old_x, self.pos[1] - old_y)
         self.distance_traveled += moved

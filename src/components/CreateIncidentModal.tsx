@@ -286,7 +286,7 @@ export default function CreateIncidentModal({ onClose, onSuccess }: {
 
           {/* Date of Report */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Date of Report *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Date of Report *</label>
             <input type="date" required value={reportDate}
               max={new Date().toISOString().slice(0, 10)}
               onChange={e => setReportDate(e.target.value)}

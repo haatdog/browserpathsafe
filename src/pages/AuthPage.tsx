@@ -26,8 +26,8 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
           </div>
 
           <p className="text-center text-gray-600 mb-8">
-          WEB-BASED DISASTER RISK REDUCTION AND MANAGEMENT SYSTEM WITH PATHFINDING AND ROUTE OPTIMIZATION USING A-STAR SEARCH ALGORITHM
-          </p>
+          WEB-BASED DISASTER RISK REDUCTION AND MANAGEMENT SYSTEM
+                    </p>
 
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">

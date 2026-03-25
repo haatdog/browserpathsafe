@@ -500,6 +500,27 @@ export const drawObject = (
     ctx.lineWidth = Math.max(1.5, 2 * zoom);
     ctx.strokeRect(sp.x, sp.y, sw, sh);
   }
+  // ── PATH WALKABLE ────────────────────────────────────────────────────────────
+  else if (obj.type === 'path_walkable') {
+    // Solid green fill — no transparency so tiles don't stack visually
+    ctx.fillStyle = isPreview ? 'rgba(34,197,94,0.5)' : '#4ade80';
+    ctx.fillRect(sp.x, sp.y, sw, sh);
+    // Thin dark border to show cell edges
+    ctx.strokeStyle = '#16a34a';
+    ctx.lineWidth = Math.max(0.5, zoom * 0.8);
+    ctx.strokeRect(sp.x, sp.y, sw, sh);
+  }
+
+  // ── PATH DANGEROUS ────────────────────────────────────────────────────────────
+  else if (obj.type === 'path_danger') {
+    // Solid red fill
+    ctx.fillStyle = isPreview ? 'rgba(248,113,113,0.5)' : '#f87171';
+    ctx.fillRect(sp.x, sp.y, sw, sh);
+    // Dark border
+    ctx.strokeStyle = '#b91c1c';
+    ctx.lineWidth = Math.max(0.5, zoom * 0.8);
+    ctx.strokeRect(sp.x, sp.y, sw, sh);
+  }
 };
 
 // ── Eraser preview ────────────────────────────────────────────────────────────

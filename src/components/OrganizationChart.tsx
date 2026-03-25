@@ -1,6 +1,7 @@
 // OrganizationChart.tsx
 import { useState, useEffect } from 'react';
 import { Loader, Users, Star, Shield, Crown, User, ChevronDown, ChevronUp } from 'lucide-react';
+import { T, C } from '../design/DesignTokens';
 
 interface Group {
   id: number;
@@ -120,7 +121,7 @@ function GroupCard({ group, members, colorIdx }: { group: Group | null; members:
             {members.length} member{members.length !== 1 ? 's' : ''}
           </span>
           {group?.is_custom && (
-            <span className="text-[10px] px-1.5 py-0.5 bg-purple-100 text-purple-600 rounded font-medium">
+            <span className="text-[10px] px-1.5 py-0.5 bg-purple-100 text-purple-600 rounded" style={T.bodyMedium}>
               Custom
             </span>
           )}
@@ -167,7 +168,7 @@ function GroupCard({ group, members, colorIdx }: { group: Group | null; members:
           )}
 
           {members.length === 0 && (
-            <p className="text-center text-sm text-gray-400 py-4">No members assigned</p>
+            <p className="text-center py-4" style={T.body}>No members assigned</p>
           )}
         </div>
       )}
@@ -186,8 +187,8 @@ function LeadershipRow({ users }: { users: UserProfile[] }) {
     <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-6 shadow-xl mb-8">
       <div className="flex items-center gap-2 mb-5">
         <Crown className="w-5 h-5 text-amber-400" />
-        <h3 className="text-white font-bold text-lg">Leadership</h3>
-        <span className="text-xs px-2 py-0.5 bg-white/10 text-white/70 rounded-full ml-1">{all.length} people</span>
+        <h3 className="text-white" style={T.pageTitle}>Leadership</h3>
+        <span className="px-2 py-0.5 bg-white/10 text-white/70 rounded-full ml-1" style={T.meta}>{all.length} people</span>
       </div>
 
       <div className="flex flex-wrap gap-4 justify-center">
@@ -232,7 +233,7 @@ function StatsBar({ users, groups }: { users: UserProfile[]; groups: Group[] }) 
       ].map(s => (
         <div key={s.label} className="bg-white rounded-xl border border-gray-200 px-5 py-4 shadow-sm">
           <div className={`text-3xl font-black ${s.color}`}>{s.value}</div>
-          <div className="text-sm font-semibold text-gray-700 mt-0.5">{s.label}</div>
+          <div className="mt-0.5" style={T.sectionHeader}>{s.label}</div>
           <div className="text-xs text-gray-400">{s.sub}</div>
         </div>
       ))}
@@ -250,12 +251,11 @@ export default function OrganizationChart() {
   useEffect(() => {
     (async () => {
       try {
-        const [u, g] = await Promise.all([
-          fetch(`${API_BASE}/api/users`,  { credentials: 'include' }).then(r => r.json()),
-          fetch(`${API_BASE}/api/groups`, { credentials: 'include' }).then(r => r.json()),
-        ]);
-        setUsers(Array.isArray(u) ? u : []);
-        setGroups(Array.isArray(g) ? g : []);
+        const res  = await fetch(`${API_BASE}/api/organization`, { credentials: 'include' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load organization');
+        setUsers(Array.isArray(data.users)  ? data.users  : []);
+        setGroups(Array.isArray(data.groups) ? data.groups : []);
       } catch (e: any) {
         setError(e.message);
       } finally {
@@ -297,8 +297,8 @@ export default function OrganizationChart() {
 
       {/* Page header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-black text-gray-900 tracking-tight">Organization Chart</h1>
-        <p className="text-gray-500 mt-1">Members organized by group and role</p>
+        <h1 style={T.pageTitle}>Organization Chart</h1>
+        <p className="mt-1" style={{...T.body, color: C.inkMuted}}>Members organized by group and role</p>
       </div>
 
       <StatsBar users={users} groups={groups} />
@@ -310,7 +310,7 @@ export default function OrganizationChart() {
         <div className="space-y-5">
           <div className="flex items-center gap-2 mb-3">
             <Users className="w-5 h-5 text-gray-500" />
-            <h2 className="text-lg font-bold text-gray-700">Groups</h2>
+            <h2 style={T.sectionHeader}>Groups</h2>
           </div>
           {activeGroups.map((g, i) => (
             <GroupCard
@@ -324,8 +324,8 @@ export default function OrganizationChart() {
       ) : (
         <div className="text-center py-12 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
           <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500 font-medium">No groups have members yet</p>
-          <p className="text-gray-400 text-sm mt-1">Assign members to groups in User Management</p>
+          <p style={T.bodyMedium}>No groups have members yet</p>
+          <p className="mt-1" style={T.body}>Assign members to groups in User Management</p>
         </div>
       )}
 

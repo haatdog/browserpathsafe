@@ -1,32 +1,24 @@
 // MapEditorTypes.ts - Shared Type Definitions for Map Editor
 
-// ==================== BASIC TYPES ====================
-
-export interface Point {
-  x: number;
-  y: number;
-}
-
-// ==================== TOOL vs OBJECT TYPES ====================
+export interface Point { x: number; y: number; }
 
 // ObjectType = things that get saved to the project
 export type ObjectType =
-  | 'wall'            // legacy — kept for backward compat with saved maps
+  | 'wall'
   | 'exit'
-  | 'concrete_stairs'   // Usable in both fire & earthquake
-  | 'fire_ladder'       // Usable in fire only — NOT earthquake
+  | 'concrete_stairs'
+  | 'fire_ladder'
   | 'npc'
   | 'line'
   | 'safezone'
   | 'gate'
   | 'fence'
-  | 'npc_count';  // sequential spawner — spawns agents one by one
+  | 'npc_count'
+  | 'path_walkable'   // brush-painted walkable path
+  | 'path_danger';    // brush-painted dangerous/hazard path
 
-// ToolType = everything the user can select in the toolbar (includes non-object tools)
-// 'room' is a tool-only concept — it decomposes into 4 line segments when drawn
+// ToolType = everything the user can select in the toolbar
 export type ToolType = ObjectType | 'room' | 'eraser';
-
-// ==================== MAP OBJECT ====================
 
 export interface MapObject {
   type: ObjectType;
@@ -43,16 +35,15 @@ export interface MapObject {
 
   // NPC / NPC_COUNT
   speed?: number;
-  agent_count?: number;   // npc_count: how many agents to spawn
-  spawn_interval?: number; // npc_count: steps between each spawn (default 30)
+  agent_count?: number;
+  spawn_interval?: number;
 
   // Stairs
   connects_to?: string;
-  stair_type?: 'concrete' | 'fire_ladder'; // mirrors the object type
+  stair_type?: 'concrete' | 'fire_ladder';
 
-  // Wall-line (room side)
-  is_room_wall?: boolean;  // true = drawn by room tool, acts as obstacle
-  // Legacy wall fields (kept for backward compat)
+  // Wall-line
+  is_room_wall?: boolean;
   material?: string;
   durability?: number;
   border_thickness?: number;
@@ -70,18 +61,14 @@ export interface MapObject {
 
   // Gate
   is_open?: boolean;
-}
 
-// ==================== BUILDING TYPES ====================
+}
 
 export type BuildingShape = 'rect' | 'polygon';
 
 export interface BuildingOutline {
   shape: BuildingShape;
-  x?: number;
-  y?: number;
-  w?: number;
-  h?: number;
+  x?: number; y?: number; w?: number; h?: number;
   points?: Point[];
 }
 
@@ -90,8 +77,6 @@ export interface Building {
   outline: BuildingOutline;
   layers: MapObject[][];
 }
-
-// ==================== PROJECT TYPES ====================
 
 export interface ProjectData {
   version: string;
@@ -115,12 +100,8 @@ export interface SavedProject {
   updated_at: string;
 }
 
-// ==================== EDITOR MODES ====================
-
 export type EditorMode = 'canvas' | 'building';
 export type CanvasTool = 'square' | 'polygon';
-
-// ==================== COMPONENT PROPS ====================
 
 export interface MapEditorProps {
   initialProjectId?: number | null;

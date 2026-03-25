@@ -1,15 +1,21 @@
-//SimulationList
+// SimulationList.tsx
 import { useState, useEffect } from 'react';
-import { pythonSimulationAPI } from '../lib/api';
-import { projectAPI } from '../lib/api';
+import { pythonSimulationAPI, projectAPI } from '../lib/api';
 import SimulationPlayback from './SimulationPlayback';
-import { Clock, CheckCircle, XCircle, Loader, Eye, Trash2 } from 'lucide-react';
+import PathVisualization from './PathVisualization';
+import { Clock, CheckCircle, XCircle, Loader, Eye, Trash2, Route } from 'lucide-react';
+
+const API_BASE =
+  (import.meta.env.VITE_API_URL as string) ??
+  (import.meta.env.VITE_PYTHON_API_URL as string) ??
+  `${location.protocol}//${location.hostname}:5000`;
 
 interface Simulation {
   id: string;
   user_id?: string;
   status: 'running' | 'completed' | 'failed';
-  project_id?: number; // ✅ Added for playback
+  project_id?: number;
+  project_name?: string;
   config?: {
     grid_size?: [number, number];
     num_evacuees?: number;
@@ -19,23 +25,33 @@ interface Simulation {
   results?: any;
   created_at: string;
   completed_at?: string | null;
+  elapsed_s?: number;
+  agents_spawned?: number;
+  agents_evacuated?: number;
+  agents_trapped?: number;
 }
 
+const disasterEmoji: Record<string, string> = { fire: '🔥', earthquake: '🌍', bomb: '💣' };
+
 export default function SimulationList() {
-  const [simulations, setSimulations] = useState<Simulation[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedSim, setSelectedSim] = useState<Simulation | null>(null);
-  
-  // ✅ NEW: Playback states
-  const [playbackSimulation, setPlaybackSimulation] = useState<any | null>(null);
-  const [playbackProjectData, setPlaybackProjectData] = useState<any | null>(null);
-  const [loadingPlayback, setLoadingPlayback] = useState(false);
+  const [simulations,       setSimulations]       = useState<Simulation[]>([]);
+  const [loading,           setLoading]           = useState(true);
+  const [error,             setError]             = useState<string | null>(null);
+  const [deletingId,        setDeletingId]        = useState<string | null>(null);
+  const [loadingPlayback,   setLoadingPlayback]   = useState<string | null>(null); // sim id
+
+  // Playback
+  const [playbackSim,       setPlaybackSim]       = useState<any | null>(null);
+  const [playbackProject,   setPlaybackProject]   = useState<any | null>(null);
+
+  // Path visualization
+  const [pathSim,           setPathSim]           = useState<any | null>(null);
+  const [pathProject,       setPathProject]       = useState<any | null>(null);
 
   useEffect(() => {
     loadSimulations();
-    const interval = setInterval(loadSimulations, 5000);
-    return () => clearInterval(interval);
+    const iv = setInterval(loadSimulations, 10000);
+    return () => clearInterval(iv);
   }, []);
 
   const loadSimulations = async () => {
@@ -44,236 +60,210 @@ export default function SimulationList() {
       setSimulations(data || []);
       setError(null);
     } catch (err: any) {
-      console.error('Error loading simulations:', err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ NEW: Load project data and start playback
-  const handleViewPlayback = async (sim: any) => {
-    if (!sim.project_id) {
-      alert('No project data available for this simulation');
-      return;
-    }
-
-    setLoadingPlayback(true);
+  // ── Load project + open playback ─────────────────────────────────────────
+  const handlePlayback = async (sim: Simulation) => {
+    if (!sim.project_id) { alert('No project linked to this simulation.'); return; }
+    setLoadingPlayback(sim.id + '_play');
     try {
-      // Load full project data
-      const projectData = await projectAPI.getOne(sim.project_id);
-      
-      setPlaybackSimulation(sim);
-      setPlaybackProjectData(projectData.project_data);
-    } catch (error) {
-      console.error('Error loading project data:', error);
-      alert('Failed to load project data for playback');
-    } finally {
-      setLoadingPlayback(false);
-    }
+      const proj = await projectAPI.getOne(sim.project_id);
+      // Merge top-level results fields if nested
+      const merged = {
+        ...sim,
+        results: {
+          ...(sim.results || {}),
+          paths: sim.results?.paths || {},
+          disaster_type: sim.config?.disaster_type || sim.results?.disaster_type || 'fire',
+        },
+        project_name: sim.project_name || proj.name,
+      };
+      setPlaybackSim(merged);
+      setPlaybackProject(proj.project_data);
+    } catch { alert('Failed to load project data.'); }
+    finally { setLoadingPlayback(null); }
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'running':
-        return <Loader className="w-5 h-5 text-blue-600 animate-spin" />;
-      case 'completed':
-        return <CheckCircle className="w-5 h-5 text-green-600" />;
-      case 'failed':
-        return <XCircle className="w-5 h-5 text-red-600" />;
-      default:
-        return <Clock className="w-5 h-5 text-gray-600" />;
-    }
+  // ── Load project + open path visualization ───────────────────────────────
+  const handleViewPaths = async (sim: Simulation) => {
+    if (!sim.project_id) { alert('No project linked to this simulation.'); return; }
+    setLoadingPlayback(sim.id + '_path');
+    try {
+      const proj = await projectAPI.getOne(sim.project_id);
+      setPathSim(sim.results || sim);
+      setPathProject(proj.project_data);
+    } catch { alert('Failed to load project data.'); }
+    finally { setLoadingPlayback(null); }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'running':
-        return 'bg-blue-100 text-blue-800';
-      case 'completed':
-        return 'bg-green-100 text-green-800';
-      case 'failed':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
+  // ── Delete ───────────────────────────────────────────────────────────────
+  const handleDelete = async (sim: Simulation) => {
+    if (!confirm(`Delete simulation from ${new Date(sim.created_at).toLocaleString()}?\nThis cannot be undone.`)) return;
+    setDeletingId(sim.id);
+    try {
+      const res = await fetch(`${API_BASE}/api/simulations/${sim.id}`, {
+        method: 'DELETE', credentials: 'include',
+      });
+      if (res.ok) setSimulations(prev => prev.filter(s => s.id !== sim.id));
+      else alert('Failed to delete simulation.');
+    } catch { alert('Network error.'); }
+    finally { setDeletingId(null); }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <Loader className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    );
-  }
+  // ── Helpers ──────────────────────────────────────────────────────────────
+  const statusIcon = (s: string) => {
+    if (s==='running')   return <Loader className="w-4 h-4 text-blue-500 animate-spin"/>;
+    if (s==='completed') return <CheckCircle className="w-4 h-4 text-green-500"/>;
+    if (s==='failed')    return <XCircle className="w-4 h-4 text-red-500"/>;
+    return <Clock className="w-4 h-4 text-gray-400"/>;
+  };
+
+  const statusBadge = (s: string) => {
+    if (s==='running')   return 'bg-blue-100 text-blue-700';
+    if (s==='completed') return 'bg-green-100 text-green-700';
+    if (s==='failed')    return 'bg-red-100 text-red-700';
+    return 'bg-gray-100 text-gray-600';
+  };
+
+  const fmtTime = (s: string) => new Date(s).toLocaleString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+
+  if (loading) return (
+    <div className="flex items-center justify-center p-12">
+      <Loader className="w-8 h-8 animate-spin text-blue-600"/>
+    </div>
+  );
 
   return (
-    <div className="bg-white rounded-xl shadow-lg p-8">
-      <h2 className="text-2xl font-bold text-gray-900 mb-6">Simulations</h2>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Simulations</h2>
+          <p className="text-gray-500 text-sm mt-0.5">{simulations.length} simulation{simulations.length!==1?'s':''} saved</p>
+        </div>
+        <button onClick={loadSimulations}
+          className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition flex items-center gap-1.5">
+          <Loader className="w-3.5 h-3.5"/> Refresh
+        </button>
+      </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
-          {error}
-        </div>
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>
       )}
 
       {simulations.length === 0 ? (
-        <div className="text-center py-12">
-          <div className="mb-4">
-            <Clock className="w-16 h-16 text-gray-400 mx-auto" />
-          </div>
-          <p className="text-gray-600 text-lg mb-2">No simulations yet</p>
-          <p className="text-gray-500 text-sm">
-            Create your first simulation to get started.
-          </p>
+        <div className="bg-white rounded-xl border border-gray-200 text-center py-16">
+          <Clock className="w-16 h-16 text-gray-300 mx-auto mb-4"/>
+          <p className="text-gray-600 font-medium">No simulations yet</p>
+          <p className="text-gray-400 text-sm mt-1">Run a simulation from the Projects page to get started.</p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {simulations.map((sim) => (
-            <div
-              key={sim.id}
-              className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    {getStatusIcon(sim.status)}
-                    <span
-                      className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(
-                        sim.status
-                      )}`}
-                    >
-                      {sim.status.charAt(0).toUpperCase() + sim.status.slice(1)}
-                    </span>
-                  </div>
+        <div className="space-y-3">
+          {simulations.map(sim => {
+            const dtype  = sim.config?.disaster_type || sim.results?.disaster_type || 'fire';
 
-                  {sim.config && (
-                    <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 mt-3">
-                      {sim.config.grid_size && (
-                        <div>
-                          <span className="font-medium">Grid:</span>{' '}
-                          {sim.config.grid_size[0]} × {sim.config.grid_size[1]}
-                        </div>
-                      )}
-                      {sim.config.num_evacuees && (
-                        <div>
-                          <span className="font-medium">Evacuees:</span>{' '}
-                          {sim.config.num_evacuees}
-                        </div>
-                      )}
-                      {sim.config.num_responders && (
-                        <div>
-                          <span className="font-medium">Responders:</span>{' '}
-                          {sim.config.num_responders}
-                        </div>
-                      )}
-                      {sim.config.disaster_type && (
-                        <div>
-                          <span className="font-medium">Type:</span>{' '}
-                          {sim.config.disaster_type}
-                        </div>
+            const isLoadingPlay = loadingPlayback === sim.id + '_play';
+            const isLoadingPath = loadingPlayback === sim.id + '_path';
+            const isDeleting    = deletingId === sim.id;
+
+            return (
+              <div key={sim.id} className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition">
+                <div className="flex items-start justify-between gap-4">
+
+                  {/* Left: info */}
+                  <div className="flex-1 min-w-0 space-y-3">
+                    {/* Title row */}
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      {statusIcon(sim.status)}
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusBadge(sim.status)}`}>
+                        {sim.status.charAt(0).toUpperCase()+sim.status.slice(1)}
+                      </span>
+                      <span className="text-base font-semibold text-gray-700">
+                        {disasterEmoji[dtype]} {dtype.charAt(0).toUpperCase()+dtype.slice(1)} Drill
+                      </span>
+                      {sim.project_name && (
+                        <span className="text-xs text-gray-400 truncate">· {sim.project_name}</span>
                       )}
                     </div>
-                  )}
 
-                  {sim.status === 'completed' && sim.results && (
-                    <div className="mt-4 pt-4 border-t border-gray-200">
-                      <h4 className="font-medium text-gray-900 mb-2">Results:</h4>
-                      <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div>
-                          <span className="text-gray-600">Evacuated:</span>{' '}
-                          <span className="font-medium text-green-600">
-                            {sim.results.evacuated || sim.results.agents_evacuated || 0}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Casualties:</span>{' '}
-                          <span className="font-medium text-red-600">
-                            {sim.results.casualties || sim.results.agents_trapped || 0}
-                          </span>
-                        </div>
-                        {sim.results.evacuation_time && (
-                          <div>
-                            <span className="text-gray-600">Evacuation Time:</span>{' '}
-                            <span className="font-medium">
-                              {sim.results.evacuation_time}s
-                            </span>
-                          </div>
-                        )}
-                        {sim.results.exits_count && (
-                          <div>
-                            <span className="text-gray-600">Exits Used:</span>{' '}
-                            <span className="font-medium">
-                              {sim.results.exits_count}
-                            </span>
-                          </div>
-                        )}
+
+
+                    {/* Config row */}
+                    {sim.config && (
+                      <div className="flex flex-wrap gap-3 text-xs text-gray-500">
+                        {sim.config.grid_size && <span>Grid: {sim.config.grid_size[0]}×{sim.config.grid_size[1]}</span>}
+                        {sim.config.num_evacuees && <span>· {sim.config.num_evacuees} evacuees configured</span>}
                       </div>
-                    </div>
-                  )}
-
-                  <div className="mt-3 text-xs text-gray-500">
-                    {new Date(sim.created_at).toLocaleString()}
-                  </div>
-                </div>
-
-                {/* ✅ UPDATED: View Playback button */}
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleViewPlayback(sim)}
-                    disabled={loadingPlayback}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {loadingPlayback ? (
-                      <>
-                        <Loader className="w-4 h-4 animate-spin" />
-                        Loading...
-                      </>
-                    ) : (
-                      <>
-                        <Eye className="w-4 h-4" />
-                        View Playback
-                      </>
                     )}
-                  </button>
+
+                    <div className="text-xs text-gray-400">{fmtTime(sim.created_at)}</div>
+                  </div>
+
+                  {/* Right: action buttons */}
+                  <div className="flex flex-col gap-2 flex-shrink-0">
+                    {/* View Playback */}
+                    <button
+                      onClick={() => handlePlayback(sim)}
+                      disabled={!!loadingPlayback || isDeleting}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg transition text-sm font-medium"
+                    >
+                      {isLoadingPlay
+                        ? <><Loader className="w-3.5 h-3.5 animate-spin"/> Loading…</>
+                        : <><Eye className="w-3.5 h-3.5"/> Playback</>}
+                    </button>
+
+                    {/* View Paths */}
+                    <button
+                      onClick={() => handleViewPaths(sim)}
+                      disabled={!!loadingPlayback || isDeleting || sim.status !== 'completed'}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition text-sm font-medium"
+                      title={sim.status !== 'completed' ? 'Only available for completed simulations' : undefined}
+                    >
+                      {isLoadingPath
+                        ? <><Loader className="w-3.5 h-3.5 animate-spin"/> Loading…</>
+                        : <><Route className="w-3.5 h-3.5"/> View Paths</>}
+                    </button>
+
+                    {/* Delete */}
+                    <button
+                      onClick={() => handleDelete(sim)}
+                      disabled={!!loadingPlayback || isDeleting}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-red-50 hover:bg-red-100 disabled:opacity-50 text-red-600 border border-red-200 rounded-lg transition text-sm font-medium"
+                    >
+                      {isDeleting
+                        ? <><Loader className="w-3.5 h-3.5 animate-spin"/> Deleting…</>
+                        : <><Trash2 className="w-3.5 h-3.5"/> Delete</>}
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
-      {/* Old detail modal (JSON view) - keep for debugging */}
-      {selectedSim && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl p-8 max-w-2xl w-full max-h-[90vh] overflow-auto">
-            <div className="flex justify-between items-start mb-6">
-              <h3 className="text-2xl font-bold text-gray-900">
-                Simulation Details
-              </h3>
-              <button
-                onClick={() => setSelectedSim(null)}
-                className="text-gray-500 hover:text-gray-700 text-2xl"
-              >
-                ×
-              </button>
-            </div>
-            <pre className="bg-gray-50 p-4 rounded-lg overflow-auto text-sm">
-              {JSON.stringify(selectedSim, null, 2)}
-            </pre>
-          </div>
-        </div>
-      )}
-
-      {/* ✅ NEW: Playback Modal */}
-      {playbackSimulation && playbackProjectData && (
+      {/* Playback modal */}
+      {playbackSim && playbackProject && (
         <SimulationPlayback
-          simulation={playbackSimulation}
-          projectData={playbackProjectData}
-          onClose={() => {
-            setPlaybackSimulation(null);
-            setPlaybackProjectData(null);
-          }}
+          simulation={playbackSim}
+          projectData={playbackProject}
+          onClose={() => { setPlaybackSim(null); setPlaybackProject(null); }}
+        />
+      )}
+
+      {/* Path visualization modal */}
+      {pathSim && pathProject && (
+        <PathVisualization
+          simulationResults={pathSim}
+          projectData={pathProject}
+          onClose={() => { setPathSim(null); setPathProject(null); }}
         />
       )}
     </div>

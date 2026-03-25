@@ -5,7 +5,7 @@ import {
   Save, Download, Loader, Move, ZoomIn, ZoomOut, Grid3x3, Upload,
   Database, FolderOpen, X, Users, DoorOpen, Shield, DoorClosed,
   Fence as FenceIcon, Square, Minus as LineIcon, ArrowUp as StairsIcon,
-  Eraser, Flame, Undo2, Redo2, Maximize, Minimize, UserRoundPlus,
+  Eraser, Flame, Undo2, Redo2, Maximize, Minimize, UserRoundPlus, Route,
 } from 'lucide-react';
 
 import type { Point, MapObject, ObjectType, ToolType, MapEditorProps } from './MapEditorTypes';
@@ -120,11 +120,19 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
   const [zoom, setZoom]             = useState(1.0);
   const [offsetX, setOffsetX]       = useState(RULER_SIZE + 40);
   const [offsetY, setOffsetY]       = useState(RULER_SIZE + 40);
-  const [panHeld, setPanHeld]       = useState(false);
   const [panning, setPanning]       = useState(false);
   const [panStart, setPanStart]     = useState<Point | null>(null);
   const [showGrid, setShowGrid]     = useState(true);
   const [sidebarVisible, setSidebarVisible] = useState(false);
+
+  // ── Draggable toolbar state ──────────────────────────────────────────────────
+  const [toolbarPos, setToolbarPos]       = useState({ x: 16, y: 16 });
+  const toolbarDraggingRef = useRef(false);
+  const toolbarDragStartRef = useRef<{ mx: number; my: number; tx: number; ty: number } | null>(null);
+
+  // ── Path brush state ─────────────────────────────────────────────────────────
+  const [pathBrushCells, setPathBrushCells] = useState<EraserCells>(1);
+  const pathBrushCellsRef = useRef<EraserCells>(1);
 
   // ── Eraser state ────────────────────────────────────────────────────────────
   const [isErasing, setIsErasing] = useState(false);
@@ -138,6 +146,7 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
   // Keep eraser refs in sync
   useEffect(() => { eraserCellsRef.current = eraserCells; }, [eraserCells]);
   useEffect(() => { cellSizeRef.current = cellSize; }, [cellSize]);
+  useEffect(() => { pathBrushCellsRef.current = pathBrushCells; }, [pathBrushCells]);
 
   // Undo/redo using refs to avoid stale closure issues
   const historyRef    = useRef<MapObject[][]>([[]]);
@@ -162,6 +171,25 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
     historyIdxRef.current++;
     setObjects(historyRef.current[historyIdxRef.current]);
   }, []);
+
+  // ── Toolbar drag handlers ──────────────────────────────────────────────────
+  const handleToolbarMouseDown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    toolbarDraggingRef.current = true;
+    toolbarDragStartRef.current = { mx: e.clientX, my: e.clientY, tx: toolbarPos.x, ty: toolbarPos.y };
+  };
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!toolbarDraggingRef.current || !toolbarDragStartRef.current) return;
+      const { mx, my, tx, ty } = toolbarDragStartRef.current;
+      setToolbarPos({ x: tx + e.clientX - mx, y: ty + e.clientY - my });
+    };
+    const onUp = () => { toolbarDraggingRef.current = false; toolbarDragStartRef.current = null; };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+  }, [toolbarPos]);
 
   // ── Project state ────────────────────────────────────────────────────────────
   const [projectId, setProjectId]           = useState<number | null>(null);
@@ -308,7 +336,7 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
 
   const deleteProject = async (id: number) => {
     if (!confirm('Delete this project?')) return;
-    try { await projectAPI.delete(id); setSavedProjects(p => p.filter(x => x.id !== id)); }
+    try { await projectAPI.delete(id); setSavedProjects((p: typeof savedProjects) => p.filter((x: typeof savedProjects[0]) => x.id !== id)); }
     catch { alert('Failed to delete.'); }
   };
 
@@ -331,13 +359,35 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
     if (!currentMousePos) return;
 
     if (currentTool === 'eraser') {
-      // Snap preview centre to cell centre in screen-px so it shows
-      // exactly which cells will be erased (matches eraseAt behaviour)
       const { x: rawEx, y: rawEy } = screenToWorldpx(currentMousePos.x, currentMousePos.y, zoom, offsetX, offsetY);
       const snappedEx = (Math.floor(rawEx / cellSize) * cellSize + cellSize / 2);
       const snappedEy = (Math.floor(rawEy / cellSize) * cellSize + cellSize / 2);
       const { x: snapSx, y: snapSy } = worldpxToScreen(snappedEx, snappedEy, zoom, offsetX, offsetY);
       drawEraserPreview(ctx, snapSx, snapSy, (eraserCells * cellSize / 2) * zoom, cellSize * zoom);
+      return;
+    }
+
+    if (currentTool === 'path_walkable' || currentTool === 'path_danger') {
+      const { x: rawEx, y: rawEy } = screenToWorldpx(currentMousePos.x, currentMousePos.y, zoom, offsetX, offsetY);
+      const cellX  = Math.floor(rawEx / cellSize);
+      const cellY  = Math.floor(rawEy / cellSize);
+      const offset = Math.floor(pathBrushCells / 2);
+      const isWalk = currentTool === 'path_walkable';
+      ctx.save();
+      for (let row = 0; row < pathBrushCells; row++) {
+        for (let col = 0; col < pathBrushCells; col++) {
+          const gx = cellX - offset + col;
+          const gy = cellY - offset + row;
+          const sp2 = worldpxToScreen(gx * cellSize, gy * cellSize, zoom, offsetX, offsetY);
+          const csz = cellSize * zoom;
+          ctx.fillStyle   = isWalk ? 'rgba(74,222,128,0.5)' : 'rgba(248,113,113,0.5)';
+          ctx.fillRect(sp2.x, sp2.y, csz, csz);
+          ctx.strokeStyle = isWalk ? '#16a34a' : '#b91c1c';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(sp2.x, sp2.y, csz, csz);
+        }
+      }
+      ctx.restore();
       return;
     }
 
@@ -352,7 +402,7 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
       const rx = Math.min(startPos.x, wx), ry = Math.min(startPos.y, wy);
       const rw = Math.abs(wx - startPos.x), rh = Math.abs(wy - startPos.y);
       const sides = createRoomWalls({ x: rx, y: ry, w: rw, h: rh });
-      sides.forEach(s => drawObject(ctx, s, zoom, offsetX, offsetY, true));
+      sides.forEach((s: MapObject) => drawObject(ctx, s, zoom, offsetX, offsetY, true));
       // Size label
       const lsp = worldpxToScreen(rx + rw / 2, ry - 14, zoom, offsetX, offsetY);
       ctx.fillStyle = 'rgba(30,41,59,0.8)';
@@ -499,10 +549,18 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
     const my = e.clientY - rect.top;
     const { x: wx, y: wy } = screenToWorldpx(mx, my, zoom, offsetX, offsetY);
 
-    if (panHeld && e.button === 0) { setPanning(true); setPanStart({ x: mx, y: my }); return; }
+    if (e.button === 2) { setPanning(true); setPanStart({ x: mx, y: my }); return; }
 
     // Eraser — start erasing on mousedown
     if (currentTool === 'eraser') { setIsErasing(true); eraseAt(wx, wy); return; }
+
+    // Path brush — paint tile on mousedown
+    if (currentTool === 'path_walkable' || currentTool === 'path_danger') {
+      setIsErasing(true); // reuse isErasing flag to track drag-paint
+      const { x: wx, y: wy } = screenToWorldpx(mx, my, zoom, offsetX, offsetY);
+      paintAt(wx, wy, currentTool as 'path_walkable' | 'path_danger');
+      return;
+    }
 
     // Click on any non-line object to select it
     // Lines/room-walls are handled by the eraser, not by selection
@@ -562,11 +620,54 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
     });
   }, []);
 
+  // Paint grid-aligned path tiles — one tile per cell, removes existing path tiles in same cells
+  const paintAt = useCallback((rawWx: number, rawWy: number, toolType: 'path_walkable' | 'path_danger') => {
+    const cs = cellSizeRef.current;
+    const n  = pathBrushCellsRef.current;
+    // Snap to the top-left corner of the cell the mouse is in, then expand by brush size
+    const cellX = Math.floor(rawWx / cs);
+    const cellY = Math.floor(rawWy / cs);
+    const offset = Math.floor(n / 2);
+
+    // Generate one tile per cell in the brush area
+    const newTiles: MapObject[] = [];
+    for (let row = 0; row < n; row++) {
+      for (let col = 0; col < n; col++) {
+        const gx = cellX - offset + col;
+        const gy = cellY - offset + row;
+        newTiles.push({
+          type: toolType,
+          x: gx * cs,
+          y: gy * cs,
+          w: cs,
+          h: cs,
+          id: Date.now() + row * 100 + col,
+        });
+      }
+    }
+
+    setObjects(prev => {
+      // Remove any existing path tiles that occupy the same cells
+      const paintedXs = new Set(newTiles.map(t => t.x));
+      const paintedYs = new Set(newTiles.map(t => t.y));
+      const filtered = prev.filter(o => {
+        if (o.type !== 'path_walkable' && o.type !== 'path_danger') return true;
+        // Remove if this tile's cell overlaps any of the painted cells
+        return !(paintedXs.has(o.x) && paintedYs.has(o.y));
+      });
+      const next = [...filtered, ...newTiles];
+      historyRef.current = historyRef.current.slice(0, historyIdxRef.current + 1);
+      historyRef.current.push(next);
+      historyIdxRef.current = historyRef.current.length - 1;
+      return next;
+    });
+  }, []);
+
   const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (isErasing) { setIsErasing(false); return; }
     if (panning) { setPanning(false); setPanStart(null); return; }
 
-    if (dragging && !panHeld) {
+    if (dragging && !panning) {
       const canvas = canvasRef.current;
       if (!canvas || !startPos) return;
       const rect = canvas.getBoundingClientRect();
@@ -628,12 +729,16 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
 
     if (isErasing) {
       const { x: wx, y: wy } = screenToWorldpx(mx, my, zoom, offsetX, offsetY);
-      eraseAt(wx, wy);
+      if (currentTool === 'path_walkable' || currentTool === 'path_danger') {
+        paintAt(wx, wy, currentTool as 'path_walkable' | 'path_danger');
+      } else {
+        eraseAt(wx, wy);
+      }
     }
   };
 
   const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
-    if (panHeld) return;
+
     e.preventDefault();
 
     const canvas = canvasRef.current;
@@ -671,7 +776,8 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
       if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
         e.preventDefault(); redoAction(); return;
       }
-      if (e.key === 'p' || e.key === ' ')        { setPanHeld(true); e.preventDefault(); }
+      if (e.key === ' ')                           { e.preventDefault(); } // space reserved
+      else if (e.key === 'v' && !e.ctrlKey)        { setCurrentTool('path_walkable'); }
       else if (e.key === 'Escape')               { setCurrentTool('room'); setSelectedIndex(null); setSelectedNPC(null); setSelectedStairs(null); setSelectedGate(null); }
       else if (e.key === '[')                    { setEraserCells(p => ERASER_CELL_SIZES[Math.max(0, ERASER_CELL_SIZES.indexOf(p) - 1)]); }
       else if (e.key === ']')                    { setEraserCells(p => ERASER_CELL_SIZES[Math.min(3, ERASER_CELL_SIZES.indexOf(p) + 1)]); }
@@ -683,6 +789,8 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
       else if (e.key === 'r')                    { setCurrentTool('fire_ladder'); }
       else if (e.key === 'n')                    { setCurrentTool('npc'); }
       else if (e.key === 'q')                    { setCurrentTool('npc_count'); }
+      else if (e.key === 'v' && !e.ctrlKey)        { setCurrentTool('path_walkable'); }
+      else if (e.key === 'h' && !e.ctrlKey)        { setCurrentTool('path_danger'); }
       else if (e.key === 's' && !e.ctrlKey)      { setCurrentTool('safezone'); }
       else if (e.key === 'g' && !e.shiftKey)     { setCurrentTool('gate'); }
       else if (e.key === 'f')                    { setCurrentTool('fence'); }
@@ -701,7 +809,7 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
       }
     };
     const up = (e: KeyboardEvent) => {
-      if (e.key === 'p' || e.key === ' ') { setPanHeld(false); setPanning(false); setPanStart(null); }
+
     };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
@@ -778,19 +886,27 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
       <canvas
         ref={canvasRef}
         className="absolute inset-0"
-        style={{ cursor: currentTool === 'eraser' ? 'crosshair' : panHeld ? 'grab' : 'crosshair' }}
+        style={{ cursor: panning ? 'grabbing' : (currentTool === 'eraser' || currentTool === 'path_walkable' || currentTool === 'path_danger') ? 'crosshair' : 'crosshair' }}
         onMouseDown={handleMouseDown}
         onMouseUp={handleMouseUp}
         onMouseMove={handleMouseMove}
         onWheel={handleWheel}
       />
 
-      {/* ── Left toolbar ──────────────────────────────────────────────────────── */}
-      <div className="absolute top-4 bottom-4 left-4 pointer-events-auto z-20 flex flex-col">
-        <div className="bg-slate-900/96 backdrop-blur-xl rounded-xl shadow-2xl border border-slate-800/60 p-3 w-[168px] flex flex-col min-h-0 overflow-y-auto max-h-full">
-          <div className="flex items-center gap-2 pb-2.5 mb-2.5 border-b border-slate-800">
+      {/* ── Left toolbar (draggable) ─────────────────────────────────────────── */}
+      <div
+        className="absolute pointer-events-auto z-20"
+        style={{ left: toolbarPos.x, top: toolbarPos.y }}
+      >
+        <div className="bg-slate-900/96 backdrop-blur-xl rounded-xl shadow-2xl border border-slate-800/60 p-3 w-[178px] flex flex-col" style={{ maxHeight: 'calc(100vh - 40px)', overflowY: 'auto' }}>
+          {/* Drag handle */}
+          <div
+            className="flex items-center gap-2 pb-2.5 mb-2.5 border-b border-slate-800 cursor-grab active:cursor-grabbing select-none"
+            onMouseDown={handleToolbarMouseDown}
+          >
             <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
             <span className="text-white text-xs font-bold tracking-widest uppercase">Tools</span>
+            <span className="ml-auto text-slate-600 text-[10px]">⠿ drag</span>
           </div>
 
           {/* Drawing tools */}
@@ -817,7 +933,31 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
             <ToolBtn icon={FenceIcon}  label="Fence" tool="fence"   shortcut="F" color="text-yellow-600" />
           </div>
 
-          {/* Eraser */}
+          {/* Paths */}
+          <div className="text-[9px] text-slate-600 uppercase tracking-widest mb-1.5 px-1 mt-1">Paths</div>
+          <div className="grid grid-cols-2 gap-1.5 mb-2">
+            <ToolBtn icon={Route}     label="Walkable" tool="path_walkable" shortcut="V" color="text-emerald-400" />
+            <ToolBtn icon={Route}     label="Hazard"   tool="path_danger"   shortcut="H" color="text-red-400" />
+          </div>
+          {(currentTool === 'path_walkable' || currentTool === 'path_danger') && (
+            <div className="mt-1 mb-2 px-1 space-y-1.5">
+              <div className="text-[10px] text-slate-500">Brush size (cells)</div>
+              <div className="grid grid-cols-4 gap-1">
+                {ERASER_CELL_SIZES.map(n => (
+                  <button key={n}
+                    onClick={() => setPathBrushCells(n as EraserCells)}
+                    className={`py-1 rounded text-[10px] font-mono font-bold transition
+                      ${pathBrushCells === n
+                        ? (currentTool === 'path_walkable' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white')
+                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'}`}>
+                    {n}×{n}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+                    {/* Eraser */}
           <div className="border-t border-slate-800 pt-2 mt-1">
             <ToolBtn icon={Eraser} label="Eraser" tool="eraser" shortcut="E" color="text-red-400" />
             {currentTool === 'eraser' && (
@@ -1106,8 +1246,8 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
         <div className="bg-slate-900/96 backdrop-blur-xl rounded-full border border-slate-800/60 px-5 py-2.5 shadow-xl">
           <div className="flex items-center gap-5 text-xs">
             <div className="flex items-center gap-2">
-              <div className={`w-1.5 h-1.5 rounded-full ${panHeld ? 'bg-blue-500 animate-pulse' : 'bg-slate-600'}`} />
-              <span className="text-slate-400">{panHeld ? 'Panning' : 'Space/Pan'}</span>
+              <div className={`w-1.5 h-1.5 rounded-full ${panning ? 'bg-blue-500 animate-pulse' : 'bg-slate-600'}`} />
+              <span className="text-slate-400">{panning ? 'Panning' : 'Right-click Pan'}</span>
             </div>
             <span className="text-slate-700">|</span>
             <span className="text-slate-400">
@@ -1161,7 +1301,7 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
             </div>
 
             <div className="grid grid-cols-3 gap-3 mb-6">
-              {(['small','medium','large'] as const).map(p => (
+              {(['small','medium','large'] as const).map((p: 'small' | 'medium' | 'large') => (
                 <button key={p} onClick={() => applyPreset(p)}
                   className="flex flex-col items-center gap-1.5 p-3 bg-slate-800 hover:bg-slate-700 rounded-xl border-2 border-transparent hover:border-slate-600 transition">
                   <span className="text-xl">{p === 'small' ? '🏢' : p === 'medium' ? '🏘️' : '🏙️'}</span>
@@ -1202,7 +1342,7 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
         <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto"
           onClick={() => setShowSaveMenu(false)}>
           <div className="bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 p-6 w-full max-w-sm mx-4"
-            onClick={e => e.stopPropagation()}>
+            onClick={(e: React.MouseEvent) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-bold text-white">Save Project</h3>
               <button onClick={() => setShowSaveMenu(false)} className="text-slate-500 hover:text-white"><X size={20} /></button>
@@ -1236,7 +1376,7 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
         <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto"
           onClick={() => setShowLoadMenu(false)}>
           <div className="bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 p-6 w-full max-w-xl mx-4 max-h-[80vh] overflow-auto"
-            onClick={e => e.stopPropagation()}>
+            onClick={(e: React.MouseEvent) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-bold text-white">Load Project</h3>
               <button onClick={() => setShowLoadMenu(false)} className="text-slate-500 hover:text-white"><X size={20} /></button>
@@ -1256,7 +1396,7 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
                 <div className="flex justify-center py-8"><Loader size={28} className="animate-spin text-blue-500" /></div>
               ) : savedProjects.length === 0 ? (
                 <p className="text-slate-500 text-center py-8 text-sm">No saved projects found</p>
-              ) : savedProjects.map(p => (
+              ) : savedProjects.map((p: typeof savedProjects[0]) => (
                 <div key={p.id} className="flex items-center justify-between p-3 bg-slate-800 rounded-xl">
                   <div>
                     <div className="text-white text-sm font-semibold">{p.name}</div>

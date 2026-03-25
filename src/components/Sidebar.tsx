@@ -1,7 +1,7 @@
-// Sidebar.tsx - UPDATED
-
-import { Home, BarChart3, Plus, Users, FolderOpen, X, Calendar, AlertTriangle, GitBranch } from 'lucide-react';
+// Sidebar.tsx
+import { Home, BarChart3, Plus, Users, FolderOpen, X, Calendar, AlertTriangle, GitBranch, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Page } from '../types/navigation';
+import { T, C } from '../design/DesignTokens';
 
 interface SidebarProps {
   profile: {
@@ -13,25 +13,25 @@ interface SidebarProps {
   onNavigate: (page: Page) => void;
   isOpen: boolean;
   onClose: () => void;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
 }
 
-export default function Sidebar({ profile, currentPage, onNavigate, isOpen, onClose }: SidebarProps) {
+export default function Sidebar({ profile, currentPage, onNavigate, isOpen, onClose, collapsed, onToggleCollapse }: SidebarProps) {
   const isExecutive = profile?.role === 'executive';
   const isAdmin     = profile?.role === 'admin';
   const isMember    = profile?.role === 'member';
 
-  const NavBtn = ({
-    page, icon: Icon, label,
-  }: { page: Page; icon: any; label: string }) => (
+  const NavBtn = ({ page, icon: Icon, label }: { page: Page; icon: any; label: string }) => (
     <button
       onClick={() => onNavigate(page)}
+      title={collapsed ? label : undefined}
       className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all
-        ${currentPage === page
-          ? 'bg-blue-600 text-white shadow-md'
-          : 'text-gray-700 hover:bg-gray-100'}`}
+        ${currentPage === page ? 'bg-blue-600 text-white shadow-md' : 'text-gray-700 hover:bg-gray-100'}
+        ${collapsed ? 'justify-center px-0' : ''}`}
     >
-      <Icon className="w-5 h-5" />
-      <span>{label}</span>
+      <Icon className="w-5 h-5 flex-shrink-0" />
+      {!collapsed && <span>{label}</span>}
     </button>
   );
 
@@ -43,69 +43,61 @@ export default function Sidebar({ profile, currentPage, onNavigate, isOpen, onCl
 
       <aside className={`
         fixed md:static inset-y-0 left-0 z-50
-        w-64 bg-white border-r border-gray-200
-        transform transition-transform duration-200 ease-in-out
+        bg-white border-r border-gray-200 flex flex-col
+        transition-all duration-200 ease-in-out
         ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-        flex flex-col
+        ${collapsed ? 'w-16' : 'w-64'}
       `}>
         {/* Header */}
-        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-gray-900">PathSafe</h2>
-          <button onClick={onClose} className="md:hidden p-2 hover:bg-gray-100 rounded-lg">
+        <div className={`p-4 border-b border-gray-200 flex items-center ${collapsed ? 'justify-center' : 'justify-between'}`}>
+          {!collapsed && <h2 style={T.pageTitle}>PathSafe</h2>}
+          <button onClick={onClose} className="md:hidden p-1 hover:bg-gray-100 rounded-lg">
             <X className="w-5 h-5" />
+          </button>
+          <button
+            onClick={onToggleCollapse}
+            className="hidden md:flex items-center justify-center p-1 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-700 transition"
+            title={collapsed ? 'Expand' : 'Collapse'}
+          >
+            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 px-3 py-4">
-          <div className="space-y-1">
-            {/* Home — EVERYONE */}
-            <NavBtn page="home"         icon={Home}          label="Home"              />
-
-            {/* Organization — EVERYONE */}
-            <NavBtn page="organization" icon={GitBranch}     label="Organization"      />
-
-            {/* Events & Drills — EXECUTIVES & MEMBERS */}
-            {(isExecutive || isMember) && (
-              <NavBtn page="events"     icon={Calendar}      label="Events & Drills"   />
-            )}
-
-            {/* Incident Reports — EVERYONE */}
-            <NavBtn page="incidents"    icon={AlertTriangle} label="Incident Reports"  />
-
-            {/* Simulations — EXECUTIVE ONLY */}
-            {isExecutive && (
-              <NavBtn page="simulations" icon={BarChart3}    label="Simulations"       />
-            )}
-
-            {/* Projects — EXECUTIVE ONLY */}
-            {isExecutive && (
-              <NavBtn page="projects"   icon={FolderOpen}    label="Projects"          />
-            )}
-
-            {/* Create Simulation — EXECUTIVE ONLY */}
-            {isExecutive && (
-              <NavBtn page="create"     icon={Plus}          label="Create Simulation" />
-            )}
-
-            {/* User Management — ADMIN ONLY */}
-            {isAdmin && (
-              <NavBtn page="users"      icon={Users}         label="User Management"   />
-            )}
-          </div>
+        {/* Nav */}
+        <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
+          <NavBtn page="home"          icon={Home}          label="Home"              />
+          <NavBtn page="organization"  icon={GitBranch}     label="Organization"      />
+          {(isExecutive || isMember) && (
+            <NavBtn page="events"      icon={Calendar}      label="Events & Drills"   />
+          )}
+          <NavBtn page="incidents"     icon={AlertTriangle} label="Incident Reports"  />
+          {isExecutive && <NavBtn page="simulations" icon={BarChart3}  label="Simulations"       />}
+          {isExecutive && <NavBtn page="projects"    icon={FolderOpen} label="Projects"          />}
+          {isExecutive && <NavBtn page="create"      icon={Plus}       label="Create Simulation" />}
+          {isAdmin     && <NavBtn page="users"       icon={Users}      label="User Management"   />}
         </nav>
 
         {/* Footer */}
-        <div className="p-4 border-t border-gray-200">
-          <div className="flex items-center gap-2">
-            <div className={`px-2 py-1 rounded text-xs font-medium capitalize
-              ${profile?.role === 'admin'     ? 'bg-red-100 text-red-700'   : ''}
-              ${profile?.role === 'executive' ? 'bg-blue-100 text-blue-700' : ''}
-              ${profile?.role === 'member'    ? 'bg-green-100 text-green-700' : ''}`}>
-              {profile?.role}
+        <div className="border-t border-gray-200 p-3 flex justify-center">
+          {collapsed ? (
+            <div
+              title={profile?.role}
+              className={`w-2.5 h-2.5 rounded-full
+                ${profile?.role === 'admin'     ? 'bg-red-500'   : ''}
+                ${profile?.role === 'executive' ? 'bg-blue-500'  : ''}
+                ${profile?.role === 'member'    ? 'bg-green-500' : ''}`}
+            />
+          ) : (
+            <div className="flex items-center gap-2 w-full">
+              <div className={`px-2 py-1 rounded text-xs font-medium capitalize
+                ${profile?.role === 'admin'     ? 'bg-red-100 text-red-700'     : ''}
+                ${profile?.role === 'executive' ? 'bg-blue-100 text-blue-700'   : ''}
+                ${profile?.role === 'member'    ? 'bg-green-100 text-green-700' : ''}`}>
+                {profile?.role}
+              </div>
+              <span style={T.meta}>Access Level</span>
             </div>
-            <span className="text-xs text-gray-500">Access Level</span>
-          </div>
+          )}
         </div>
       </aside>
     </>

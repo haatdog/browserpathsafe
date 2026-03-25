@@ -4,6 +4,7 @@ Map object models for disaster simulation
 ✅ Line objects (room walls) carry x1/y1/x2/y2
 ✅ concrete_stairs / fire_ladder differentiated
 ✅ Gates, Fences, Safe zones, NPC zones
+✅ Path objects (walkable / dangerous)
 """
 
 import math
@@ -105,9 +106,9 @@ class MapObject:
 
         elif obj_type == 'npc_count':
             obj = NPC(x, y, w, h, data.get('name', 'Queue'))
-            obj.type         = 'npc_count'
-            obj.speed        = float(data.get('speed', 2.0))
-            obj.agent_count  = int(data.get('agent_count', 10))
+            obj.type           = 'npc_count'
+            obj.speed          = float(data.get('speed', 2.0))
+            obj.agent_count    = int(data.get('agent_count', 10))
             obj.spawn_interval = int(data.get('spawn_interval', 30))
             return obj
 
@@ -120,9 +121,17 @@ class MapObject:
         elif obj_type == 'fence':
             return Fence(x, y, w, h)
 
+        elif obj_type == 'path_walkable':
+            return Path(x, y, w, h, 'walkable')
+
+        elif obj_type == 'path_danger':
+            return Path(x, y, w, h, 'dangerous')
+
+        elif obj_type == 'path':   # legacy fallback
+            return Path(x, y, w, h, data.get('path_subtype', 'walkable'))
+
         # ── Line / room-wall ─────────────────────────────────────────────────
         elif obj_type == 'line':
-            # Lines store their geometry in x1/y1/x2/y2, NOT in x/y/w/h
             return LineWall(
                 x1=float(data.get('x1', 0)),
                 y1=float(data.get('y1', 0)),
@@ -133,7 +142,6 @@ class MapObject:
             )
 
         else:
-            # Unknown type — keep it alive with correct coords so grid builder sees it
             return MapObject(x, y, w, h, obj_type)
 
 
@@ -185,11 +193,11 @@ class FireLadder(MapObject):
         return d
 
 
-# Keep old Stairs class as an alias so old saved data still works
 class Stairs(ConcreteStairs):
+    """Alias for old saved maps that stored type='stairs'."""
     def __init__(self, x, y, w, h):
         super().__init__(x, y, w, h)
-        self.type = 'stairs'   # keep original type string for saved maps
+        self.type = 'stairs'
 
 
 class Gate(MapObject):
@@ -260,6 +268,34 @@ class SafeZone(MapObject):
         return d
 
 
+class Path(MapObject):
+    """
+    A painted path area placed on the map.
+    path_subtype='walkable'  — agents can walk here freely (no collision).
+    path_subtype='dangerous' — walkable but marks a hazard zone; agent logic
+                               can apply damage / speed penalty as needed.
+    Neither subtype blocks the pathfinding grid — both are passable.
+    """
+
+    def __init__(self, x, y, w, h, path_subtype='walkable'):
+        # type stored as path_walkable or path_danger
+        super().__init__(x, y, w, h, 'path_walkable' if path_subtype == 'walkable' else 'path_danger')
+        self.path_subtype = path_subtype   # 'walkable' | 'dangerous'
+
+    def is_walkable(self):
+        return self.path_subtype == 'walkable'
+
+    def is_dangerous(self):
+        return self.path_subtype == 'dangerous'
+
+    def to_dict(self):
+        d = super().to_dict()
+        # Store as typed string so React editor can load it back correctly
+        d['type'] = 'path_walkable' if self.path_subtype == 'walkable' else 'path_danger'
+        d['path_subtype'] = self.path_subtype
+        return d
+
+
 class LineWall(MapObject):
     """
     A line segment used as a wall or room boundary.
@@ -268,7 +304,6 @@ class LineWall(MapObject):
     """
 
     def __init__(self, x1, y1, x2, y2, thickness=4, is_room_wall=False):
-        # Pass dummy x/y/w/h — lines don't use bounding-box coords
         super().__init__(0, 0, 0, 0, 'line')
         self.x1           = float(x1)
         self.y1           = float(y1)
@@ -296,7 +331,7 @@ class LineWall(MapObject):
         }
 
 
-# ── Validation & reconstruction (unchanged API) ───────────────────────────────
+# ── Validation & reconstruction ───────────────────────────────────────────────
 
 def validate_project_structure(project_data):
     if not isinstance(project_data, dict):
@@ -344,18 +379,31 @@ def reconstruct_objects_from_project(project_data):
 
 
 def create_map_object(obj_type, x, y, w, h, grid_size=10, **kwargs):
-    if obj_type == 'wall':           return testWall(x, y, w, h)
-    elif obj_type == 'exit':         return Exit(x, y, w, h)
-    elif obj_type in ('stairs', 'concrete_stairs'): return ConcreteStairs(x, y, w, h)
-    elif obj_type == 'fire_ladder':  return FireLadder(x, y, w, h)
-    elif obj_type == 'npc':          return NPC(x, y, w, h, kwargs.get('name', 'Agents'))
+    if obj_type == 'wall':
+        return testWall(x, y, w, h)
+    elif obj_type == 'exit':
+        return Exit(x, y, w, h)
+    elif obj_type in ('stairs', 'concrete_stairs'):
+        return ConcreteStairs(x, y, w, h)
+    elif obj_type == 'fire_ladder':
+        return FireLadder(x, y, w, h)
+    elif obj_type == 'npc':
+        return NPC(x, y, w, h, kwargs.get('name', 'Agents'))
     elif obj_type == 'safezone':
         area     = w * h
         cells    = area / (grid_size * grid_size)
         capacity = kwargs.get('capacity', max(10, int(cells * 0.5)))
         return SafeZone(x, y, w, h, capacity)
-    elif obj_type == 'gate':         return Gate(x, y, w, h, kwargs.get('is_open', True))
-    elif obj_type == 'fence':        return Fence(x, y, w, h)
+    elif obj_type == 'gate':
+        return Gate(x, y, w, h, kwargs.get('is_open', True))
+    elif obj_type == 'fence':
+        return Fence(x, y, w, h)
+    elif obj_type == 'path_walkable':
+        return Path(x, y, w, h, 'walkable')
+    elif obj_type == 'path_danger':
+        return Path(x, y, w, h, 'dangerous')
+    elif obj_type == 'path':   # legacy
+        return Path(x, y, w, h, kwargs.get('path_subtype', 'walkable'))
     elif obj_type == 'line':
         return LineWall(
             kwargs.get('x1', x), kwargs.get('y1', y),

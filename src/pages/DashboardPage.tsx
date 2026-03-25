@@ -1,5 +1,4 @@
-// DashboardPage.tsx - FINAL VERSION
-
+// DashboardPage.tsx
 import { useState, useEffect } from 'react';
 import { profileAPI, authService } from '../lib/api';
 import { LogOut, Menu, X } from 'lucide-react';
@@ -14,10 +13,9 @@ import CalendarSidebar from '../components/CalendarSidebar';
 import EventManagement from '../components/EventManagement';
 import IncidentReportsList from '../components/IncidentReportList';
 import OrganizationChart from '../components/OrganizationChart';
+import { T, C } from '../design/DesignTokens';
 
-interface DashboardPageProps {
-  onLogout: () => void;
-}
+interface DashboardPageProps { onLogout: () => void; }
 
 interface UserProfile {
   id: string;
@@ -38,10 +36,7 @@ const PAGE_TITLES: Record<Page, string> = {
   incidents:    'Incident Reports',
 };
 
-// Pages every role can visit
 const PUBLIC_PAGES: Page[] = ['home', 'organization', 'incidents'];
-
-// Pages per role (on top of public)
 const ROLE_PAGES: Record<string, Page[]> = {
   admin:     ['users'],
   executive: ['events', 'simulations', 'create', 'projects'],
@@ -49,10 +44,11 @@ const ROLE_PAGES: Record<string, Page[]> = {
 };
 
 export default function DashboardPage({ onLogout }: DashboardPageProps) {
-  const [currentPage, setCurrentPage] = useState<Page>('home');
-  const [profile, setProfile]         = useState<UserProfile | null>(null);
-  const [loading, setLoading]         = useState(true);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [currentPage,      setCurrentPage]      = useState<Page>('home');
+  const [profile,          setProfile]          = useState<UserProfile | null>(null);
+  const [loading,          setLoading]          = useState(true);
+  const [sidebarOpen,      setSidebarOpen]      = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => { loadProfile(); }, []);
 
@@ -60,19 +56,15 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
     try {
       const data = await profileAPI.getMe();
       setProfile(data);
-    } catch (error) {
-      console.error('Error loading profile:', error);
+    } catch (e) {
+      console.error(e);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLogout = async () => {
-    await authService.logout();
-    onLogout();
-  };
+  const handleLogout = async () => { await authService.logout(); onLogout(); };
 
-  // Guard: redirect if role can't access current page
   useEffect(() => {
     if (!profile) return;
     const allowed = [...PUBLIC_PAGES, ...(ROLE_PAGES[profile.role] ?? [])];
@@ -81,8 +73,8 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <p>Loading...</p>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--color-surface-page)' }}>
+        <div className="w-8 h-8 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
       </div>
     );
   }
@@ -90,98 +82,76 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
   const navigate = (page: Page) => { setCurrentPage(page); setSidebarOpen(false); };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex">
+    <div className="min-h-screen flex" style={{ background: 'var(--color-surface-page)', fontFamily: 'var(--font-base)' }}>
       <Sidebar
         profile={profile}
         currentPage={currentPage}
         onNavigate={navigate}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(v => !v)}
       />
 
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <header className="bg-white shadow-sm border-b border-gray-200">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-4">
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* ── Header ─────────────────────────────────────────── */}
+        <header style={{
+          background: 'var(--color-surface-card)',
+          borderBottom: '1px solid var(--color-border)',
+          boxShadow: 'var(--shadow-sm)',
+        }}>
+          <div className="px-6 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-3">
               <button
                 onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="md:hidden p-2 hover:bg-gray-100 rounded-lg"
+                className="md:hidden p-2 rounded-lg transition hover:bg-gray-100"
               >
-                {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+                {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
               </button>
-              <h1 className="text-2xl font-bold text-gray-900">
+              {/* Page title */}
+              <h1 style={T.pageTitle}>
                 {PAGE_TITLES[currentPage] ?? currentPage}
               </h1>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               <div className="text-right">
-                <p className="text-sm font-medium text-gray-900">{profile?.email}</p>
-                <p className="text-xs text-gray-500 capitalize">{profile?.role ?? 'Loading...'}</p>
+                <p style={T.bodyMedium}>
+                  {profile?.email}
+                </p>
+                <p style={{...T.meta, textTransform: 'capitalize'}}>
+                  {profile?.role ?? 'Loading…'}
+                </p>
               </div>
               <button
                 onClick={handleLogout}
-                className="p-2 hover:bg-gray-100 rounded-lg transition text-gray-600 hover:text-gray-900"
                 title="Logout"
+                className="p-2 rounded-lg transition hover:bg-gray-100"
+                style={{ color: 'var(--color-ink-muted)' }}
               >
-                <LogOut className="w-5 h-5" />
+                <LogOut className="w-4 h-4" />
               </button>
             </div>
           </div>
         </header>
 
-        {/* Content */}
+        {/* ── Content ────────────────────────────────────────── */}
         <div className="flex-1 flex overflow-hidden">
-          <main className={`flex-1 overflow-auto p-4 sm:p-6 lg:p-8 ${
-            currentPage === 'home' ? 'max-w-4xl' : 'max-w-7xl'
-          } mx-auto w-full`}>
-
-            {/* Home — EVERYONE */}
-            {currentPage === 'home' && profile && (
-              <AnnouncementsFeed userRole={profile.role} userId={profile.id} />
-            )}
-
-            {/* Organization — EVERYONE (read-only; edit via User Management) */}
-            {currentPage === 'organization' && (
-              <OrganizationChart />
-            )}
-
-            {/* Incident Reports — EVERYONE */}
-            {currentPage === 'incidents' && <IncidentReportsList />}
-
-            {/* Events & Drills — EXECUTIVES & MEMBERS */}
-            {currentPage === 'events' && (
+          <main className={`flex-1 overflow-auto p-6 ${currentPage === 'home' ? 'max-w-4xl' : 'max-w-7xl'} mx-auto w-full`}>
+            {currentPage === 'home'         && profile && <AnnouncementsFeed userRole={profile.role} userId={profile.id} />}
+            {currentPage === 'organization' && <OrganizationChart />}
+            {currentPage === 'incidents'    && <IncidentReportsList />}
+            {currentPage === 'events'       && (
               profile?.role === 'executive' || profile?.role === 'member'
-                ? <EventManagement />
-                : <AccessDenied />
+                ? <EventManagement /> : <AccessDenied />
             )}
-
-            {/* Simulations — EXECUTIVE ONLY */}
-            {currentPage === 'simulations' && (
-              profile?.role === 'executive' ? <SimulationList /> : <AccessDenied />
-            )}
-
-            {/* Create Simulation — EXECUTIVE ONLY */}
-            {currentPage === 'create' && (
-              profile?.role === 'executive' ? <SimulationCreator /> : <AccessDenied />
-            )}
-
-            {/* Projects — EXECUTIVE ONLY */}
-            {currentPage === 'projects' && (
-              profile?.role === 'executive' ? <ProjectList /> : <AccessDenied />
-            )}
-
-            {/* User Management — ADMIN ONLY */}
-            {currentPage === 'users' && (
-              profile?.role === 'admin' ? <UserManagement /> : <AccessDenied />
-            )}
+            {currentPage === 'simulations'  && (profile?.role === 'executive' ? <SimulationList />     : <AccessDenied />)}
+            {currentPage === 'create'       && (profile?.role === 'executive' ? <SimulationCreator />  : <AccessDenied />)}
+            {currentPage === 'projects'     && (profile?.role === 'executive' ? <ProjectList />        : <AccessDenied />)}
+            {currentPage === 'users'        && (profile?.role === 'admin'     ? <UserManagement />     : <AccessDenied />)}
           </main>
 
-          {/* Right Calendar Sidebar — home only */}
-          {currentPage === 'home' && profile && (
-            <CalendarSidebar userRole={profile.role} />
-          )}
+          {currentPage === 'home' && profile && <CalendarSidebar userRole={profile.role} />}
         </div>
       </div>
     </div>
@@ -190,8 +160,10 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
 
 function AccessDenied() {
   return (
-    <div className="text-center py-12">
-      <p className="text-gray-600">Access denied. You don't have permission to view this page.</p>
+    <div className="text-center py-16">
+      <p style={{ fontSize: 'var(--text-body-size)', color: 'var(--color-ink-muted)' }}>
+        You don't have permission to view this page.
+      </p>
     </div>
   );
 }

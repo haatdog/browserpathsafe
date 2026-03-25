@@ -21,8 +21,9 @@ interface Agent {
   inSafeZone: boolean;
   safeZoneTarget: [number, number] | null;
   safeZoneId: string | null;
-  spawnDelay: number;   // seconds before agent appears
-  spawned: boolean;     // false = waiting to appear
+  spawnDelay: number;      // seconds before agent appears
+  spawned: boolean;        // false = waiting to appear
+  lateralOffset: number;   // perpendicular lane offset (-N..+N) for spacing
 }
 
 // ── Draw a single map object onto a canvas context ────────────────────────────
@@ -227,6 +228,26 @@ function drawMapObject(ctx: CanvasRenderingContext2D, obj: any) {
     return;
   }
 
+  // ── Path walkable ─────────────────────────────────────────────────────────
+  if (t === 'path_walkable') {
+    ctx.fillStyle = '#4ade80';
+    ctx.fillRect(obj.x, obj.y, obj.w, obj.h);
+    ctx.strokeStyle = '#16a34a';
+    ctx.lineWidth = 0.5;
+    ctx.strokeRect(obj.x, obj.y, obj.w, obj.h);
+    return;
+  }
+
+  // ── Path dangerous ─────────────────────────────────────────────────────────
+  if (t === 'path_danger') {
+    ctx.fillStyle = '#f87171';
+    ctx.fillRect(obj.x, obj.y, obj.w, obj.h);
+    ctx.strokeStyle = '#b91c1c';
+    ctx.lineWidth = 0.5;
+    ctx.strokeRect(obj.x, obj.y, obj.w, obj.h);
+    return;
+  }
+
   // ── Gate ───────────────────────────────────────────────────────────────────
   if (t === 'gate') {
     const open = obj.is_open !== false;
@@ -257,6 +278,8 @@ export default function SimulationPlayback({ simulation, projectData, onClose }:
   const [simulationTime, setSimulationTime] = useState(0);
   const animationFrameRef = useRef<number>();
   const lastTimeRef = useRef<number>(0);
+  const isPanningRef  = useRef(false);
+  const panStartRef   = useRef<{ x: number; y: number } | null>(null);
 
   const cellSize = projectData?.cell_size || 10;
   const disasterType = simulation?.results?.disaster_type || 'fire';
@@ -294,22 +317,43 @@ export default function SimulationPlayback({ simulation, projectData, onClose }:
               const spawnPos = path[0];
               if (!spawnPos || spawnPos.length !== 2) return;
 
-              newAgents.push({
-                id: newAgents.length,
-                path,
-                pathIndex: 0,
-                position: [spawnPos[0], spawnPos[1]],
-                velocity: [0, 0],
-                targetWaypoint: path[1] || path[0],
-                color: colors[newAgents.length % colors.length],
-                floor,
-                evacuated: false,
-                inSafeZone: false,
-                safeZoneTarget: null,
-                safeZoneId: null,
-                spawnDelay,      // seconds before this agent becomes visible
-                spawned: spawnDelay === 0,  // immediately visible if no delay
-              });
+              // Spawn zone_agent_count agents — all follow the same path
+              // but start at slightly different positions and staggered delays
+              const zoneCount: number = Array.isArray(entry) ? 1 : (entry.zone_agent_count ?? 1);
+              const spawnInterval = 0.5; // seconds between each queued agent
+
+              for (let k = 0; k < zoneCount; k++) {
+                // Small random jitter within ±10px so agents don't perfectly overlap
+                const jx = (Math.random() - 0.5) * 20;
+                const jy = (Math.random() - 0.5) * 20;
+                const agentDelay = spawnDelay + k * spawnInterval;
+                // Assign a lane offset so agents spread across the path width
+                // Pattern: 0, -1, +1, -2, +2 → agents fill centre then spread outward
+                const laneIdx = newAgents.length % 5;
+                const laneOffset = laneIdx === 0 ? 0
+                  : laneIdx === 1 ? -1
+                  : laneIdx === 2 ? 1
+                  : laneIdx === 3 ? -2
+                  : 2;
+
+                newAgents.push({
+                  id: newAgents.length,
+                  path,
+                  pathIndex: 0,
+                  position: [spawnPos[0] + jx, spawnPos[1] + jy],
+                  velocity: [0, 0],
+                  targetWaypoint: path[1] || path[0],
+                  color: colors[newAgents.length % colors.length],
+                  floor,
+                  evacuated: false,
+                  inSafeZone: false,
+                  safeZoneTarget: null,
+                  safeZoneId: null,
+                  spawnDelay: agentDelay,
+                  spawned: agentDelay === 0,
+                  lateralOffset: laneOffset,
+                });
+              }
             });
           }
         });
@@ -342,6 +386,8 @@ export default function SimulationPlayback({ simulation, projectData, onClose }:
           });
 
           return prevAgents.map(agent => {
+            // Fast-skip evacuated agents that are fully done
+            if (agent.evacuated && !agent.safeZoneTarget && !agent.inSafeZone) return agent;
             // Handle delayed spawn — agent is invisible until spawnDelay elapses
             if (!agent.spawned) {
               const remaining = agent.spawnDelay - delta / 1000;
@@ -363,7 +409,7 @@ export default function SimulationPlayback({ simulation, projectData, onClose }:
                   if (!agent.inSafeZone) {
                     const idx = safeZoneAgentCounts[zoneId] || 0;
                     safeZoneAgentCounts[zoneId] = idx + 1;
-                    const spacing = Math.max(3, 8 - Math.floor((idx / (sz.w * sz.h / 100))));
+                    const spacing = Math.max(10, 20 - Math.floor((idx / (sz.w * sz.h / 100))));
                     const margin = 15;
                     const cols = Math.max(1, Math.floor((sz.w - 2 * margin) / spacing));
                     const gx = sz.x + margin + (idx % cols) * spacing;
@@ -395,57 +441,64 @@ export default function SimulationPlayback({ simulation, projectData, onClose }:
               }
             }
 
-            // Reached end of path
+            // Reached end of path → evacuate
             if (agent.pathIndex >= agent.path.length - 1) {
               return disasterType === 'fire' || disasterType === 'bomb'
                 ? { ...agent, evacuated: true }
                 : agent;
             }
 
-            const dt = delta / 1000;
-            const pos = agent.position;
+            const dt   = delta / 1000;
+            const pos  = agent.position;
 
-            // Look-ahead waypoint selection
-            let target = agent.path[agent.pathIndex + 1] || agent.path[agent.pathIndex];
-            for (let i = 1; i <= WAYPOINT_LOOKAHEAD; i++) {
-              const ni = agent.pathIndex + i;
-              if (ni >= agent.path.length) break;
-              if (Math.hypot(agent.path[ni][0] - pos[0], agent.path[ni][1] - pos[1]) < 30) {
-                target = agent.path[ni];
-              } else break;
+            // ── Follow the shared zone path with a fixed personal lateral offset ──
+            // All agents from the same zone follow the SAME optimal path but each
+            // is offset perpendicular to the path direction, spreading them evenly
+            // like a real evacuation column rather than a single-file queue.
+            const target = agent.path[Math.min(agent.pathIndex + 1, agent.path.length - 1)];
+
+            // Direction of travel
+            const rawDx = target[0] - pos[0];
+            const rawDy = target[1] - pos[1];
+            const dist  = Math.hypot(rawDx, rawDy);
+
+            if (dist < 6) {
+              // Advance waypoint index
+              return {
+                ...agent,
+                pathIndex: Math.min(agent.pathIndex + 1, agent.path.length - 1),
+              };
             }
 
-            const dx = target[0] - pos[0], dy = target[1] - pos[1];
-            const dist = Math.hypot(dx, dy);
+            // Perpendicular direction (left = -perp, right = +perp)
+            const perpX = -rawDy / dist;
+            const perpY =  rawDx / dist;
 
-            if (dist < 8) {
-              const ni = Math.min(agent.path.findIndex(p => p === target), agent.path.length - 1);
-              return { ...agent, pathIndex: ni, targetWaypoint: agent.path[Math.min(ni + 1, agent.path.length - 1)] };
-            }
+            // Each agent has a fixed personal lane offset (-1 = left, 0 = centre, +1 = right)
+            // Derived from agent id so it's stable across frames
+            const laneOffset = agent.lateralOffset ?? 0;
+            const LANE_WIDTH = 6; // px — spacing between lanes
 
-            // Social avoidance
-            let avX = 0, avY = 0;
-            prevAgents.forEach(other => {
-              if (other.id === agent.id || other.evacuated || other.floor !== agent.floor) return;
-              const odx = pos[0] - other.position[0], ody = pos[1] - other.position[1];
-              const od = Math.hypot(odx, ody);
-              if (od < 12 && od > 0) {
-                const s = (12 - od) / 12;
-                avX += (odx / od) * s * 8;
-                avY += (ody / od) * s * 8;
-              }
-            });
+            const goalX = target[0] + perpX * laneOffset * LANE_WIDTH;
+            const goalY = target[1] + perpY * laneOffset * LANE_WIDTH;
 
-            const dvx = (dx / dist) * ANIMATION_SPEED + avX;
-            const dvy = (dy / dist) * ANIMATION_SPEED + avY;
-            const sm = 0.5;
-            const nvx = agent.velocity[0] * (1 - sm) + dvx * sm;
-            const nvy = agent.velocity[1] * (1 - sm) + dvy * sm;
+            const gdx = goalX - pos[0];
+            const gdy = goalY - pos[1];
+            const gdist = Math.hypot(gdx, gdy);
+
+            const speed = ANIMATION_SPEED;
+            const nvx = (gdx / gdist) * speed;
+            const nvy = (gdy / gdist) * speed;
+
+            // Smooth velocity
+            const sm  = 0.4;
+            const fnvx = agent.velocity[0] * (1 - sm) + nvx * sm;
+            const fnvy = agent.velocity[1] * (1 - sm) + nvy * sm;
 
             return {
               ...agent,
-              position: [pos[0] + nvx * dt, pos[1] + nvy * dt],
-              velocity: [nvx, nvy],
+              position: [pos[0] + fnvx * dt, pos[1] + fnvy * dt],
+              velocity: [fnvx, fnvy],
             };
           });
         });
@@ -459,6 +512,10 @@ export default function SimulationPlayback({ simulation, projectData, onClose }:
     return () => { if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current); };
   }, [isPlaying, agents.length, disasterType, currentFloor]);
 
+  // Offscreen cache for static map layer (avoids re-drawing 1800+ tiles every frame)
+  const mapCacheRef = useRef<HTMLCanvasElement | null>(null);
+  const mapCacheKeyRef = useRef('');
+
   // Canvas rendering
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -466,7 +523,7 @@ export default function SimulationPlayback({ simulation, projectData, onClose }:
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // White paper background (matches the editor)
+    // White paper background
     ctx.fillStyle = '#f8f7f4';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -477,8 +534,20 @@ export default function SimulationPlayback({ simulation, projectData, onClose }:
     const buildings = projectData?.buildings || [];
     const currentLayer = buildings[0]?.layers?.[currentFloor] || [];
 
-    // Draw all map objects using the shared drawMapObject function
-    currentLayer.forEach((obj: any) => drawMapObject(ctx, obj));
+    // Draw static map to offscreen cache — only rebuild when floor/data changes
+    const cacheKey = `${currentFloor}-${currentLayer.length}`;
+    if (!mapCacheRef.current || mapCacheKeyRef.current !== cacheKey) {
+      const offscreen = document.createElement('canvas');
+      offscreen.width  = 3000;
+      offscreen.height = 3000;
+      const octx = offscreen.getContext('2d')!;
+      octx.fillStyle = '#f8f7f4';
+      octx.fillRect(0, 0, offscreen.width, offscreen.height);
+      currentLayer.forEach((obj: any) => drawMapObject(octx, obj));
+      mapCacheRef.current    = offscreen;
+      mapCacheKeyRef.current = cacheKey;
+    }
+    ctx.drawImage(mapCacheRef.current, 0, 0);
 
     // Draw agents
     agents
@@ -519,6 +588,47 @@ export default function SimulationPlayback({ simulation, projectData, onClose }:
     ctx.restore();
   }, [agents, currentFloor, zoom, offset, projectData, disasterType]);
 
+  const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    // Mouse position in CSS pixels relative to the canvas — same space as offset
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    setZoom(prev => {
+      const nz = Math.min(Math.max(prev * delta, 0.2), 8);
+      setOffset(o => ({
+        x: mx - (mx - o.x) * (nz / prev),
+        y: my - (my - o.y) * (nz / prev),
+      }));
+      return nz;
+    });
+  };
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (e.button === 1 || e.button === 0) {
+      isPanningRef.current = true;
+      panStartRef.current  = { x: e.clientX, y: e.clientY };
+      e.currentTarget.style.cursor = 'grabbing';
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isPanningRef.current || !panStartRef.current) return;
+    const dx = e.clientX - panStartRef.current.x;
+    const dy = e.clientY - panStartRef.current.y;
+    panStartRef.current = { x: e.clientX, y: e.clientY };
+    setOffset(o => ({ x: o.x + dx, y: o.y + dy }));
+  };
+
+  const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    isPanningRef.current = false;
+    panStartRef.current  = null;
+    e.currentTarget.style.cursor = 'grab';
+  };
+
   const handleReset = () => {
     setIsPlaying(false);
     setSimulationTime(0);
@@ -549,7 +659,15 @@ export default function SimulationPlayback({ simulation, projectData, onClose }:
 
         {/* Canvas */}
         <div className="flex-1 relative bg-gray-800">
-          <canvas ref={canvasRef} width={1200} height={800} className="w-full h-full" />
+          <canvas ref={canvasRef} width={1200} height={800}
+            className="w-full h-full"
+            style={{ cursor: 'grab' }}
+            onWheel={handleWheel}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+          />
 
           {/* Stats */}
           <div className="absolute top-4 left-4 bg-black/75 rounded-lg p-4 text-white space-y-2 text-sm">
@@ -586,6 +704,7 @@ export default function SimulationPlayback({ simulation, projectData, onClose }:
               <RotateCcw className="w-5 h-5" />
             </button>
             <span className="text-white text-sm ml-2">{isPlaying ? 'Playing' : 'Paused'}</span>
+            <span className="text-gray-500 text-xs ml-4 hidden sm:block">Scroll to zoom · Drag to pan</span>
           </div>
           <div className="flex items-center gap-3">
             <button onClick={() => setZoom(z => Math.max(z / 1.2, 0.3))} className="p-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition">

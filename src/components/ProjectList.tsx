@@ -1,8 +1,9 @@
 //ProjectList - with simulation progress bar
 import { useState, useEffect, useRef } from 'react';
-import { projectAPI, pythonSimulationAPI } from '../lib/api';
+import { projectAPI, simulationAPI } from '../lib/api';
 import SimulationResultsModal from './SimulationResultsModal';
 import SimulationCreator from './SimulationCreator';
+import { T, C } from '../design/DesignTokens';
 import {
   Map,
   Loader,
@@ -47,7 +48,7 @@ function SimulationProgress({
   const [elapsed, setElapsed]   = useState(0);
   const [pct, setPct]           = useState(0);
   const [info, setInfo]         = useState({ evacuated: 0, remaining: 0, queued: 0, total: 0, step: 0 });
-  const [phase, setPhase]       = useState<'queued'|'running'|'completed'|'failed'>('queued');
+  const [phase, setPhase]       = useState<'queued'|'running'|'completed'|'cancelled'|'failed'>('queued');
   const [errMsg, setErrMsg]     = useState<string | null>(null);
   const startRef = useRef(Date.now());
 
@@ -88,9 +89,11 @@ function SimulationProgress({
           onCompleted(data.results);
         }
         if (data.status === 'cancelled') {
-          setErrMsg('Simulation was cancelled.');
-          setPhase('failed');
+          setErrMsg('Simulation was cancelled — no results saved.');
+          setPhase('cancelled');
+          // Auto-dismiss modal after 2 seconds
           setTimeout(() => onCompleted(null), 2000);
+          return; // stop polling
         }
         if (data.status === 'failed') {
           setErrMsg(data.error ?? 'Unknown error');
@@ -98,7 +101,7 @@ function SimulationProgress({
       } catch { /* ignore network blips */ }
     };
     poll(); // immediate first poll
-    const id = setInterval(poll, 1000);
+    const id = setInterval(poll, 500);
     return () => clearInterval(id);
   }, [jobId]);
 
@@ -115,12 +118,12 @@ function SimulationProgress({
             {disasterEmoji[disasterType] ?? '🚨'}
           </div>
           <div>
-            <h3 className="text-lg font-bold text-gray-900">
+            <h3 style={T.pageTitle}>
               {phase === 'queued'    ? 'Starting simulation…' :
                phase === 'running'   ? 'Running Simulation' :
                phase === 'completed' ? 'Simulation Complete!' : 'Simulation Failed'}
             </h3>
-            <p className="text-sm text-gray-500 mt-0.5">{projectName} · {disasterType.toUpperCase()}</p>
+            <p className="mt-0.5" style={{...T.body, color: C.inkMuted}}>{projectName} · {disasterType.toUpperCase()}</p>
           </div>
         </div>
 
@@ -136,7 +139,7 @@ function SimulationProgress({
                phase === 'running' ? `Step ${info.step.toLocaleString()} / pathfinding` :
                phase === 'completed' ? 'Done!' : ''}
             </span>
-            <span className="font-mono font-semibold">{pct.toFixed(0)}%</span>
+            <span className="font-mono" style={T.sectionHeader}>{pct.toFixed(0)}%</span>
           </div>
           <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
             <div
@@ -151,27 +154,13 @@ function SimulationProgress({
           </div>
         </div>
 
-        {/* Live stats */}
-        <div className="grid grid-cols-3 gap-3 mb-5 text-center text-sm">
-          <div className="bg-green-50 rounded-xl p-2.5">
-            <div className="text-xl font-bold text-green-600">{info.evacuated}</div>
-            <div className="text-[10px] text-gray-500 uppercase tracking-wide mt-0.5">Evacuated</div>
-          </div>
-          <div className="bg-blue-50 rounded-xl p-2.5">
-            <div className="text-xl font-bold text-blue-600">{info.remaining}</div>
-            <div className="text-[10px] text-gray-500 uppercase tracking-wide mt-0.5">Moving</div>
-          </div>
-          <div className="bg-orange-50 rounded-xl p-2.5">
-            <div className="text-xl font-bold text-orange-600">{info.queued}</div>
-            <div className="text-[10px] text-gray-500 uppercase tracking-wide mt-0.5">Queued</div>
-          </div>
-        </div>
+
 
         {/* Time row */}
         <div className="flex justify-between text-sm text-gray-500 mb-4">
           <div className="flex items-center gap-1.5">
             <Clock className="w-4 h-4 text-blue-400" />
-            <span className="font-mono font-semibold text-gray-700">{fmt(elapsed)}</span>
+            <span className="font-mono" style={T.sectionHeader}>{fmt(elapsed)}</span>
             <span>elapsed</span>
           </div>
           {eta && phase === 'running' && (
@@ -183,9 +172,13 @@ function SimulationProgress({
           <div className="text-center text-green-600 font-semibold text-sm">
             ✅ Results loading…
           </div>
+        ) : phase === 'cancelled' ? (
+          <div className="mt-2 flex items-center gap-2 text-sm text-orange-400">
+            <span>⛔ Simulation cancelled — no results saved.</span>
+          </div>
         ) : phase === 'failed' ? null : (
           <div className="space-y-3">
-            <p className="text-xs text-gray-400 text-center">
+            <p className="text-center" style={T.meta}>
               Progress updates every second.
             </p>
             <button
@@ -197,6 +190,8 @@ function SimulationProgress({
                   await fetch(`${apiBase}/api/simulations/cancel/${jobId}`, {
                     method: 'POST', credentials: 'include',
                   });
+                  // Dismiss modal immediately on user-initiated cancel
+                  setTimeout(() => onCompleted(null), 1500);
                 } catch { /* ignore */ }
               }}
               className="w-full px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg transition text-sm font-medium"
@@ -262,7 +257,7 @@ export default function ProjectList({ onOpenEditor, onRunSimulation }: ProjectLi
       const fullProject = await projectAPI.getOne(project.id);
 
       // Start simulation — returns job_id immediately (202 Accepted)
-      const startData = await pythonSimulationAPI.run({
+      const startData = await simulationAPI.run({
         project_id: project.id,
         disaster_type: disasterType,
         max_steps: 10000,
@@ -370,8 +365,8 @@ export default function ProjectList({ onOpenEditor, onRunSimulation }: ProjectLi
         {/* Header */}
         <div className="border-b border-gray-200 px-8 py-6 flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Map Projects</h2>
-            <p className="text-gray-600 mt-1">
+            <h2 style={T.pageTitle}>Map Projects</h2>
+            <p className="mt-1" style={{...T.body, color: C.inkMuted}}>
               {projects.length} {projects.length === 1 ? 'project' : 'projects'} saved
             </p>
           </div>
@@ -395,8 +390,8 @@ export default function ProjectList({ onOpenEditor, onRunSimulation }: ProjectLi
           {projects.length === 0 ? (
             <div className="text-center py-16">
               <Map className="w-20 h-20 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-700 mb-2">No Projects Yet</h3>
-              <p className="text-gray-500 mb-6">Create your first evacuation map to get started</p>
+              <h3 className="mb-2" style={T.sectionHeader}>No Projects Yet</h3>
+              <p className="mb-6" style={{...T.body, color: C.inkMuted}}>Create your first evacuation map to get started</p>
               <button
                 onClick={() => handleOpenEditor(-1)}
                 className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition"
@@ -414,9 +409,9 @@ export default function ProjectList({ onOpenEditor, onRunSimulation }: ProjectLi
                 >
                   {/* Card header */}
                   <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-4">
-                    <h3 className="text-lg font-bold text-white truncate">{project.name}</h3>
+                    <h3 className="text-white truncate" style={T.sectionHeader}>{project.name}</h3>
                     {project.description && (
-                      <p className="text-blue-100 text-sm mt-1 line-clamp-2">{project.description}</p>
+                      <p className="text-blue-100 mt-1 line-clamp-2" style={T.body}>{project.description}</p>
                     )}
                   </div>
 
@@ -433,7 +428,7 @@ export default function ProjectList({ onOpenEditor, onRunSimulation }: ProjectLi
                     <div className="p-3 bg-orange-50 rounded-xl border border-orange-200">
                       <div className="flex items-center gap-2 mb-2">
                         <AlertTriangle className="w-3.5 h-3.5 text-orange-500" />
-                        <span className="text-[10px] font-bold text-gray-700 uppercase tracking-widest">Disaster Type</span>
+                        <span className="text-[10px] uppercase tracking-widest" style={T.pageTitle}>Disaster Type</span>
                       </div>
                       <div className="grid grid-cols-3 gap-1.5">
                         {([
@@ -511,8 +506,8 @@ export default function ProjectList({ onOpenEditor, onRunSimulation }: ProjectLi
             className="bg-white rounded-xl shadow-2xl p-8 max-w-2xl w-full"
             onClick={e => e.stopPropagation()}
           >
-            <h3 className="text-2xl font-bold mb-4">{selectedProject.name}</h3>
-            {selectedProject.description && <p className="text-gray-600 mb-4">{selectedProject.description}</p>}
+            <h3 className="mb-4" style={T.pageTitle}>{selectedProject.name}</h3>
+            {selectedProject.description && <p className="mb-4" style={{...T.body, color: C.inkMuted}}>{selectedProject.description}</p>}
             <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
               <div className="bg-gray-50 p-3 rounded-lg"><div className="text-gray-500 text-xs mb-1">Grid size</div><div className="font-semibold">{selectedProject.grid_width} × {selectedProject.grid_height} metres</div></div>
               <div className="bg-gray-50 p-3 rounded-lg"><div className="text-gray-500 text-xs mb-1">Cell size</div><div className="font-semibold">{selectedProject.cell_size} px/m</div></div>

@@ -1,4 +1,4 @@
-// API Configuration
+// API Configuration — env var kept as VITE_PYTHON_API_URL (unchanged)
 const PYTHON_API = import.meta.env.VITE_PYTHON_API_URL || 'http://localhost:5000';
 
 /* =========================
@@ -6,11 +6,15 @@ const PYTHON_API = import.meta.env.VITE_PYTHON_API_URL || 'http://localhost:5000
 ========================= */
 
 export type Role = 'admin' | 'executive' | 'member';
+export type DisasterType = 'fire' | 'earthquake' | 'bomb';
 
 export interface UserProfile {
   id: string;
   email: string;
   role: Role;
+  group_id?: number | null;
+  group_name?: string | null;
+  is_head?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -18,10 +22,34 @@ export interface UserProfile {
 export interface Simulation {
   id: number;
   status: 'pending' | 'running' | 'completed' | 'failed';
+  disaster_type: DisasterType;
   config: any;
   results: any;
+  steps: number;
+  elapsed_s: number;
+  evacuation_time: number;
+  agents_spawned: number;
+  agents_evacuated: number;
+  agents_trapped: number;
+  project_name?: string;
+  project_data?: any;
   created_at: string;
-  updated_at: string;
+  completed_at: string;
+}
+
+export interface SimulationJob {
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+  progress: {
+    pct: number;
+    step: number;
+    max_steps: number;
+    evacuated: number;
+    remaining: number;
+    queued: number;
+    total: number;
+  };
+  results: any | null;
+  error: string | null;
 }
 
 export interface MapProject {
@@ -67,13 +95,11 @@ async function pythonRequest<T>(
   const response = await fetch(`${PYTHON_API}${endpoint}`, {
     ...options,
     headers,
-    credentials: 'include', // ✅ Always include cookies for session
+    credentials: 'include',
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({
-      error: 'Unknown error',
-    }));
+    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
     throw new Error(error.error || `API error: ${response.status}`);
   }
 
@@ -81,11 +107,11 @@ async function pythonRequest<T>(
 }
 
 /* =========================
-AUTH SERVICE (Session-based) - WITH ERROR HANDLING
+   AUTH SERVICE — /api/auth/*
+   src/routes/auth.py  (unchanged)
 ========================= */
 
 export const authService = {
-  // Login with session
   login: async (email: string, password: string) => {
     const response = await pythonRequest<{ success: boolean; user: UserProfile }>('/api/auth/login', {
       method: 'POST',
@@ -94,7 +120,6 @@ export const authService = {
     return response.user;
   },
 
-  // Register new user
   signup: async (email: string, password: string, role: Role = 'member') => {
     const response = await pythonRequest<{ success: boolean; user: UserProfile }>('/api/auth/register', {
       method: 'POST',
@@ -103,26 +128,22 @@ export const authService = {
     return response.user;
   },
 
-  // Logout (clears session) - with error handling
   logout: async () => {
     try {
       await pythonRequest('/api/auth/logout', { method: 'POST' });
     } catch (error) {
-      // Ignore errors on logout (session might already be expired)
       console.log('Logout error (ignored):', error);
     }
   },
 
-  // Get current user from session
   getMe: async (): Promise<UserProfile | null> => {
     try {
       return await pythonRequest<UserProfile>('/api/auth/me', { method: 'GET' });
-    } catch (error) {
-      return null; // Not authenticated
+    } catch {
+      return null;
     }
   },
 
-  // Check if user is authenticated
   isAuthenticated: async (): Promise<boolean> => {
     const user = await authService.getMe();
     return user !== null;
@@ -130,14 +151,16 @@ export const authService = {
 };
 
 /* =========================
-   PROFILE API
+   PROFILE / USER API — /api/users/*
+   src/routes/users.py
+
+   ADDED: updateGroup()
 ========================= */
 
 export const profileAPI = {
   getMe: (): Promise<UserProfile> =>
     pythonRequest<UserProfile>('/api/auth/me', { method: 'GET' }),
 
-  // You'll need to add these endpoints to Python later
   getAll: (): Promise<UserProfile[]> =>
     pythonRequest<UserProfile[]>('/api/users', { method: 'GET' }),
 
@@ -149,10 +172,18 @@ export const profileAPI = {
 
   delete: (userId: string): Promise<void> =>
     pythonRequest<void>(`/api/users/${userId}`, { method: 'DELETE' }),
+
+  // ✅ ADDED
+  updateGroup: (userId: string, groupId: number | null, isHead = false) =>
+    pythonRequest(`/api/users/${userId}/group`, {
+      method: 'PUT',
+      body: JSON.stringify({ group_id: groupId, is_head: isHead }),
+    }),
 };
 
 /* =========================
-   PROJECT API
+   PROJECT API — /api/projects/*
+   src/routes/projects.py  (unchanged)
 ========================= */
 
 export const projectAPI = {
@@ -177,19 +208,16 @@ export const projectAPI = {
       body: JSON.stringify(data),
     }),
 
-  update: (
-    id: number,
-    data: {
-      name: string;
-      description?: string;
-      grid_width: number;
-      grid_height: number;
-      cell_size: number;
-      project_data: any;
-      building_count: number;
-      total_floors: number;
-    }
-  ): Promise<{ id: number; success: boolean }> =>
+  update: (id: number, data: {
+    name: string;
+    description?: string;
+    grid_width: number;
+    grid_height: number;
+    cell_size: number;
+    project_data: any;
+    building_count: number;
+    total_floors: number;
+  }): Promise<{ id: number; success: boolean }> =>
     pythonRequest(`/api/projects/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -198,60 +226,77 @@ export const projectAPI = {
   delete: (id: number): Promise<{ success: boolean }> =>
     pythonRequest(`/api/projects/${id}`, { method: 'DELETE' }),
 
-  validate: (
-    id: number
-  ): Promise<{
+  validate: (id: number): Promise<{
     valid: boolean;
     error?: string;
     building_count?: number;
-    object_counts?: {
-      walls: number;
-      exits: number;
-      stairs: number;
-      npcs: number;
-      lines: number;
-    };
+    object_counts?: { walls: number; exits: number; stairs: number; npcs: number; lines: number };
     message?: string;
   }> =>
     pythonRequest(`/api/projects/${id}/validate`, { method: 'GET' }),
 };
 
 /* =========================
-   SIMULATION API
+   SIMULATION API — /api/simulations/*
+   src/routes/simulations.py
+
+   CHANGED: run() — project_data removed, project_id now required, disaster_type typed
+   ADDED:   progress(), cancel()
 ========================= */
 
 export const simulationAPI = {
-  getAll: (): Promise<any[]> =>
-    pythonRequest('/api/simulations', { method: 'GET' }),
+  getAll: (projectId?: number): Promise<Simulation[]> => {
+    const qs = projectId ? `?project_id=${projectId}` : '';
+    return pythonRequest(`/api/simulations${qs}`, { method: 'GET' });
+  },
 
-  getOne: (id: number): Promise<any> =>
+  getOne: (id: number): Promise<Simulation> =>
     pythonRequest(`/api/simulations/${id}`, { method: 'GET' }),
 
+  // ✅ CHANGED — project_id required, backend fetches project_data itself
   run: (params: {
-    project_id?: number;
-    project_data?: any;
+    project_id: number;
+    disaster_type?: DisasterType;   // defaults to 'fire' on backend
     max_steps?: number;
-    agents_per_npc?: number;
-    disaster_type?: string;  
-  }): Promise<any> =>
+  }): Promise<{ success: boolean; job_id: string }> =>
     pythonRequest('/api/simulations/run', {
       method: 'POST',
       body: JSON.stringify(params),
     }),
+
+  // ✅ ADDED — poll job status while simulation runs
+  progress: (jobId: string): Promise<SimulationJob> =>
+    pythonRequest(`/api/simulations/progress/${jobId}`, { method: 'GET' }),
+
+  // ✅ ADDED — cancel a running job
+  cancel: (jobId: string): Promise<{ success: boolean }> =>
+    pythonRequest(`/api/simulations/cancel/${jobId}`, { method: 'POST' }),
 
   delete: (id: number): Promise<void> =>
     pythonRequest(`/api/simulations/${id}`, { method: 'DELETE' }),
 };
 
 /* =========================
-   ANNOUNCEMENT API
+   ANNOUNCEMENT API — /api/announcements/*
+   src/routes/announcements.py
+
+   CHANGED: create() — added image_urls, target_group_id, target_heads_only
 ========================= */
 
 export const announcementAPI = {
   getAll: (): Promise<any[]> =>
     pythonRequest('/api/announcements', { method: 'GET' }),
 
-  create: (data: { title: string; content: string; image_url?: string; is_pinned?: boolean }) =>
+  // ✅ CHANGED — added targeting fields
+  create: (data: {
+    title: string;
+    content: string;
+    image_url?: string;
+    image_urls?: string[];
+    is_pinned?: boolean;
+    target_group_id?: number | null;
+    target_heads_only?: boolean;
+  }) =>
     pythonRequest('/api/announcements', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -280,22 +325,22 @@ export const announcementAPI = {
 };
 
 /* =========================
-   EVENT API
+   EVENT API — /api/events/*
+   src/routes/events.py
+
+   ADDED: update(), delete()
 ========================= */
 
 export const eventAPI = {
   getAll: (year?: number, month?: number): Promise<any[]> => {
-    let url = '/api/events';
-    if (year && month) {
-      url += `?year=${year}&month=${month}`;
-    }
-    return pythonRequest(url, { method: 'GET' });
+    const qs = year && month ? `?year=${year}&month=${month}` : '';
+    return pythonRequest(`/api/events${qs}`, { method: 'GET' });
   },
 
   create: (data: {
     title: string;
     description?: string;
-    event_type: 'training' | 'meeting' | 'drill' | 'other';
+    event_type: string;
     start_time: string;
     end_time: string;
     location?: string;
@@ -307,13 +352,135 @@ export const eventAPI = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+
+  // ✅ ADDED
+  update: (id: number, data: {
+    title: string;
+    description?: string;
+    event_type: string;
+    start_time: string;
+    end_time: string;
+    location?: string;
+  }) =>
+    pythonRequest(`/api/events/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  // ✅ ADDED
+  delete: (id: number) =>
+    pythonRequest(`/api/events/${id}`, { method: 'DELETE' }),
+};
+
+/* =========================
+   INCIDENT API — /api/incidents/*
+   src/routes/incidents.py
+   ✅ ENTIRELY NEW
+========================= */
+
+export const incidentAPI = {
+  getAll: (): Promise<any[]> =>
+    pythonRequest('/api/incidents', { method: 'GET' }),
+
+  getOne: (id: number): Promise<any> =>
+    pythonRequest(`/api/incidents/${id}`, { method: 'GET' }),
+
+  create: (data: {
+    title: string;
+    description: string;
+    incident_type: string;
+    severity: string;
+    location?: string;
+    incident_date: string;
+    image_urls?: string[];
+  }) =>
+    pythonRequest('/api/incidents', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  addRemark: (incidentId: number, remark: string) =>
+    pythonRequest(`/api/incidents/${incidentId}/remarks`, {
+      method: 'POST',
+      body: JSON.stringify({ remark }),
+    }),
+
+  updateStatus: (
+    incidentId: number,
+    status: 'pending' | 'under_review' | 'resolved' | 'closed'
+  ) =>
+    pythonRequest(`/api/incidents/${incidentId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    }),
+};
+
+/* =========================
+   EVALUATION API — /api/evaluations/*
+   src/routes/evaluations.py
+   ✅ ENTIRELY NEW
+========================= */
+
+export const evaluationAPI = {
+  pending: (): Promise<any[]> =>
+    pythonRequest('/api/evaluations/pending', { method: 'GET' }),
+
+  mine: (): Promise<any[]> =>
+    pythonRequest('/api/evaluations/my', { method: 'GET' }),
+
+  submit: (data: {
+    event_id: number;
+    instructor_name: string;
+    program_class?: string;
+    classroom_office: string;
+    male_count: number;
+    female_count: number;
+    comments?: string;
+    image_urls?: string[];
+  }) =>
+    pythonRequest('/api/evaluations', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  recentDrills: (): Promise<any[]> =>
+    pythonRequest('/api/evaluations/recent-drills', { method: 'GET' }),
+
+  forEvent: (eventId: number): Promise<any> =>
+    pythonRequest(`/api/evaluations/event/${eventId}`, { method: 'GET' }),
+};
+
+/* =========================
+   ORGANIZATION API — /api/organization, /api/groups/*
+   src/routes/organization.py
+   ✅ ENTIRELY NEW
+========================= */
+
+export const organizationAPI = {
+  get: (): Promise<{ users: UserProfile[]; groups: any[] }> =>
+    pythonRequest('/api/organization', { method: 'GET' }),
+
+  getAll: (): Promise<{ users: UserProfile[]; groups: any[] }> =>
+    pythonRequest('/api/organization', { method: 'GET' }),
+
+  listGroups: (): Promise<any[]> =>
+    pythonRequest('/api/groups', { method: 'GET' }),
+
+  createGroup: (name: string) =>
+    pythonRequest('/api/groups', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    }),
+
+  deleteGroup: (id: number) =>
+    pythonRequest(`/api/groups/${id}`, { method: 'DELETE' }),
 };
 
 /* =========================
    LEGACY COMPATIBILITY
+   Keep so existing components don't break
 ========================= */
 
-// Keep for backward compatibility with existing code
 export const authAPI = {
   login: authService.login,
   signup: authService.signup,
@@ -322,13 +489,13 @@ export const authAPI = {
 
 export const pythonSimulationAPI = simulationAPI;
 
-// Legacy simulation service (for components still using it)
 export const simulationService = {
-  runSimulation: (params: { buildings: any }) =>
-    simulationAPI.run({ project_data: params.buildings }),
-
+  runSimulation: () => {
+    console.warn('simulationService.runSimulation() is deprecated — use simulationAPI.run({ project_id })');
+    return Promise.reject(new Error('Use simulationAPI.run({ project_id, disaster_type })'));
+  },
   getMap: () => {
-    console.warn('getMap() is deprecated - use projectAPI instead');
+    console.warn('getMap() is deprecated — use projectAPI instead');
     return Promise.resolve({ buildings: [] });
   },
 };

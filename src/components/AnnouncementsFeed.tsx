@@ -1,5 +1,6 @@
 // AnnouncementsFeed.tsx
 import { useState, useEffect, useCallback } from 'react';
+import { T, C } from '../design/DesignTokens';
 import {
   MessageSquare, Heart, Pin, Trash2, Send, FileText,
   AlertCircle, Upload, X, ChevronLeft, ChevronRight, Images, Filter, Star
@@ -115,7 +116,7 @@ function MultiImageUploader({ images, onChange, max = 5, accentColor = 'blue' }:
                 <X className="w-3 h-3" />
               </button>
               {idx === 0 && (
-                <span className="absolute bottom-1 left-1 text-[10px] bg-black/60 text-white px-1.5 py-0.5 rounded-sm font-medium">Cover</span>
+                <span className="absolute bottom-1 left-1 text-[10px] bg-black/60 text-white px-1.5 py-0.5 rounded-sm" style={T.bodyMedium}>Cover</span>
               )}
             </div>
           ))}
@@ -129,17 +130,17 @@ function MultiImageUploader({ images, onChange, max = 5, accentColor = 'blue' }:
           onDragLeave={() => setDragOver(false)}
           onDrop={e => { e.preventDefault(); setDragOver(false); processFiles(e.dataTransfer.files); }}
         >
-          <div className="flex flex-col items-center gap-1.5 text-gray-500 pointer-events-none">
+          <div className="flex flex-col items-center gap-1.5 ds-ink-muted pointer-events-none">
             <Upload className="w-6 h-6" />
-            <span className="text-sm font-medium">{images.length === 0 ? 'Upload photos' : 'Add more photos'}</span>
-            <span className="text-xs text-gray-400">{images.length}/{max} • PNG, JPG, WEBP up to 5MB each</span>
+            <span className="ds-body" style={{fontWeight:500}}>{images.length === 0 ? 'Upload photos' : 'Add more photos'}</span>
+            <span className="ds-meta">{images.length}/{max} • PNG, JPG, WEBP up to 5MB each</span>
           </div>
           <input type="file" accept="image/*" multiple className="hidden"
             onChange={e => { processFiles(e.target.files); e.target.value = ''; }} />
         </label>
       )}
       {images.length >= max && (
-        <p className="text-xs text-center text-gray-400">Maximum {max} photos reached</p>
+        <p className="text-center ds-ink-disabled" style={T.meta}>Maximum {max} photos reached</p>
       )}
     </div>
   );
@@ -178,10 +179,10 @@ function SlideshowModal({ images, initialIndex = 0, title, onClose }: SlideshowM
       <div className="flex items-center justify-between px-6 py-4 flex-shrink-0">
         <div className="flex items-center gap-3">
           <Images className="w-5 h-5 text-white/60" />
-          {title && <span className="text-white font-semibold truncate max-w-xs">{title}</span>}
+          {title && <span className="text-white truncate max-w-xs" style={T.sectionHeader}>{title}</span>}
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-white/60 text-sm tabular-nums">
+          <span className="text-white/60 tabular-nums" style={T.body}>
             {current + 1} / {images.length}
           </span>
           <button onClick={onClose} className="text-white/70 hover:text-white transition p-1 rounded-lg hover:bg-white/10">
@@ -435,8 +436,8 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
           <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
             <div>
-              <h3 className="font-semibold text-red-900">Authentication Required</h3>
-              <p className="text-sm text-red-700 mt-1">Your session has expired. Please refresh and log in again.</p>
+              <h3 className="text-red-900" style={T.sectionHeader}>Authentication Required</h3>
+              <p className="text-red-700 mt-1" style={T.body}>Your session has expired. Please refresh and log in again.</p>
             </div>
           </div>
         )}
@@ -451,7 +452,7 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
 
             {/* Filter bar */}
             <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-gray-400 flex-shrink-0" />
+              <Filter className="w-4 h-4 ds-ink-disabled flex-shrink-0" />
               <select
                 value={filterGroupId}
                 onChange={e => {
@@ -468,7 +469,7 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
               </select>
               {filterGroupId !== '' && (
                 <button onClick={() => setFilterGroupId('')}
-                  className="text-xs text-gray-500 hover:text-gray-800 px-2 py-1 rounded hover:bg-gray-100 transition">
+                  className="text-xs ds-ink-muted hover:text-gray-800 px-2 py-1 rounded hover:bg-gray-100 transition">
                   Clear
                 </button>
               )}
@@ -478,7 +479,7 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
 
         {pinnedPosts.length > 0 && (
           <div className="space-y-3">
-            <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+            <div className="flex items-center gap-2 ds-section-header">
               <Pin className="w-4 h-4" /><span>Pinned Announcements</span>
             </div>
             {pinnedPosts.map(post => (
@@ -515,9 +516,9 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
 
         {!loading && announcements.length === 0 && !authError && (
           <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
-            <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-            <p className="text-gray-600">No announcements yet</p>
-            <p className="text-sm text-gray-500 mt-1">Check back later for updates</p>
+            <AlertCircle className="w-12 h-12 ds-ink-disabled mx-auto mb-3" />
+            <p style={{...T.body, color: C.inkMuted}}>No announcements yet</p>
+            <p className="ds-ink-muted mt-1" style={T.body}>Check back later for updates</p>
           </div>
         )}
 
@@ -526,7 +527,7 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-auto">
               <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-gray-900">Create Announcement</h2>
+                <h2 className="ds-page-title">Create Announcement</h2>
                 <button onClick={() => { setShowCreateModal(false); setNewPost({ title: '', content: '', target_group_id: '', target_heads_only: false }); setNewImages([]); }}
                   className="text-gray-400 hover:text-gray-600 transition">
                   <X className="w-6 h-6" />
@@ -535,7 +536,7 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
 
               <div className="p-6 space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Title</label>
+                  <label className="block ds-body mb-2" style={{fontWeight:500}}>Title</label>
                   <input type="text" value={newPost.title}
                     onChange={e => setNewPost({ ...newPost, title: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -543,7 +544,7 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Content</label>
+                  <label className="block ds-body mb-2" style={{fontWeight:500}}>Content</label>
                   <textarea value={newPost.content}
                     onChange={e => setNewPost({ ...newPost, content: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
@@ -552,7 +553,7 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
 
                 {/* Audience targeting */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block ds-body mb-2" style={{fontWeight:500}}>
                     Audience
                   </label>
                   <div className="space-y-2">
@@ -576,7 +577,7 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
                         <option key={g.id} value={g.id}>👥 {g.name}</option>
                       ))}
                     </select>
-                    <p className="text-xs text-gray-400">
+                    <p className="ds-meta">
                       {newPost.target_heads_only
                         ? 'Only group heads will see this announcement.'
                         : newPost.target_group_id
@@ -587,7 +588,7 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block ds-body mb-2" style={{fontWeight:500}}>
                     Photos (Optional, up to 5)
                   </label>
                   <MultiImageUploader images={newImages} onChange={setNewImages} max={5} accentColor="blue" />
@@ -596,7 +597,7 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
 
               <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
                 <button onClick={() => { setShowCreateModal(false); setNewPost({ title: '', content: '', target_group_id: '', target_heads_only: false }); setNewImages([]); }}
-                  className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                  className="px-4 py-2 ds-ink-secondary hover:bg-gray-100 rounded-lg transition">
                   Cancel
                 </button>
                 <button onClick={createAnnouncement}
@@ -655,8 +656,8 @@ function PostCard({
             {post.author_email[0].toUpperCase()}
           </div>
           <div>
-            <p className="font-semibold text-gray-900">{post.author_email}</p>
-            <div className="flex items-center gap-2 text-xs text-gray-500">
+            <p className="ds-card-title">{post.author_email}</p>
+            <div className="flex items-center gap-2 ds-meta">
               <span className="capitalize px-2 py-0.5 bg-blue-100 text-blue-700 rounded">{post.author_role}</span>
               <span>•</span>
               <span>{formatTimeAgo(post.created_at)}</span>
@@ -671,7 +672,7 @@ function PostCard({
               <Pin className="w-4 h-4" />
             </button>
             <button onClick={() => onDelete(post.id)}
-              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition">
+              className="p-2 ds-ink-disabled hover:text-red-600 hover:bg-red-50 rounded-lg transition">
               <Trash2 className="w-4 h-4" />
             </button>
           </div>
@@ -680,14 +681,14 @@ function PostCard({
 
       {/* Content */}
       <div className="px-4 pb-3">
-        <h3 className="text-lg font-bold text-gray-900 mb-2">{post.title}</h3>
-        <p className="text-gray-700 whitespace-pre-wrap">{post.content}</p>
+        <h3 className="ds-ink-primary mb-2" style={T.pageTitle}>{post.title}</h3>
+        <p className="ds-body whitespace-pre-wrap">{post.content}</p>
       </div>
 
       {/* Audience badge */}
       {(post.target_group_name || post.target_heads_only) && (
         <div className="px-4 pb-3">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200" style={T.bodyMedium}>
             {post.target_heads_only
               ? <><Star className="w-3 h-3 fill-amber-500 text-amber-500" /> Heads Only</>
               : <><Filter className="w-3 h-3" /> {post.target_group_name}</>
@@ -708,7 +709,7 @@ function PostCard({
                 <img src={src} alt="" className="w-full h-full object-cover hover:scale-105 transition-transform duration-200" />
                 {isLast && (
                   <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-lg">
-                    <span className="text-white text-2xl font-bold">+{images.length - 3}</span>
+                    <span className="text-white ds-page-title">+{images.length - 3}</span>
                   </div>
                 )}
               </div>
@@ -722,18 +723,18 @@ function PostCard({
         <button onClick={() => onToggleLike(post.id)}
           className="flex items-center gap-2 text-gray-600 hover:text-red-600 transition">
           <Heart className="w-5 h-5" />
-          <span className="text-sm font-medium">{post.likes_count}</span>
+          <span className="ds-body" style={{fontWeight:500}}>{post.likes_count}</span>
         </button>
         <button onClick={() => onToggleComments(post.id)}
           className="flex items-center gap-2 text-gray-600 hover:text-blue-600 transition">
           <MessageSquare className="w-5 h-5" />
-          <span className="text-sm font-medium">{post.comments_count}</span>
+          <span className="ds-body" style={{fontWeight:500}}>{post.comments_count}</span>
         </button>
         {images.length > 0 && (
           <button onClick={() => onOpenSlideshow(0)}
             className="flex items-center gap-2 text-gray-600 hover:text-blue-600 transition ml-auto">
             <Images className="w-4 h-4" />
-            <span className="text-sm">{images.length} photo{images.length !== 1 ? 's' : ''}</span>
+            <span style={T.body}>{images.length} photo{images.length !== 1 ? 's' : ''}</span>
           </button>
         )}
       </div>
@@ -744,13 +745,13 @@ function PostCard({
           <div className="p-4 space-y-3">
             {comments.map((comment: Comment) => (
               <div key={comment.id} className="flex gap-3">
-                <div className="w-8 h-8 bg-gradient-to-br from-gray-400 to-gray-600 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                <div className="w-8 h-8 bg-gradient-to-br from-gray-400 to-gray-600 rounded-full flex items-center justify-center text-white ds-section-header flex-shrink-0">
                   {comment.author_email[0].toUpperCase()}
                 </div>
                 <div className="flex-1 bg-white rounded-lg p-3">
-                  <p className="text-sm font-semibold text-gray-900">{comment.author_email}</p>
-                  <p className="text-sm text-gray-700 mt-1">{comment.content}</p>
-                  <p className="text-xs text-gray-500 mt-1">{formatTimeAgo(comment.created_at)}</p>
+                  <p className="ds-section-header">{comment.author_email}</p>
+                  <p className="ds-ink-secondary mt-1" style={T.body}>{comment.content}</p>
+                  <p className="ds-ink-muted mt-1" style={T.meta}>{formatTimeAgo(comment.created_at)}</p>
                 </div>
               </div>
             ))}

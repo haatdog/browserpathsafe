@@ -1,0 +1,213 @@
+/* ============================================================
+   HOW TO USE:
+   In src/index.css, add at the very top:
+     @import './design/design-system.css';
+
+   Place this file at: src/design/design-system.css
+   Place DesignTokens.ts at: src/design/DesignTokens.ts
+
+   Components import tokens like:
+     import { T, C } from '../design/DesignTokens';
+     <h2 style={T.pageTitle}>Hello</h2>
+   ============================================================ */
+
+/* ============================================================
+   DESIGN SYSTEM — Disaster Evacuation Simulation Platform
+   One font, one scale, one palette. Import in index.css.
+   ============================================================ */
+
+   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
+
+   :root {
+     /* ── Font ───────────────────────────────────────────────── */
+     --font-base: 'DM Sans', sans-serif;
+   
+     /* ── Type scale ─────────────────────────────────────────── */
+     /* Page title  — one per page, top of content area          */
+     --text-page-title-size:   1.375rem;   /* 22px */
+     --text-page-title-weight: 700;
+     --text-page-title-lh:     1.3;
+   
+     /* Section header — groups of related content               */
+     --text-section-size:      1rem;       /* 16px */
+     --text-section-weight:    600;
+     --text-section-lh:        1.4;
+   
+     /* Card / item title — inside cards, list items             */
+     --text-card-title-size:   0.9375rem;  /* 15px */
+     --text-card-title-weight: 600;
+     --text-card-title-lh:     1.4;
+   
+     /* Body — default paragraph and list text                   */
+     --text-body-size:         0.875rem;   /* 14px */
+     --text-body-weight:       400;
+     --text-body-lh:           1.6;
+   
+     /* Meta / caption — timestamps, badges, labels              */
+     --text-meta-size:         0.75rem;    /* 12px */
+     --text-meta-weight:       400;
+     --text-meta-lh:           1.5;
+   
+     /* Button label                                             */
+     --text-btn-size:          0.875rem;   /* 14px */
+     --text-btn-weight:        500;
+   
+     /* ── Colour palette ─────────────────────────────────────── */
+     /* Ink (text)                                               */
+     --color-ink-primary:   #111827;   /* page titles, card titles  */
+     --color-ink-secondary: #374151;   /* section headers, body     */
+     --color-ink-muted:     #6b7280;   /* meta, timestamps, labels  */
+     --color-ink-disabled:  #9ca3af;   /* placeholder, disabled     */
+   
+     /* Surface                                                  */
+     --color-surface-page:  #f3f4f6;   /* page background           */
+     --color-surface-card:  #ffffff;   /* cards, modals             */
+     --color-surface-input: #f9fafb;   /* form fields               */
+   
+     /* Borders                                                  */
+     --color-border:        #e5e7eb;   /* default border            */
+     --color-border-focus:  #3b82f6;   /* focused input ring        */
+   
+     /* Brand accent                                             */
+     --color-brand:         #1d4ed8;   /* primary action            */
+     --color-brand-hover:   #1e40af;
+     --color-brand-light:   #eff6ff;   /* tinted backgrounds        */
+     --color-brand-text:    #1d4ed8;   /* brand-coloured text       */
+   
+     /* Semantic                                                 */
+     --color-danger:        #dc2626;
+     --color-danger-light:  #fef2f2;
+     --color-warning:       #d97706;
+     --color-warning-light: #fffbeb;
+     --color-success:       #16a34a;
+     --color-success-light: #f0fdf4;
+   
+     /* ── Elevation (box-shadow) ─────────────────────────────── */
+     --shadow-sm:  0 1px 2px 0 rgb(0 0 0 / 0.05);
+     --shadow-md:  0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+     --shadow-lg:  0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+   
+     /* ── Radii ───────────────────────────────────────────────── */
+     --radius-sm:  0.375rem;   /* 6px  — badges, tags   */
+     --radius-md:  0.625rem;   /* 10px — inputs, buttons */
+     --radius-lg:  0.875rem;   /* 14px — cards           */
+     --radius-xl:  1.125rem;   /* 18px — modals          */
+   }
+   
+   /* ── Global reset ───────────────────────────────────────── */
+   *, *::before, *::after { box-sizing: border-box; }
+   
+   body {
+     font-family: var(--font-base);
+     font-size: var(--text-body-size);
+     font-weight: var(--text-body-weight);
+     line-height: var(--text-body-lh);
+     color: var(--color-ink-secondary);
+     background: var(--color-surface-page);
+     -webkit-font-smoothing: antialiased;
+   }
+   
+   /* ── Utility classes (use instead of ad-hoc Tailwind) ────── */
+   
+   /* Typography */
+   .ds-page-title {
+     font-size: var(--text-page-title-size);
+     font-weight: var(--text-page-title-weight);
+     line-height: var(--text-page-title-lh);
+     color: var(--color-ink-primary);
+   }
+   
+   .ds-section-header {
+     font-size: var(--text-section-size);
+     font-weight: var(--text-section-weight);
+     line-height: var(--text-section-lh);
+     color: var(--color-ink-primary);
+   }
+   
+   .ds-card-title {
+     font-size: var(--text-card-title-size);
+     font-weight: var(--text-card-title-weight);
+     line-height: var(--text-card-title-lh);
+     color: var(--color-ink-primary);
+   }
+   
+   .ds-body {
+     font-size: var(--text-body-size);
+     font-weight: var(--text-body-weight);
+     line-height: var(--text-body-lh);
+     color: var(--color-ink-secondary);
+   }
+   
+   .ds-meta {
+     font-size: var(--text-meta-size);
+     font-weight: var(--text-meta-weight);
+     line-height: var(--text-meta-lh);
+     color: var(--color-ink-muted);
+   }
+   
+   /* Cards */
+   .ds-card {
+     background: var(--color-surface-card);
+     border: 1px solid var(--color-border);
+     border-radius: var(--radius-lg);
+     box-shadow: var(--shadow-sm);
+   }
+   
+   /* Buttons */
+   .ds-btn-primary {
+     display: inline-flex; align-items: center; gap: 0.5rem;
+     padding: 0.5rem 1.125rem;
+     font-size: var(--text-btn-size);
+     font-weight: var(--text-btn-weight);
+     font-family: var(--font-base);
+     color: #fff;
+     background: var(--color-brand);
+     border: none; border-radius: var(--radius-md);
+     cursor: pointer; transition: background 0.15s;
+   }
+   .ds-btn-primary:hover { background: var(--color-brand-hover); }
+   
+   .ds-btn-ghost {
+     display: inline-flex; align-items: center; gap: 0.5rem;
+     padding: 0.5rem 0.875rem;
+     font-size: var(--text-btn-size);
+     font-weight: var(--text-btn-weight);
+     font-family: var(--font-base);
+     color: var(--color-ink-secondary);
+     background: transparent;
+     border: 1px solid var(--color-border); border-radius: var(--radius-md);
+     cursor: pointer; transition: background 0.15s, color 0.15s;
+   }
+   .ds-btn-ghost:hover { background: var(--color-surface-input); }
+   
+   /* Badge */
+   .ds-badge {
+     display: inline-flex; align-items: center;
+     padding: 0.125rem 0.5rem;
+     font-size: var(--text-meta-size);
+     font-weight: 500;
+     border-radius: var(--radius-sm);
+     white-space: nowrap;
+   }
+   .ds-badge-blue   { background: var(--color-brand-light); color: var(--color-brand-text); }
+   .ds-badge-red    { background: var(--color-danger-light); color: var(--color-danger); }
+   .ds-badge-green  { background: var(--color-success-light); color: var(--color-success); }
+   .ds-badge-amber  { background: var(--color-warning-light); color: var(--color-warning); }
+   .ds-badge-gray   { background: #f3f4f6; color: var(--color-ink-muted); }
+   
+   /* Input */
+   .ds-input {
+     width: 100%;
+     padding: 0.5rem 0.75rem;
+     font-size: var(--text-body-size);
+     font-family: var(--font-base);
+     color: var(--color-ink-secondary);
+     background: var(--color-surface-input);
+     border: 1px solid var(--color-border);
+     border-radius: var(--radius-md);
+     outline: none; transition: border-color 0.15s, box-shadow 0.15s;
+   }
+   .ds-input:focus {
+     border-color: var(--color-border-focus);
+     box-shadow: 0 0 0 3px rgb(59 130 246 / 0.12);
+   }

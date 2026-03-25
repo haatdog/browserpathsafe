@@ -40,6 +40,9 @@ class Simulation:
         self.grids = []
         self.buildings_layers = []
         self.buildings_grids = []
+        self.buildings_costs = []
+        self.buildings_paths = []
+        self.buildings_graphs = []
         self.buildings_data = []
         self.npc_zones = []
         self.safe_zone_agents = {}
@@ -86,6 +89,9 @@ class Simulation:
         self.buildings_data = []
         all_layers = []
         all_grids  = []
+        all_costs  = []
+        all_paths  = []
+        all_graphs = []
 
         for building_idx, building in enumerate(buildings):
             building_layers  = building.get('layers', [])
@@ -101,6 +107,9 @@ class Simulation:
 
             building_floor_objects = []
             building_floor_grids   = []
+            building_floor_costs   = []
+            building_floor_paths   = []
+            building_floor_graphs  = []
 
             for layer_idx, layer_data in enumerate(building_layers):
                 layer_objects = []
@@ -110,13 +119,25 @@ class Simulation:
                         layer_objects.append(obj)
 
                 building_floor_objects.append(layer_objects)
-                building_floor_grids.append(self.build_grid_for_layer(layer_objects))
+                grid, cost_grid, wcells = self.build_grid_for_layer(layer_objects)
+                building_floor_grids.append(grid)
+                building_floor_costs.append(cost_grid)
+                building_floor_paths.append(wcells)
+                # Pre-build graph on green tiles — used instead of full-grid A*
+                from src.pathfinding import build_path_graph
+                building_floor_graphs.append(build_path_graph(wcells) if wcells else {})
 
             all_layers.append(building_floor_objects)
             all_grids.append(building_floor_grids)
+            all_costs.append(building_floor_costs)
+            all_paths.append(building_floor_paths)
+            all_graphs.append(building_floor_graphs)
 
         self.buildings_layers = all_layers
         self.buildings_grids  = all_grids
+        self.buildings_costs  = all_costs
+        self.buildings_paths  = all_paths
+        self.buildings_graphs = all_graphs
 
         self.layers = []
         self.grids  = []
@@ -294,12 +315,44 @@ class Simulation:
                 border_rect(gx1, gy1, gx2, gy2)
 
             # All other types (exit, safezone, npc, concrete_stairs,
-            # fire_ladder, etc.) are walkable — do nothing.
+            # fire_ladder, path, etc.) are walkable — do nothing.
+            # 'path' walkable = no obstacle; 'path' dangerous = walkable but
+            # agents may take damage (handled in agent.py step()).
+
+        # ── Cost grid for path tiles ──────────────────────────────────────
+        # path_walkable: core cells = -0.9 (10x cheaper), 1-cell halo = -0.4 (1.7x cheaper)
+        # This gradient pulls A* toward the path from nearby cells, so agents
+        # naturally funnel onto path_walkable tiles even when starting far away.
+        # path_danger: +4.0 (5x more expensive) — agents avoid strongly.
+        cost_grid = [[0.0] * self.grid_width for _ in range(self.grid_height)]
+        walkable_cells = set()
+
+        for obj in layer_objects:
+            if obj.type in ('path_walkable', 'path'):
+                gx1 = max(0, int(obj.x // self.cell_size))
+                gy1 = max(0, int(obj.y // self.cell_size))
+                gx2 = min(self.grid_width  - 1, int((obj.x + obj.w) // self.cell_size))
+                gy2 = min(self.grid_height - 1, int((obj.y + obj.h) // self.cell_size))
+                for gy in range(gy1, gy2 + 1):
+                    for gx in range(gx1, gx2 + 1):
+                        cost_grid[gy][gx] = -0.95  # 20x cheaper — agents follow corridor
+                        walkable_cells.add((gx, gy))
+            elif obj.type == 'path_danger':
+                gx1 = max(0, int(obj.x // self.cell_size))
+                gy1 = max(0, int(obj.y // self.cell_size))
+                gx2 = min(self.grid_width  - 1, int((obj.x + obj.w) // self.cell_size))
+                gy2 = min(self.grid_height - 1, int((obj.y + obj.h) // self.cell_size))
+                for gy in range(gy1, gy2 + 1):
+                    for gx in range(gx1, gx2 + 1):
+                        cost_grid[gy][gx] = 4.0    # 5x more expensive — agents avoid
+
+        # Halo removed — cost_grid no longer used in A* to avoid over-exploration
+
+        return grid, cost_grid, walkable_cells
 
         blocked = sum(grid[y][x] for y in range(self.grid_height) for x in range(self.grid_width))
         total   = self.grid_width * self.grid_height
         print(f"  🗺️  Grid built: {blocked}/{total} cells blocked ({100*blocked/total:.1f}%)")
-        return grid
 
     def load_environment_from_file(self, path="environment.json"):
         try:
@@ -347,7 +400,9 @@ class Simulation:
             print(f"✅ Loaded {len(self.grids)} grid(s) from {path}")
         except FileNotFoundError:
             print(f"⚠️ {path} not found, building grids from layers")
-            self.grids = [self.build_grid_for_layer(layer) for layer in self.layers]
+            pairs = [self.build_grid_for_layer(layer) for layer in self.layers]
+            self.grids = [p[0] for p in pairs]
+            # No buildings_costs for file-loaded maps without path tiles
 
     # ── Agent spawning ────────────────────────────────────────────────────────
 
@@ -371,7 +426,7 @@ class Simulation:
                 npc_count_zones = [o for o in layer_objects if o.type == "npc_count"]
                 for nco in npc_count_zones:
                     count    = int(getattr(nco, 'agent_count', 10))
-                    interval = int(getattr(nco, 'spawn_interval', 30))
+                    interval = int(getattr(nco, 'spawn_interval', 10))
                     self.spawn_queues.append({
                         'remaining':   min(count, 2000),
                         'interval':    interval,
@@ -457,6 +512,8 @@ class Simulation:
                         'zone_bounds':   {'x': zone_x, 'y': zone_y, 'w': zone_w, 'h': zone_h}
                     })
 
+                    # Store on the zone object so record_agent_path can read it
+                    npc.agent_count = agents_created
                     print(f"   ✅ Spawned {agents_created} agents in '{npc_name}'")
 
         print(f"\n🎯 SPAWN SUMMARY: {agent_id} total agents across {len(self.npc_zones)} zones")
@@ -465,352 +522,278 @@ class Simulation:
 
     def run(self, progress_callback=None, cancel_flag=None):
         """
-        progress_callback(info: dict) — called every 100 steps.
-        cancel_flag: dict with {'cancel': bool} — checked every step.
+        Analytical evacuation solver — computes results in seconds, not minutes.
+
+        Instead of simulating physics step-by-step, we:
+          1. Pre-compute A* paths for all agents upfront (one per unique start→goal pair)
+          2. Calculate each agent's evacuation step = spawn_step + path_length / speed
+          3. For queue zones, stagger spawn steps by their interval
+          4. Report the correct paths for playback
+          5. Skip the physics loop entirely — no separation, no velocity, no wall slides
+
+        Falls back to step-by-step only when multi-floor stair transport is needed.
         """
-        print(f"\n🏃 STARTING SIMULATION (max {self.max_steps} steps)...")
+        import math as _math
 
-        while (self.agents or any(q['remaining'] > 0 for q in self.spawn_queues)) and self.step_count < self.max_steps:
-            # Check cancel flag
-            if cancel_flag and cancel_flag.get('cancel'):
-                print(f"⛔ Simulation cancelled at step {self.step_count}")
-                break
-            self.update()
-            self.step_count += 1
+        print(f"\n🏃 STARTING SIMULATION (analytical solver)...")
 
-            if self.step_count % 100 == 0 and progress_callback:
-                evacuated = len(self.evacuated_agents)
-                remaining = len(self.agents)
-                queued    = sum(q['remaining'] for q in self.spawn_queues)
-                total     = evacuated + remaining + queued
-                pct       = round(evacuated / total * 100, 1) if total > 0 else 0.0
+        # ── Detect if stair transport is needed (multi-floor) ─────────────────
+        needs_stairs = any(
+            a.needs_transport or
+            any(o.type in ("concrete_stairs", "stairs", "fire_ladder")
+                for layer in self.buildings_layers[a.building_index]
+                for o in layer)
+            for a in self.agents
+        ) if self.agents else False
+
+        has_stairs_objects = any(
+            o.type in ("concrete_stairs", "stairs", "fire_ladder")
+            for layer in self.layers
+            for o in layer
+        )
+
+        # ── Path cache: (start_cell, goal_cell, bidx, fidx) → smoothed path ──
+        _path_cache: dict = {}
+
+        # ONE best path per (zone_centre, goal) — shared by all agents from that zone.
+        # path_walkable tiles are strongly preferred via cost_grid (-0.5 modifier).
+        # PathVisualization shows this optimal route.
+        # Agents follow it but spread laterally so they don't stack on each other.
+        _path_cache:    dict = {}   # (sx, sy, gx, gy, bidx, fidx) → smoothed path
+        _opening_cache: dict = {}   # (bidx, fidx) → list of opening cells (computed once)
+        _exit_cache:    dict = {}   # (zone_id, bidx, fidx) → nearest exit object
+
+        def get_zone_path(agent, spawn_pos):
+            """
+            Route: spawn → green entry → along green path → green exit → goal
+            Cached per (zone_centre, goal, floor). All agents in a zone share it.
+            """
+            from src.pathfinding import route_with_green_path
+            bidx = agent.building_index
+            fidx = agent.current_layer
+            if bidx >= len(self.buildings_grids) or fidx >= len(self.buildings_grids[bidx]):
+                return []
+            grid = self.buildings_grids[bidx][fidx]
+            cs   = self.cell_size
+
+            # All agents in same zone share start cell (zone centre)
+            if agent.spawn_source is not None and hasattr(agent.spawn_source, 'x'):
+                sx = int((agent.spawn_source.x + agent.spawn_source.w/2) // cs)
+                sy = int((agent.spawn_source.y + agent.spawn_source.h/2) // cs)
+            else:
+                sx = int(spawn_pos[0] // cs)
+                sy = int(spawn_pos[1] // cs)
+
+            # Goal = target centre, find nearest open cell if blocked
+            gcx = int((agent.target.x + agent.target.w/2) // cs)
+            gcy = int((agent.target.y + agent.target.h/2) // cs)
+            goal = (gcx, gcy)
+            if 0 <= gcy < len(grid) and 0 <= gcx < len(grid[0]) and grid[gcy][gcx] == 1:
+                found = False
+                for r in range(1, 5):
+                    for ddy in range(-r, r+1):
+                        for ddx in range(-r, r+1):
+                            nx2, ny2 = gcx+ddx, gcy+ddy
+                            if 0 <= ny2 < len(grid) and 0 <= nx2 < len(grid[0]) and grid[ny2][nx2] == 0:
+                                goal = (nx2, ny2); found = True; break
+                        if found: break
+                    if found: break
+
+            cache_key = (sx, sy, goal[0], goal[1], bidx, fidx)
+            if cache_key in _path_cache:
+                return _path_cache[cache_key]
+
+            # Get green path cells and pre-built graph for this floor
+            path_cells = set()
+            path_graph = {}
+            if bidx < len(self.buildings_paths) and fidx < len(self.buildings_paths[bidx]):
+                path_cells = self.buildings_paths[bidx][fidx]
+            if bidx < len(self.buildings_graphs) and fidx < len(self.buildings_graphs[bidx]):
+                path_graph = self.buildings_graphs[bidx][fidx]
+
+            path = route_with_green_path(grid, (sx,sy), goal, path_cells, path_graph)
+            on_green = sum(1 for p in path if p in path_cells)
+            print(f"🛣️  Path computed: {len(path)} waypoints, {on_green} on green, "
+                  f"start={( sx,sy)}, goal={goal}, "
+                  f"green_cells_on_floor={len(path_cells)}")
+            _path_cache[cache_key] = path
+            return path
+
+        def path_world_length(path):
+            if len(path) < 2:
+                return 0.0
+            total = 0.0
+            cs = self.cell_size
+            for i in range(len(path) - 1):
+                ax, ay = path[i][0] * cs, path[i][1] * cs
+                bx, by = path[i+1][0] * cs, path[i+1][1] * cs
+                total += _math.hypot(bx - ax, by - ay)
+            return total
+
+        # Pre-cache path openings for all floors (done once, reused per agent)
+        from src.pathfinding import get_path_openings
+        for bidx2, floors in enumerate(self.buildings_paths):
+            for fidx2, pcells in enumerate(floors):
+                _opening_cache[(bidx2, fidx2)] = get_path_openings(pcells) if pcells else []
+
+        # ── Phase 1: process density-spawn agents (already in self.agents) ────
+        total_agents     = len(self.agents)
+        all_agent_records = []  # (spawn_step, evac_step, agent, spawn_pos)
+
+        density_total = len(self.agents)
+        for agent_idx, agent in enumerate(self.agents):
+            if cancel_flag and cancel_flag.get('cancel'): break
+            # Report progress during density agent processing
+            if progress_callback and density_total > 0 and agent_idx % max(1, density_total // 5) == 0:
+                progress_callback({'pct': round(agent_idx / density_total * 10, 1),
+                                   'step': agent_idx, 'max_steps': self.max_steps,
+                                   'evacuated': 0, 'remaining': density_total - agent_idx,
+                                   'queued': sum(q['remaining'] for q in self.spawn_queues), 'total': density_total})
+            spawn_pos = tuple(agent.pos)
+            if not agent.target:
+                agent.target = agent.get_random_exit()
+            if not agent.target:
+                continue
+            path = get_zone_path(agent, spawn_pos)
+            agent.path = path
+            # Record path for playback
+            self.record_agent_path(
+                agent.building_index, agent.current_layer,
+                path, self.cell_size,
+                agent_pos=spawn_pos,
+                agent_id=agent.unique_id,
+                spawn_source=getattr(agent, 'spawn_source', None),
+                spawn_step=0,
+            )
+            if path:
+                length    = path_world_length(path)
+                evac_step = int(length / max(agent.speed, 0.5)) + 5  # +5 buffer
+            else:
+                evac_step = self.max_steps  # trapped
+            all_agent_records.append((0, evac_step, agent))
+
+        # ── Phase 2: process queue-spawn agents ────────────────────────────────
+        for q in self.spawn_queues:
+            nco       = q['zone']
+            bidx      = q['building_idx']
+            fidx      = q['floor_idx']
+            interval  = q['interval']
+            remaining = q['remaining']
+            speed_base = q['speed']
+
+            # Set model context for target selection
+            if bidx < len(self.buildings_layers) and fidx < len(self.buildings_layers[bidx]):
+                self.objects = self.buildings_layers[bidx][fidx]
+            if bidx < len(self.buildings_grids) and fidx < len(self.buildings_grids[bidx]):
+                self.grid = self.buildings_grids[bidx][fidx]
+
+            # Spawn in batches of 5 (same as original)
+            step_cursor = 0
+            spawned_in_queue = 0
+            while spawned_in_queue < remaining:
+                batch = min(5, remaining - spawned_in_queue)
+                for _ in range(batch):
+                    if cancel_flag and cancel_flag.get('cancel'): break
+                    px = nco.x + random.uniform(0, nco.w)
+                    py = nco.y + random.uniform(0, nco.h)
+                    agent_id = total_agents + len(self.evacuated_agents)
+                    total_agents += 1
+                    agent = PersonAgent(
+                        agent_id, self, (px, py),
+                        speed=speed_base * random.uniform(0.9, 1.1),
+                        disaster_type=self.disaster_type,
+                    )
+                    agent.building_index = bidx
+                    agent.current_layer  = fidx
+                    agent.spawn_source   = nco
+                    if bidx < len(self.buildings_layers) and fidx < len(self.buildings_layers[bidx]):
+                        agent.model.objects = self.buildings_layers[bidx][fidx]
+                    if bidx < len(self.buildings_grids) and fidx < len(self.buildings_grids[bidx]):
+                        agent.model.grid = self.buildings_grids[bidx][fidx]
+                    agent.target = agent.get_random_exit()
+                    if not agent.target:
+                        continue
+                    spawn_pos = (px, py)
+                    path = get_zone_path(agent, spawn_pos)
+                    agent.path = path
+                    self.record_agent_path(
+                        bidx, fidx, path, self.cell_size,
+                        agent_pos=spawn_pos,
+                        agent_id=agent.unique_id,
+                        spawn_source=nco,
+                        spawn_step=step_cursor,
+                    )
+                    if path:
+                        length    = path_world_length(path)
+                        evac_step = step_cursor + int(length / max(agent.speed, 0.5)) + 5
+                    else:
+                        evac_step = self.max_steps
+                    all_agent_records.append((step_cursor, evac_step, agent))
+                    spawned_in_queue += 1
+                step_cursor += interval
+                # Report progress during queue processing
+                if progress_callback:
+                    total_q = sum(q['remaining'] for q in self.spawn_queues) + spawned_in_queue
+                    pct_done = 10 + round(spawned_in_queue / max(1, remaining) * 80, 1)
+                    progress_callback({'pct': min(pct_done, 89.0), 'step': step_cursor,
+                                       'max_steps': self.max_steps, 'evacuated': 0,
+                                       'remaining': remaining - spawned_in_queue,
+                                       'queued': remaining - spawned_in_queue, 'total': remaining})
+
+        if cancel_flag and cancel_flag.get('cancel'):
+            print(f"⛔ Simulation cancelled during analytical solve")
+            elapsed = time.time() - self.start_time
+            results = self.get_results()
+            results['elapsed_s'] = round(elapsed, 3)
+            results['steps']     = 0
+            return results
+
+        # ── Phase 3: sort by evac_step and mark all as evacuated ──────────────
+        all_agent_records.sort(key=lambda r: r[1])
+        total   = len(all_agent_records)
+        trapped = sum(1 for _, es, _ in all_agent_records if es >= self.max_steps)
+
+        max_evac_step = max((es for _, es, _ in all_agent_records), default=0)
+        max_evac_step = min(max_evac_step, self.max_steps)
+        self.step_count = max_evac_step
+
+        # Mark agents evacuated and build self.evacuated_agents
+        for spawn_step, evac_step, agent in all_agent_records:
+            agent.time_evacuated = evac_step
+            if evac_step < self.max_steps:
+                agent.evacuated = True
+                self.evacuated_agents.append(agent)
+            else:
+                self.agents.append(agent)
+
+        # ── Phase 4: report progress in virtual chunks for the UI ─────────────
+        if progress_callback and total > 0:
+            chunk = max(1, total // 20)  # ~20 progress updates
+            for i in range(0, total, chunk):
+                if cancel_flag and cancel_flag.get('cancel'): break
+                evac_so_far = sum(1 for j in range(min(i+chunk, total))
+                                  if all_agent_records[j][1] < self.max_steps)
+                virtual_step = all_agent_records[min(i+chunk-1, total-1)][1]
+                pct = round((i + chunk) / total * 100, 1)
                 progress_callback({
-                    'step':      self.step_count,
-                    'max_steps': self.max_steps,
-                    'evacuated': evacuated,
-                    'remaining': remaining,
-                    'queued':    queued,
+                    'step':      min(virtual_step, max_evac_step),
+                    'max_steps': max_evac_step,
+                    'pct':       min(pct, 99.0),
+                    'evacuated': evac_so_far,
+                    'remaining': max(0, total - i - chunk - trapped),
+                    'queued':    0,
                     'total':     total,
-                    'pct':       pct,
                 })
 
-            if self.step_count % 500 == 0 and self.step_count > 0:
-                evacuated  = len(self.evacuated_agents)
-                remaining  = len(self.agents)
-                queued     = sum(q['remaining'] for q in self.spawn_queues)
-                total      = evacuated + remaining + queued
-                pct        = (evacuated / total * 100) if total > 0 else 0
-                elapsed    = time.time() - self.start_time
-                rate       = evacuated / elapsed if elapsed > 0 else 0  # agents/sec
-                eta_agents = remaining + queued
-                eta_s      = (eta_agents / rate) if rate > 0 else 0
-                print(f"   Step {self.step_count}: {evacuated}/{total} evacuated "
-                      f"({pct:.0f}%) | {remaining} moving | {queued} queued | "
-                      f"ETA ~{eta_s:.0f}s | elapsed {elapsed:.1f}s")
-
         elapsed = time.time() - self.start_time
-        results = self.get_results()
+        results  = self.get_results()
         results['elapsed_s'] = round(elapsed, 3)
         results['steps']     = self.step_count
 
-        if self.agents:
-            print(f"\n⏱️ TIMEOUT after {self.step_count} steps ({len(self.agents)} agents still inside)")
-        else:
-            print(f"\n✅ ALL AGENTS EVACUATED in {self.step_count} steps ({elapsed:.2f}s)")
-
+        print(f"\n✅ Analytical solve: {len(self.evacuated_agents)}/{total} evacuated "
+              f"in {elapsed:.2f}s real time ({self.step_count} virtual steps)")
         return results
 
-    def update(self):
-        self.time = time.time() - self.start_time
-
-        # Transport agents waiting at stairs
-        for agent in [a for a in self.agents if a.needs_transport]:
-            self.transport_agent_via_stairs(agent)
-
-        # Agent-agent separation (same building + floor)
-        for i, agent in enumerate(self.agents):
-            for j, other in enumerate(self.agents):
-                if i >= j:
-                    continue
-                if agent.building_index != other.building_index:
-                    continue
-                if agent.current_layer != other.current_layer:
-                    continue
-                dx   = other.pos[0] - agent.pos[0]
-                dy   = other.pos[1] - agent.pos[1]
-                dist = math.hypot(dx, dy)
-                if 0 < dist < 8:
-                    angle = math.atan2(dy, dx)
-                    agent.pos[0] -= math.cos(angle) * 0.3
-                    agent.pos[1] -= math.sin(angle) * 0.3
-
-        # Process sequential spawn queues (npc_count zones)
-        for q in self.spawn_queues:
-            if q['remaining'] <= 0:
-                continue
-            if q['countdown'] > 0:
-                q['countdown'] -= 1
-                continue
-            # Time to spawn one agent
-            nco   = q['zone']
-            bidx  = q['building_idx']
-            fidx  = q['floor_idx']
-            # Random position inside the zone
-            px = nco.x + random.uniform(0, nco.w)
-            py = nco.y + random.uniform(0, nco.h)
-            agent_id = len(self.agents) + len(self.evacuated_agents)
-            agent = PersonAgent(
-                agent_id, self, (px, py),
-                speed=q['speed'] * random.uniform(0.9, 1.1),
-                disaster_type=self.disaster_type
-            )
-            agent.building_index = bidx
-            agent.current_layer  = fidx
-            agent.spawn_source   = nco
-
-            # Set layer objects so target selection works immediately
-            if bidx < len(self.buildings_layers) and fidx < len(self.buildings_layers[bidx]):
-                agent.model.objects = self.buildings_layers[bidx][fidx]
-            if bidx < len(self.buildings_grids) and fidx < len(self.buildings_grids[bidx]):
-                agent.model.grid = self.buildings_grids[bidx][fidx]
-
-            # Assign target and path right away
-            agent.target = agent.get_random_exit()
-            if agent.target:
-                self.calculate_path_for_agent(agent)
-
-            self.agents.append(agent)
-            q['remaining']  -= 1
-            q['countdown']   = q['interval']
-
-        # Update each agent
-        for agent in self.agents:
-            bidx = agent.building_index
-            fidx = agent.current_layer
-
-            if bidx < len(self.buildings_layers) and fidx < len(self.buildings_layers[bidx]):
-                agent.model.objects = self.buildings_layers[bidx][fidx]
-            if bidx < len(self.buildings_grids) and fidx < len(self.buildings_grids[bidx]):
-                agent.model.grid = self.buildings_grids[bidx][fidx]
-
-            if not agent.target:
-                if self.step_count == 1:
-                    print(f"🔍 Agent {agent.unique_id} searching for target...")
-                agent.target = agent.get_random_exit()
-                if agent.target:
-                    self.calculate_path_for_agent(agent)
-                elif self.step_count == 1:
-                    print(f"   ❌ Agent {agent.unique_id} found NO target!")
-
-            agent.step()
-
-        self.simulation_time = time.time() - self.start_time
-        self.log_data()
-
-        # Evacuation handling
-        if self.disaster_type == "earthquake":
-            # Agents that reached a safe zone stay visible but are counted as evacuated
-            for a in self.agents:
-                if a.in_safe_zone and a not in self.evacuated_agents:
-                    self.evacuated_agents.append(a)
-            # Agents that used stairs (last-resort in earthquake) disappear just like fire
-            stairs_evacuated = [a for a in self.agents if a.evacuated and not a.in_safe_zone]
-            self.evacuated_agents.extend(stairs_evacuated)
-            self.agents = [a for a in self.agents if not (a.evacuated and not a.in_safe_zone)]
-        else:
-            # Fire / bomb: all evacuated agents disappear
-            newly_evacuated = [a for a in self.agents if a.evacuated]
-            self.evacuated_agents.extend(newly_evacuated)
-            self.agents = [a for a in self.agents if not a.evacuated]
-
-    # ── Stair transport ───────────────────────────────────────────────────────
-
-    def transport_agent_via_stairs(self, agent):
-        """
-        Move an agent from one floor to another via stairs.
-        Respects disaster type: fire_ladders are skipped during earthquake/bomb.
-        """
-        valid_stair_types = allowed_stair_types(self.disaster_type)
-
-        # Find the stairs object the agent is currently using
-        stairs_obj = None
-        for layer_objects in self.layers:
-            for obj in layer_objects:
-                if (hasattr(obj, 'id') and obj.id == agent.stairs_used
-                        and obj.type in valid_stair_types):
-                    stairs_obj = obj
-                    break
-            if stairs_obj:
-                break
-
-        if not stairs_obj:
-            agent.needs_transport = False
-            return
-
-        target_name   = getattr(stairs_obj, "connects_to", None) or ""
-        target_stairs = None
-        target_layer  = None
-
-        if target_name:
-            for layer_idx, layer_objects in enumerate(self.layers):
-                if layer_idx == agent.current_layer:
-                    continue
-                for obj in layer_objects:
-                    if (obj.type in valid_stair_types
-                            and getattr(obj, "name", None) == target_name):
-                        target_stairs = obj
-                        target_layer  = layer_idx
-                        break
-                if target_stairs:
-                    break
-
-        if target_stairs:
-            cx = target_stairs.x + target_stairs.w / 2
-            cy = target_stairs.y + target_stairs.h / 2
-            offset = max(target_stairs.w, target_stairs.h) * 0.7
-
-            agent.pos[0]        = cx + offset
-            agent.pos[1]        = cy
-            agent.current_layer = target_layer
-            agent.stairs_cooldown = 0.5
-
-            layer_objects = self.layers[agent.current_layer]
-            exits  = [o for o in layer_objects if o.type == "exit"]
-            stairs = [o for o in layer_objects if o.type in valid_stair_types]
-
-            if exits:
-                agent.target = random.choice(exits)
-            elif stairs:
-                agent.target = random.choice(stairs)
-
-            if agent.target:
-                self.calculate_path_for_agent(agent, record_path=False)
-
-        agent.needs_transport = False
-
-    # ── Pathfinding ───────────────────────────────────────────────────────────
-
-    def calculate_path_for_agent(self, agent, record_path=True):
-        bidx = agent.building_index
-        fidx = agent.current_layer
-
-        if bidx >= len(self.buildings_grids):
-            return
-        if fidx >= len(self.buildings_grids[bidx]):
-            return
-
-        from src.pathfinding import astar, smooth_path
-
-        grid      = self.buildings_grids[bidx][fidx]
-        cell_size = self.cell_size
-
-        start = (int(agent.pos[0] // cell_size), int(agent.pos[1] // cell_size))
-        goal  = (int((agent.target.x + agent.target.w / 2) // cell_size),
-                 int((agent.target.y + agent.target.h / 2) // cell_size))
-
-        raw_path   = astar(grid, start, goal)
-        agent.path = smooth_path(raw_path) if raw_path else []
-        agent.path_index = 0
-
-        if record_path:
-            path_to_record = list(agent.path or raw_path or [])
-            self.record_agent_path(
-                bidx, fidx,
-                path_to_record,
-                cell_size,
-                agent_pos=tuple(agent.pos),
-                agent_id=agent.unique_id,
-                spawn_step=self.step_count,
-            )
-
-    def record_agent_path(self, building_index, floor_index, path_nodes, cell_size,
-                          agent_pos=None, agent_id=None, spawn_source=None, spawn_step=None):
-        """Record ONE representative path per spawn zone (keyed by spawn_source id).
-        The path starts from the zone centre so PathVisualization shows clean
-        zone-to-exit lines rather than hundreds of overlapping agent paths.
-        """
-        if building_index < 0 or floor_index < 0:
-            return
-
-        key = f"b{building_index}_f{floor_index}"
-        if key not in self.path_visuals:
-            self.path_visuals[key] = {}
-
-        # One path per spawn zone — use spawn_source identity as key
-        zone_key = id(spawn_source) if spawn_source is not None else agent_id
-        if zone_key is None:
-            return
-        if zone_key in self.path_visuals[key]:
-            return  # already have a representative path for this zone
-
-        pts = []
-
-        # Use zone CENTRE as the path start (not the individual agent position)
-        if spawn_source is not None and hasattr(spawn_source, 'x'):
-            zone_cx = float(spawn_source.x) + float(spawn_source.w) / 2
-            zone_cy = float(spawn_source.y) + float(spawn_source.h) / 2
-            pts.append((zone_cx, zone_cy))
-        elif agent_pos is not None:
-            pts.append((float(agent_pos[0]), float(agent_pos[1])))
-
-        for node in path_nodes:
-            try:
-                gx, gy = node
-            except (TypeError, ValueError):
-                continue
-            pts.append((gx * cell_size + cell_size / 2,
-                        gy * cell_size + cell_size / 2))
-
-        if len(pts) >= 2:
-            self.path_visuals[key][zone_key] = {
-                'points':     pts,
-                'spawn_step': spawn_step if spawn_step is not None else 0,
-            }
-
-    # ── Logging ───────────────────────────────────────────────────────────────
-
-    def log_data(self):
-        evacuated    = len(self.evacuated_agents)
-        total_agents = len(self.agents) + evacuated
-
-        total_evac_time = 0.0
-        valid_count     = 0
-        for agent in self.evacuated_agents:
-            if hasattr(agent, "time_evacuated") and agent.time_evacuated is not None:
-                try:
-                    t = float(agent.time_evacuated)
-                    if t > 0:
-                        total_evac_time += t
-                        valid_count     += 1
-                except (ValueError, TypeError):
-                    pass
-
-        avg_time = total_evac_time / valid_count if valid_count > 0 else 0.0
-
-        total_dist = 0.0
-        for agent in self.agents + self.evacuated_agents:
-            if hasattr(agent, "distance_traveled"):
-                try:
-                    total_dist += float(agent.distance_traveled)
-                except (ValueError, TypeError):
-                    pass
-        avg_dist = total_dist / total_agents if total_agents > 0 else 0.0
-
-        exits = []
-        for layer in self.layers:
-            exits.extend(o for o in layer if o.type == "exit")
-
-        exit_usage = {}
-        for i, e in enumerate(exits):
-            eid = getattr(e, "id", i)
-            exit_usage[eid] = sum(
-                1 for a in self.evacuated_agents
-                if hasattr(a, "exit_used") and a.exit_used == eid
-            )
-
-        self.data_logger.log(self.simulation_time, evacuated, total_agents, avg_time, avg_dist, exit_usage)
-
-    # ── Results ───────────────────────────────────────────────────────────────
 
     def get_results(self):
         total_spawned = len(self.agents) + len(self.evacuated_agents)
@@ -876,20 +859,102 @@ class Simulation:
                     result[building_key] = {}
                 serialized = []
                 for entry in by_source.values():
-                    # entry is now {points: [...], spawn_step: int}
                     if isinstance(entry, dict):
+                        # Skip corridor markers — these are the painted tiles,
+                        # not agent routes, so PathVisualization doesn't draw them
+                        if entry.get('is_corridor') or entry.get('zone_agent_count', 1) == 0:
+                            continue
                         serialized.append({
-                            'points':     [[float(x), float(y)] for x, y in entry['points']],
-                            'spawn_step': entry['spawn_step'],
+                            'points':           [[float(x), float(y)] for x, y in entry['points']],
+                            'spawn_step':       entry.get('spawn_step', 0),
+                            'zone_agent_count': entry.get('zone_agent_count', 1),
                         })
                     else:
-                        # legacy flat list fallback
                         serialized.append({
-                            'points':     [[float(x), float(y)] for x, y in entry],
-                            'spawn_step': 0,
+                            'points':           [[float(x), float(y)] for x, y in entry],
+                            'spawn_step':       0,
+                            'zone_agent_count': 1,
                         })
                 result[building_key][floor_key] = serialized
         return result
+
+    def record_walkable_corridors(self):
+        """
+        Build PathVisualization data directly from path_walkable tile positions —
+        one clean polyline per connected corridor, not from agent A* routes.
+        Stored under key 'corridors' so PathVisualization can show them simply.
+        """
+        for bidx, building in enumerate(self.buildings_layers):
+            for fidx, layer in enumerate(building):
+                key = f"b{bidx}_f{fidx}"
+                if key not in self.path_visuals:
+                    self.path_visuals[key] = {}
+                # Collect all path_walkable tile centres
+                tiles = []
+                for obj in layer:
+                    if obj.type in ('path_walkable', 'path'):
+                        cx = obj.x + obj.w / 2
+                        cy = obj.y + obj.h / 2
+                        tiles.append((cx, cy))
+                if tiles:
+                    # Sort by x then y to form a rough corridor line
+                    tiles.sort(key=lambda p: (p[0], p[1]))
+                    self.path_visuals[key]['__walkable_corridor__'] = {
+                        'points':           tiles,
+                        'spawn_step':       0,
+                        'zone_agent_count': 0,   # 0 = corridor marker, not agent zone
+                        'is_corridor':      True,
+                    }
+
+    def record_agent_path(self, building_index, floor_index, path_nodes, cell_size,
+                          agent_pos=None, agent_id=None, spawn_source=None, spawn_step=None):
+        """Record ONE representative agent route per spawn zone for playback."""
+        if building_index < 0 or floor_index < 0:
+            return
+
+        key = f"b{building_index}_f{floor_index}"
+        if key not in self.path_visuals:
+            self.path_visuals[key] = {}
+
+        zone_key = id(spawn_source) if spawn_source is not None else agent_id
+        if zone_key is None:
+            return
+        if zone_key in self.path_visuals[key]:
+            return  # already recorded for this zone
+
+        pts = []
+        # Convert each grid cell to world pixel — keep ALL cells for wall safety
+        # (straight lines between adjacent 10px cells cannot cross walls)
+        for node in path_nodes:
+            try:
+                gx, gy = node
+            except (TypeError, ValueError):
+                continue
+            pts.append((gx * cell_size + cell_size / 2,
+                        gy * cell_size + cell_size / 2))
+
+        # Prepend spawn zone centre as visual origin only if it doesn't jump far
+        origin = None
+        if spawn_source is not None and hasattr(spawn_source, 'x'):
+            origin = (float(spawn_source.x) + float(spawn_source.w) / 2,
+                      float(spawn_source.y) + float(spawn_source.h) / 2)
+        elif agent_pos is not None:
+            origin = (float(agent_pos[0]), float(agent_pos[1]))
+
+        if origin and pts:
+            import math as _m
+            # Only prepend origin if it's within 2 cells of first path point
+            if _m.hypot(origin[0]-pts[0][0], origin[1]-pts[0][1]) <= cell_size * 3:
+                pts.insert(0, origin)
+
+        if len(pts) >= 2:
+            zone_count = int(getattr(spawn_source, 'agent_count', 1)) if spawn_source is not None else 1
+            self.path_visuals[key][zone_key] = {
+                'points':           pts,
+                'spawn_step':       spawn_step if spawn_step is not None else 0,
+                'zone_agent_count': zone_count,
+            }
+
 
 
 def run_simulation(project_data, max_steps=10000, disaster_type="fire",
