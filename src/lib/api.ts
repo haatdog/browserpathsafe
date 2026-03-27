@@ -1,5 +1,5 @@
 // API Configuration — env var kept as VITE_PYTHON_API_URL (unchanged)
-const PYTHON_API = import.meta.env.VITE_PYTHON_API_URL || 'http://localhost:5000';
+const PYTHON_API = import.meta.env.VITE_PYTHON_API_URL;
 
 /* =========================
    SHARED TYPES
