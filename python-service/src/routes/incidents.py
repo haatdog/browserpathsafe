@@ -2,7 +2,7 @@
 import json
 from flask import Blueprint, request, jsonify, session
 from psycopg2.extras import RealDictCursor
-from src.utils import get_user_id, get_db
+from src.utils import get_db
 
 incidents_bp = Blueprint('incidents', __name__)
 
@@ -12,7 +12,7 @@ def create_incident():
     if request.method == "OPTIONS":
         return '', 200
     try:
-        user_id = get_user_id()
+        user_id = session.get('user_id')
         if not user_id:
             return jsonify({"error": "Not authenticated"}), 401
 
@@ -58,7 +58,7 @@ def get_incidents():
     if request.method == "OPTIONS":
         return '', 200
     try:
-        user_id = get_user_id()
+        user_id = session.get('user_id')
         if not user_id:
             return jsonify({"error": "Not authenticated"}), 401
 
@@ -103,7 +103,7 @@ def get_incident(incident_id):
     if request.method == "OPTIONS":
         return '', 200
     try:
-        user_id = get_user_id()
+        user_id = session.get('user_id')
         if not user_id:
             return jsonify({"error": "Not authenticated"}), 401
 
@@ -155,7 +155,7 @@ def add_remark(incident_id):
     if request.method == "OPTIONS":
         return '', 200
     try:
-        user_id = get_user_id()
+        user_id = session.get('user_id')
         if not user_id:
             return jsonify({"error": "Not authenticated"}), 401
 
@@ -204,7 +204,7 @@ def update_incident_status(incident_id):
     if request.method == "OPTIONS":
         return '', 200
     try:
-        user_id = get_user_id()
+        user_id = session.get('user_id')
         if not user_id:
             return jsonify({"error": "Not authenticated"}), 401
 

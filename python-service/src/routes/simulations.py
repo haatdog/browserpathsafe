@@ -5,7 +5,7 @@ import uuid
 import time as _time
 from flask import Blueprint, request, jsonify, session
 from psycopg2.extras import RealDictCursor
-from src.utils import get_user_id, get_db, require_auth
+from src.utils import get_db, require_auth
 
 simulations_bp = Blueprint('simulations', __name__)
 
@@ -127,7 +127,7 @@ def run_simulation():
         project_id    = data.get('project_id')
         disaster_type = data.get('disaster_type', 'fire')
         max_steps     = int(data.get('max_steps', 10000))
-        user_id       = get_user_id()
+        user_id       = session.get('user_id')
 
         if not project_id:
             return jsonify({"error": "project_id required"}), 400
