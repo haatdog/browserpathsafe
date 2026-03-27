@@ -42,36 +42,6 @@ def check_password(password: str, hashed: str) -> bool:
 def generate_user_id() -> str:
     return secrets.token_urlsafe(16)
 
-
-def require_auth():
-    """Check session cookie OR Authorization: Bearer token. Returns 401 or None."""
-    # 1. Check session cookie (local dev)
-    if session.get('user_id'):
-        return None
-
-    # 2. Check Authorization: Bearer <token> (production cross-domain)
-    auth_header = request.headers.get('Authorization', '')
-    if auth_header.startswith('Bearer '):
-        token = auth_header[7:]
-        try:
-            import jwt as pyjwt, os
-            from datetime import timezone
-            payload = pyjwt.decode(
-                token,
-                os.getenv('SECRET_KEY', 'dev-secret'),
-                algorithms=['HS256']
-            )
-            # Inject into session so route handlers can use session['user_id']
-            session['user_id'] = payload['user_id']
-            session['email']   = payload.get('email', '')
-            session['role']    = payload.get('role', 'member')
-            return None
-        except Exception:
-            pass
-
-    return jsonify({"error": "Not authenticated"}), 401
-
-
 def get_user_id() -> str | None:
     """
     Get current user ID from session OR JWT Bearer token.
@@ -98,6 +68,34 @@ def get_user_id() -> str | None:
             pass
     return None
 
+
+def require_auth():
+    """Check session cookie OR Authorization: Bearer token. Returns 401 or None."""
+    # 1. Check session cookie (local dev)
+    if get_user_id():
+        return None
+
+    # 2. Check Authorization: Bearer <token> (production cross-domain)
+    auth_header = request.headers.get('Authorization', '')
+    if auth_header.startswith('Bearer '):
+        token = auth_header[7:]
+        try:
+            import jwt as pyjwt, os
+            from datetime import timezone
+            payload = pyjwt.decode(
+                token,
+                os.getenv('SECRET_KEY', 'dev-secret'),
+                algorithms=['HS256']
+            )
+            # Inject into session so route handlers can use session['user_id']
+            session['user_id'] = payload['user_id']
+            session['email']   = payload.get('email', '')
+            session['role']    = payload.get('role', 'member')
+            return None
+        except Exception:
+            pass
+
+    return jsonify({"error": "Not authenticated"}), 401
 
 def get_current_role(user_id: str) -> str | None:
     """Look up the role for user_id. Returns None if not found."""
