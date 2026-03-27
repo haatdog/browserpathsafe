@@ -14,7 +14,6 @@ app.secret_key = os.getenv('SECRET_KEY')
 app.config['SESSION_COOKIE_PATH']     = '/api'
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 CORS(app, origins=[
-    "http://localhost:5173",
     "https://browserpathsafe.vercel.app",
 ])
 
