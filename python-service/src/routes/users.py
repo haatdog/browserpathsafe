@@ -1,7 +1,7 @@
 # src/routes/users.py
 from flask import Blueprint, request, jsonify, session
 from psycopg2.extras import RealDictCursor
-from src.utils import get_db
+from src.utils import get_user_id, get_db
 
 users_bp = Blueprint('users', __name__)
 
@@ -11,7 +11,7 @@ def get_all_users():
     if request.method == "OPTIONS":
         return '', 200
     try:
-        user_id = session.get('user_id')
+        user_id = get_user_id()
         if not user_id:
             return jsonify({"error": "Not authenticated"}), 401
 
@@ -36,7 +36,7 @@ def get_all_users():
 
         if is_admin:
             cursor.execute('''
-                SELECT u.id, u.email, u.role, u.group_id, u.is_head,
+                SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.group_id, u.is_head,
                        g.name as group_name, u.created_at, u.updated_at
                 FROM user_profiles u
                 LEFT JOIN groups g ON u.group_id = g.id
@@ -45,7 +45,7 @@ def get_all_users():
         else:
             # Unit Heads: their group members + unassigned members (for the add-member picker)
             cursor.execute('''
-                SELECT u.id, u.email, u.role, u.group_id, u.is_head,
+                SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.group_id, u.is_head,
                        g.name as group_name, u.created_at, u.updated_at
                 FROM user_profiles u
                 LEFT JOIN groups g ON u.group_id = g.id
@@ -62,6 +62,8 @@ def get_all_users():
             "email":      u['email'],
             "role":       u['role'],
             "group_id":   u['group_id'],
+            "first_name": u['first_name'],
+            "last_name":  u['last_name'],
             "group_name": u['group_name'],
             "is_head":    bool(u['is_head']) if u['is_head'] is not None else False,
             "created_at": u['created_at'].isoformat() if u['created_at'] else None,
@@ -78,7 +80,7 @@ def update_user_role(uid):
     if request.method == "OPTIONS":
         return '', 200
     try:
-        current_user_id = session.get('user_id')
+        current_user_id = get_user_id()
         if not current_user_id:
             return jsonify({"error": "Not authenticated"}), 401
 
@@ -125,7 +127,7 @@ def delete_user(uid):
     if request.method == "OPTIONS":
         return '', 200
     try:
-        current_user_id = session.get('user_id')
+        current_user_id = get_user_id()
         if not current_user_id:
             return jsonify({"error": "Not authenticated"}), 401
 
@@ -157,7 +159,7 @@ def delete_user(uid):
 def update_user_group(uid):
     if request.method == "OPTIONS":
         return '', 200
-    if not session.get('user_id'):
+    if not get_user_id():
         return jsonify({"error": "Not authenticated"}), 401
     try:
         data   = request.json

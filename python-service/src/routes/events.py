@@ -1,7 +1,7 @@
 # src/routes/events.py
 from flask import Blueprint, request, jsonify, session
 from psycopg2.extras import RealDictCursor
-from src.utils import get_db
+from src.utils import get_user_id, get_db
 
 events_bp = Blueprint('events', __name__)
 
@@ -53,7 +53,7 @@ def create_event():
     if request.method == "OPTIONS":
         return '', 200
     try:
-        user_id = session.get('user_id')
+        user_id = get_user_id()
         if not user_id:
             return jsonify({"error": "Not authenticated"}), 401
 
@@ -95,7 +95,7 @@ def update_event(event_id):
     if request.method == "OPTIONS":
         return '', 200
     try:
-        user_id = session.get('user_id')
+        user_id = get_user_id()
         if not user_id:
             return jsonify({"error": "Not authenticated"}), 401
 
@@ -142,7 +142,7 @@ def delete_event(event_id):
     if request.method == "OPTIONS":
         return '', 200
     try:
-        user_id = session.get('user_id')
+        user_id = get_user_id()
         if not user_id:
             return jsonify({"error": "Not authenticated"}), 401
 

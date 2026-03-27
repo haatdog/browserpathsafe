@@ -2,7 +2,7 @@
 import json
 from flask import Blueprint, request, jsonify, session
 from psycopg2.extras import RealDictCursor
-from src.utils import get_db
+from src.utils import get_user_id, get_db
 
 evaluations_bp = Blueprint('evaluations', __name__)
 
@@ -12,7 +12,7 @@ def get_pending():
     if request.method == "OPTIONS":
         return '', 200
     try:
-        user_id = session.get('user_id')
+        user_id = get_user_id()
         if not user_id:
             return jsonify({"error": "Not authenticated"}), 401
 
@@ -49,7 +49,7 @@ def get_my_evaluations():
     if request.method == "OPTIONS":
         return '', 200
     try:
-        user_id = session.get('user_id')
+        user_id = get_user_id()
         if not user_id:
             return jsonify({"error": "Not authenticated"}), 401
 
@@ -83,7 +83,7 @@ def submit_evaluation():
     if request.method == "OPTIONS":
         return '', 200
     try:
-        user_id = session.get('user_id')
+        user_id = get_user_id()
         if not user_id:
             return jsonify({"error": "Not authenticated"}), 401
 
@@ -156,7 +156,7 @@ def get_recent_drills():
     if request.method == "OPTIONS":
         return '', 200
     try:
-        user_id = session.get('user_id')
+        user_id = get_user_id()
         if not user_id:
             return jsonify({"error": "Not authenticated"}), 401
 
@@ -204,7 +204,7 @@ def get_event_evaluations(event_id):
     if request.method == "OPTIONS":
         return '', 200
     try:
-        user_id = session.get('user_id')
+        user_id = get_user_id()
         if not user_id:
             return jsonify({"error": "Not authenticated"}), 401
 

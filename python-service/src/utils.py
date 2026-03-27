@@ -72,6 +72,33 @@ def require_auth():
     return jsonify({"error": "Not authenticated"}), 401
 
 
+def get_user_id() -> str | None:
+    """
+    Get current user ID from session OR JWT Bearer token.
+    Call this instead of session.get('user_id') in every route.
+    Works for both local (session cookie) and production (JWT token).
+    """
+    # Check session first (local dev)
+    uid = session.get('user_id')
+    if uid:
+        return uid
+
+    # Check JWT Bearer token (production)
+    auth_header = request.headers.get('Authorization', '')
+    if auth_header.startswith('Bearer '):
+        try:
+            import jwt as pyjwt
+            payload = pyjwt.decode(
+                auth_header[7:],
+                os.getenv('SECRET_KEY', 'dev-secret'),
+                algorithms=['HS256']
+            )
+            return payload.get('user_id')
+        except Exception:
+            pass
+    return None
+
+
 def get_current_role(user_id: str) -> str | None:
     """Look up the role for user_id. Returns None if not found."""
     conn   = get_db()

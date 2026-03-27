@@ -2,7 +2,7 @@
 import json
 from flask import Blueprint, request, jsonify, session
 from psycopg2.extras import RealDictCursor
-from src.utils import get_db
+from src.utils import get_user_id, get_db
 
 announcements_bp = Blueprint('announcements', __name__)
 
@@ -12,7 +12,7 @@ def get_announcements():
     if request.method == "OPTIONS":
         return '', 200
     try:
-        user_id = session.get('user_id')
+        user_id = get_user_id()
         if not user_id:
             return jsonify({"error": "Not authenticated"}), 401
 
@@ -69,7 +69,7 @@ def create_announcement():
     if request.method == "OPTIONS":
         return '', 200
     try:
-        user_id = session.get('user_id')
+        user_id = get_user_id()
         if not user_id:
             return jsonify({"error": "Not authenticated"}), 401
 
@@ -111,7 +111,7 @@ def toggle_pin(announcement_id):
     if request.method == "OPTIONS":
         return '', 200
     try:
-        user_id = session.get('user_id')
+        user_id = get_user_id()
         if not user_id:
             return jsonify({"error": "Not authenticated"}), 401
 
@@ -138,7 +138,7 @@ def toggle_like(announcement_id):
     if request.method == "OPTIONS":
         return '', 200
     try:
-        user_id = session.get('user_id')
+        user_id = get_user_id()
         if not user_id:
             return jsonify({"error": "Not authenticated"}), 401
 
@@ -165,7 +165,7 @@ def delete_announcement(announcement_id):
     if request.method == "OPTIONS":
         return '', 200
     try:
-        user_id = session.get('user_id')
+        user_id = get_user_id()
         if not user_id:
             return jsonify({"error": "Not authenticated"}), 401
 
@@ -215,7 +215,7 @@ def add_comment(announcement_id):
     if request.method == "OPTIONS":
         return '', 200
     try:
-        user_id = session.get('user_id')
+        user_id = get_user_id()
         if not user_id:
             return jsonify({"error": "Not authenticated"}), 401
 
