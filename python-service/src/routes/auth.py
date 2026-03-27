@@ -1,7 +1,25 @@
 # src/routes/auth.py
 from flask import Blueprint, request, jsonify, session
+import jwt as pyjwt
+import os
+from datetime import datetime, timedelta, timezone
 from psycopg2.extras import RealDictCursor
 from src.utils import get_db, hash_password, check_password, generate_user_id
+
+def generate_token(user_id: str, email: str, role: str) -> str:
+    payload = {
+        'user_id': user_id,
+        'email':   email,
+        'role':    role,
+        'exp':     datetime.now(timezone.utc) + timedelta(days=30),
+    }
+    return pyjwt.encode(payload, os.getenv('SECRET_KEY', 'dev-secret'), algorithm='HS256')
+
+def decode_token(token: str) -> dict | None:
+    try:
+        return pyjwt.decode(token, os.getenv('SECRET_KEY', 'dev-secret'), algorithms=['HS256'])
+    except Exception:
+        return None
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -89,6 +107,7 @@ def login():
         session['user_id'] = user['id']
         session['email']   = user['email']
         session['role']    = user['role']
+        token = generate_token(user['id'], user['email'], user['role'])
 
         print(f"✅ User logged in: {email}")
         return jsonify({

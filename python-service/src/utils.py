@@ -4,7 +4,7 @@ import bcrypt
 import secrets
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from flask import session, jsonify
+from flask import session, jsonify, request
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -44,10 +44,32 @@ def generate_user_id() -> str:
 
 
 def require_auth():
-    """Return a 401 response if the session has no user_id, else None."""
-    if not session.get('user_id'):
-        return jsonify({"error": "Not authenticated"}), 401
-    return None
+    """Check session cookie OR Authorization: Bearer token. Returns 401 or None."""
+    # 1. Check session cookie (local dev)
+    if session.get('user_id'):
+        return None
+
+    # 2. Check Authorization: Bearer <token> (production cross-domain)
+    auth_header = request.headers.get('Authorization', '')
+    if auth_header.startswith('Bearer '):
+        token = auth_header[7:]
+        try:
+            import jwt as pyjwt, os
+            from datetime import timezone
+            payload = pyjwt.decode(
+                token,
+                os.getenv('SECRET_KEY', 'dev-secret'),
+                algorithms=['HS256']
+            )
+            # Inject into session so route handlers can use session['user_id']
+            session['user_id'] = payload['user_id']
+            session['email']   = payload.get('email', '')
+            session['role']    = payload.get('role', 'member')
+            return None
+        except Exception:
+            pass
+
+    return jsonify({"error": "Not authenticated"}), 401
 
 
 def get_current_role(user_id: str) -> str | None:

@@ -87,13 +87,23 @@ export interface MapProjectSummary {
    GENERIC REQUEST HELPER
 ========================= */
 
+// Token stored in localStorage for cross-domain auth (Vercel → Render)
+const TOKEN_KEY = 'pathsafe_token';
+export const tokenStore = {
+  get: () => localStorage.getItem(TOKEN_KEY),
+  set: (t: string) => localStorage.setItem(TOKEN_KEY, t),
+  clear: () => localStorage.removeItem(TOKEN_KEY),
+};
+
 async function pythonRequest<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
+  const token = tokenStore.get();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
   };
 
   const response = await fetch(`${PYTHON_API}${endpoint}`, {
@@ -117,10 +127,11 @@ async function pythonRequest<T>(
 
 export const authService = {
   login: async (email: string, password: string) => {
-    const response = await pythonRequest<{ success: boolean; user: UserProfile }>('/api/auth/login', {
+    const response = await pythonRequest<{ success: boolean; user: UserProfile; token?: string }>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
+    if (response.token) tokenStore.set(response.token);
     return response.user;
   },
 
@@ -135,6 +146,7 @@ export const authService = {
   logout: async () => {
     try {
       await pythonRequest('/api/auth/logout', { method: 'POST' });
+      tokenStore.clear();
     } catch (error) {
       console.log('Logout error (ignored):', error);
     }
