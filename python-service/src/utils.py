@@ -9,17 +9,26 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DB_CONFIG = {
-    'dbname':   os.getenv('DB_NAME'),
-    'user':     os.getenv('DB_USER'),
-    'password': os.getenv('DB_PASSWORD'),
-    'host':     os.getenv('DB_HOST'),
-    'port':     os.getenv('DB_PORT', '5432'),
-}
-
 
 def get_db():
-    return psycopg2.connect(**DB_CONFIG)
+    # On Render: DATABASE_URL is set in the Environment Variables tab
+    # Locally:   falls back to individual DB_* variables from .env
+    database_url = os.getenv('DATABASE_URL')
+
+    if database_url:
+        # Render provides postgres:// but psycopg2 requires postgresql://
+        if database_url.startswith('postgres://'):
+            database_url = database_url.replace('postgres://', 'postgresql://', 1)
+        return psycopg2.connect(database_url)
+
+    # Local development fallback — reads from .env
+    return psycopg2.connect(
+        host=os.getenv('DB_HOST', 'localhost'),
+        dbname=os.getenv('DB_NAME'),
+        user=os.getenv('DB_USER'),
+        password=os.getenv('DB_PASSWORD'),
+        port=os.getenv('DB_PORT', '5432'),
+    )
 
 
 def hash_password(password: str) -> str:
