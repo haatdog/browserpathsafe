@@ -13,7 +13,10 @@ app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024   # 50 MB
 app.secret_key = os.getenv('SECRET_KEY')
 app.config['SESSION_COOKIE_PATH']     = '/api'
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-CORS(app)
+CORS(app, origins=[
+    "http://localhost:5173",
+    "https://browserpathsafe.vercel.app",
+])
 
 @app.after_request
 def after_request(response):
@@ -72,6 +75,7 @@ def init_db():
     cursor = conn.cursor()
 
     statements = [
+        # ── Core tables ────────────────────────────────────────────────────────
         '''CREATE TABLE IF NOT EXISTS auth_users (
             id VARCHAR(255) PRIMARY KEY,
             email VARCHAR(255) UNIQUE NOT NULL,
@@ -83,6 +87,8 @@ def init_db():
             id VARCHAR(255) PRIMARY KEY REFERENCES auth_users(id) ON DELETE CASCADE,
             email VARCHAR(255) UNIQUE NOT NULL,
             role VARCHAR(50) DEFAULT 'member',
+            first_name VARCHAR(100),
+            last_name VARCHAR(100),
             group_id INTEGER,
             is_head BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -116,6 +122,7 @@ def init_db():
             status VARCHAR(50) DEFAULT 'completed',
             config JSON,
             results JSON NOT NULL,
+            project_data JSON,
             steps INTEGER,
             elapsed_s DECIMAL(10,3),
             evacuation_time DECIMAL(10,2),
@@ -124,7 +131,7 @@ def init_db():
             agents_trapped INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT check_disaster_type CHECK (disaster_type IN (\'fire\',\'earthquake\',\'bomb\'))
+            CONSTRAINT check_disaster_type CHECK (disaster_type IN ('fire','earthquake','bomb'))
         )''',
         'CREATE INDEX IF NOT EXISTS idx_simulations_created  ON simulations(created_at DESC)',
         'CREATE INDEX IF NOT EXISTS idx_simulations_project  ON simulations(project_id)',
@@ -135,7 +142,7 @@ def init_db():
             title VARCHAR(500) NOT NULL,
             content TEXT NOT NULL,
             image_url TEXT,
-            image_urls JSONB DEFAULT \'[]\',
+            image_urls JSONB DEFAULT '[]',
             target_group_id INTEGER REFERENCES groups(id) ON DELETE SET NULL,
             target_heads_only BOOLEAN DEFAULT FALSE,
             is_pinned BOOLEAN DEFAULT FALSE,
@@ -162,7 +169,7 @@ def init_db():
             id SERIAL PRIMARY KEY,
             title VARCHAR(500) NOT NULL,
             description TEXT,
-            event_type VARCHAR(50) DEFAULT \'meeting\',
+            event_type VARCHAR(50) DEFAULT 'meeting',
             start_time TIMESTAMP NOT NULL,
             end_time TIMESTAMP NOT NULL,
             location VARCHAR(500),
@@ -183,9 +190,9 @@ def init_db():
             severity VARCHAR(20) NOT NULL,
             location VARCHAR(255),
             incident_date TIMESTAMP NOT NULL,
-            status VARCHAR(20) DEFAULT \'pending\',
+            status VARCHAR(20) DEFAULT 'pending',
             image_url TEXT,
-            image_urls JSONB DEFAULT \'[]\',
+            image_urls JSONB DEFAULT '[]',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )''',
@@ -204,13 +211,13 @@ def init_db():
             id SERIAL PRIMARY KEY,
             event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
             instructor_name VARCHAR(255) NOT NULL,
-            program_class VARCHAR(100) NOT NULL DEFAULT \'N/A\',
+            program_class VARCHAR(100) NOT NULL DEFAULT 'N/A',
             classroom_office VARCHAR(100) NOT NULL,
             male_count INTEGER NOT NULL CHECK (male_count >= 0),
             female_count INTEGER NOT NULL CHECK (female_count >= 0),
             comments TEXT,
             image_url TEXT,
-            image_urls JSONB DEFAULT \'[]\',
+            image_urls JSONB DEFAULT '[]',
             submitted_by VARCHAR(255) NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE,
             submitted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -221,12 +228,39 @@ def init_db():
         'CREATE INDEX IF NOT EXISTS idx_evals_event     ON evacuation_evaluations(event_id)',
         'CREATE INDEX IF NOT EXISTS idx_evals_user      ON evacuation_evaluations(submitted_by)',
         'CREATE INDEX IF NOT EXISTS idx_evals_submitted ON evacuation_evaluations(submitted_at)',
-        # Default groups
+
+        # ── Safe migrations (ADD COLUMN IF NOT EXISTS never fails) ─────────────
+        # user_profiles: name fields used by OrganizationChart, profile editor,
+        #                display names across the app
+        'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS first_name VARCHAR(100)',
+        'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS last_name VARCHAR(100)',
+        # simulations: project_data needed for playback and path visualization
+        'ALTER TABLE simulations ADD COLUMN IF NOT EXISTS project_data JSON',
+
+        # ── Seed data ──────────────────────────────────────────────────────────
         '''INSERT INTO groups (name, is_custom) VALUES
-            ('First Aid Group', FALSE),('Site Security Group', FALSE),
-            ('Communication Group', FALSE),('Fire Safety Group', FALSE),
-            ('Evacuation Group', FALSE),('Building Safety Inspection Group', FALSE)
+            ('First Aid Group', FALSE),
+            ('Site Security Group', FALSE),
+            ('Communication Group', FALSE),
+            ('Fire Safety Group', FALSE),
+            ('Evacuation Group', FALSE),
+            ('Building Safety Inspection Group', FALSE)
             ON CONFLICT (name) DO NOTHING''',
+
+        # Default admin — password: Admin@123  (change after first login!)
+        '''DO $$
+        DECLARE
+            admin_id VARCHAR(255) := 'admin-default-001';
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM auth_users WHERE email = 'admin@pathsafe.com') THEN
+                INSERT INTO auth_users (id, email, password_hash)
+                VALUES (admin_id, 'admin@pathsafe.com',
+                        '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TiGc8L4pNgq7Bxv3j5W2tZ8K9Lem');
+
+                INSERT INTO user_profiles (id, email, role, first_name, last_name)
+                VALUES (admin_id, 'admin@pathsafe.com', 'executive', 'Admin', 'PathSafe');
+            END IF;
+        END $$;''',
     ]
 
     for sql in statements:
