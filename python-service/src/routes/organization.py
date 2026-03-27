@@ -57,7 +57,7 @@ def rename_group(group_id):
         if not new_name:
             return jsonify({"error": "Name is required"}), 400
 
-        user_id = get_user_id
+        user_id = get_user_id()
         conn    = get_db()
         cursor  = conn.cursor()
 

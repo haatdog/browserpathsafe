@@ -11,7 +11,7 @@ def get_all_users():
     if request.method == "OPTIONS":
         return '', 200
     try:
-        user_id = get_user_id
+        user_id = get_user_id()
         if not user_id:
             return jsonify({"error": "Not authenticated"}), 401
 
@@ -80,7 +80,7 @@ def update_user_role(uid):
     if request.method == "OPTIONS":
         return '', 200
     try:
-        current_user_id = get_user_id
+        current_user_id = get_user_id()
         if not current_user_id:
             return jsonify({"error": "Not authenticated"}), 401
 
@@ -127,7 +127,7 @@ def delete_user(uid):
     if request.method == "OPTIONS":
         return '', 200
     try:
-        current_user_id = get_user_id
+        current_user_id = get_user_id()
         if not current_user_id:
             return jsonify({"error": "Not authenticated"}), 401
 
@@ -159,7 +159,7 @@ def delete_user(uid):
 def update_user_group(uid):
     if request.method == "OPTIONS":
         return '', 200
-    if not get_user_id:
+    if not get_user_id():
         return jsonify({"error": "Not authenticated"}), 401
     try:
         data   = request.json
