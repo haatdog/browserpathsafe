@@ -4,8 +4,6 @@ import pygame
 import os
 from src.map_editor import MapEditor
 from src.simulation import Simulation
-from src.visualize import visualize
-from src.startup import StartupPage
 
 # Set window position to center (must be before pygame.init())
 # This helps if window was positioned off-screen
