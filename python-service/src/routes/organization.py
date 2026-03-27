@@ -1,7 +1,7 @@
 # src/routes/organization.py  — Groups + Org chart
-from flask import Blueprint, request, jsonify, session
+from flask import Blueprint, request, jsonify
 from psycopg2.extras import RealDictCursor
-from src.utils import get_db, require_auth
+from src.utils import get_user_id, get_db, require_auth
 
 organization_bp = Blueprint('organization', __name__)
 
@@ -57,7 +57,7 @@ def rename_group(group_id):
         if not new_name:
             return jsonify({"error": "Name is required"}), 400
 
-        user_id = session.get('user_id')
+        user_id = get_user_id
         conn    = get_db()
         cursor  = conn.cursor()
 
