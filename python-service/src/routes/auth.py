@@ -112,6 +112,7 @@ def login():
         print(f"✅ User logged in: {email}")
         return jsonify({
             "success": True,
+            "token":   token,
             "user": {"id": user['id'], "email": user['email'], "role": user['role']}
         })
 
@@ -136,7 +137,17 @@ def get_current_user():
     if request.method == "OPTIONS":
         return '', 200
     try:
+        # Check session first (local dev)
         user_id = session.get('user_id')
+
+        # Check JWT Bearer token (production cross-domain)
+        if not user_id:
+            auth_header = request.headers.get('Authorization', '')
+            if auth_header.startswith('Bearer '):
+                payload = decode_token(auth_header[7:])
+                if payload:
+                    user_id = payload.get('user_id')
+
         if not user_id:
             return jsonify({"error": "Not authenticated"}), 401
 
@@ -178,6 +189,12 @@ def update_profile():
     if request.method == "OPTIONS":
         return '', 200
     user_id = session.get('user_id')
+    if not user_id:
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            payload = decode_token(auth_header[7:])
+            if payload:
+                user_id = payload.get('user_id')
     if not user_id:
         return jsonify({"error": "Not authenticated"}), 401
     try:
