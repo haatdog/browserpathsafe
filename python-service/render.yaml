@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: pathsafe-api
+    env: python
+    plan: free
+    rootDir: python-service
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --chdir src wsgi:app --bind 0.0.0.0:$PORT
