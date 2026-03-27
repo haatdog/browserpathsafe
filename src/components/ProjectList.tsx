@@ -211,7 +211,7 @@ export default function ProjectList({ onOpenEditor, onRunSimulation }: ProjectLi
   const [loading, setLoading]               = useState(true);
   const [error, setError]                   = useState<string | null>(null);
   const [selectedProject, setSelectedProject] = useState<MapProject | null>(null);
-  const [onCompletedHandler, setOnCompletedHandler] = useState<((r: any) => void) | null>(null);
+  const onCompletedHandlerRef = useRef<((r: any) => void) | null>(null);
   const [runningSimulation, setRunningSimulation] = useState<{ id: number; name: string; disaster: string; jobId: string } | null>(null);
   const [selectedSimulation, setSelectedSimulation] = useState<any | null>(null);
   const [disasterTypes, setDisasterTypes]   = useState<Record<number, 'fire' | 'earthquake' | 'bomb'>>({});
@@ -270,6 +270,10 @@ export default function ProjectList({ onOpenEditor, onRunSimulation }: ProjectLi
       // onCompleted is called by SimulationProgress when polling detects status=completed
       const handleCompleted = async (results: any) => {
         if (!results) { setRunningSimulation(null); return; }
+        // Close progress overlay first, reload projects, THEN show modal
+        // so the re-render from loadProjects doesn't race with the modal state
+        setRunningSimulation(null);
+        await loadProjects();
         const simulationData = {
           id: Date.now(),
           project_id: project.id,
@@ -287,13 +291,11 @@ export default function ProjectList({ onOpenEditor, onRunSimulation }: ProjectLi
           results: { ...results, paths: results.paths || {} },
           config: { max_steps: 10000, disaster_type: disasterType },
         };
-        setRunningSimulation(null);
         setSelectedSimulation(simulationData);
-        await loadProjects();
       };
 
-      // Store handler so SimulationProgress can call it
-      setOnCompletedHandler(() => handleCompleted);
+      // Store handler in ref so it's available synchronously (no render gap)
+      onCompletedHandlerRef.current = handleCompleted;
 
     } catch (err: any) {
       setRunningSimulation(null);
@@ -357,7 +359,7 @@ export default function ProjectList({ onOpenEditor, onRunSimulation }: ProjectLi
           projectName={runningSimulation.name}
           disasterType={runningSimulation.disaster}
           jobId={runningSimulation.jobId}
-          onCompleted={onCompletedHandler ?? (() => setRunningSimulation(null))}
+          onCompleted={onCompletedHandlerRef.current ?? (() => setRunningSimulation(null))}
         />
       )}
 

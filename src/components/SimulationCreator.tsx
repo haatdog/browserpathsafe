@@ -233,17 +233,165 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
 
   // ==================== SAVE/LOAD ====================
 
-  const getProjectData = useCallback(() => ({
-    version: '2.0',
-    cell_size: cellSize,
-    width: gridWidth,
-    height: gridHeight,
-    buildings: [{
-      name: 'Campus',
-      outline: { shape: 'rect', x: 0, y: 0, w: gridWidth * cellSize, h: gridHeight * cellSize },
-      layers: [objects],
-    }],
-  }), [objects, cellSize, gridWidth, gridHeight]);
+  // Snap all object coordinates to the cell grid before saving.
+  // This guarantees that when simulation.py converts px → cell with round(px/cell_size),
+  // the result is exact — no rounding drift that causes walls to appear 1 cell off.
+  const snapObjectsToGrid = useCallback((objs: MapObject[]): MapObject[] => {
+    const s = (v: number) => Math.round(v / cellSize) * cellSize;
+    return objs.map(obj => {
+      if (obj.type === 'line') {
+        return {
+          ...obj,
+          x1: s(obj.x1 ?? 0), y1: s(obj.y1 ?? 0),
+          x2: s(obj.x2 ?? 0), y2: s(obj.y2 ?? 0),
+          x: s(obj.x), y: s(obj.y),
+        };
+      }
+      // Rect-based objects: snap x,y to grid; snap w,h to nearest cell multiple
+      const snappedX = s(obj.x);
+      const snappedY = s(obj.y);
+      const snappedW = Math.max(cellSize, s(obj.w));
+      const snappedH = Math.max(cellSize, s(obj.h));
+      return { ...obj, x: snappedX, y: snappedY, w: snappedW, h: snappedH };
+    });
+  }, [cellSize]);
+
+  // ── Unified grid builder ──────────────────────────────────────────────────
+  // Encodes the entire map as a single 2D integer array.
+  // Cell values:
+  //   0  = empty       1  = wall        2  = exit
+  //   3  = npc spawn   4  = npc_count   5  = safe zone
+  //   6  = stairs      7  = fire ladder  8  = path_walkable
+  //   9  = path_danger 10 = gate(open)  11 = gate(closed)  12 = fence
+  //
+  // A* blocked cells: 1, 11, 12  (wall, closed gate, fence)
+  // All other values are walkable — simulation scans for exits, spawns etc.
+  // This is the single source of truth — no pixel↔cell conversion at runtime.
+  const CELL_VALUES: Record<string, number> = {
+    empty: 0, wall: 1, exit: 2, npc: 3, npc_count: 4, safezone: 5,
+    concrete_stairs: 6, stairs: 6, fire_ladder: 7,
+    path_walkable: 8, path_danger: 9,
+    gate_open: 10, gate_closed: 11, fence: 12,
+  };
+
+  const buildUnifiedGrid = useCallback((objs: MapObject[]): number[][] => {
+    // Start with empty grid
+    const g: number[][] = Array.from({ length: gridHeight }, () => Array(gridWidth).fill(0));
+
+    const s2g  = (v: number) => Math.round(v / cellSize);
+    const setCell = (gx: number, gy: number, val: number, overwrite = true) => {
+      if (gy < 0 || gy >= gridHeight || gx < 0 || gx >= gridWidth) return;
+      // Walls (val=1) always overwrite; others only write to empty cells
+      // unless overwrite=true
+      if (overwrite || g[gy][gx] === 0) g[gy][gx] = val;
+    };
+
+    const fillRect = (gx1: number, gy1: number, gx2: number, gy2: number, val: number, ow = true) => {
+      for (let gy = gy1; gy <= gy2; gy++)
+        for (let gx = gx1; gx <= gx2; gx++) setCell(gx, gy, val, ow);
+    };
+
+    const borderRect = (gx1: number, gy1: number, gx2: number, gy2: number) => {
+      // Only mark the border cells as wall (1) — interior stays 0 (walkable)
+      if (gx2 < gx1 || gy2 < gy1) return;
+      for (let gx = gx1; gx <= gx2; gx++) { setCell(gx, gy1, 1); setCell(gx, gy2, 1); }
+      for (let gy = gy1 + 1; gy < gy2; gy++) { setCell(gx1, gy, 1); setCell(gx2, gy, 1); }
+    };
+
+    const bresenham = (x0: number, y0: number, x1: number, y1: number, val = 1) => {
+      // Skip the LAST cell of each segment so that 10px doorway gaps (= 1 cell_size)
+      // produce a free cell between adjacent wall segments.
+      // Corners still work: the END of one segment is the START of the next —
+      // the corner cell is marked by the next segment's first cell.
+      let dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+      let sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1, err = dx - dy;
+      let cx = x0, cy = y0;
+      while (true) {
+        const atEnd = cx === x1 && cy === y1;
+        if (!atEnd) setCell(cx, cy, val); // mark all cells EXCEPT the endpoint
+        if (atEnd) break;
+        const e2 = 2 * err;
+        if (e2 > -dy) { err -= dy; cx += sx; }
+        if (e2 < dx)  { err += dx; cy += sy; }
+      }
+    };
+
+    // ── Pass 1: non-wall objects (lower priority — walls overwrite) ──────────
+    // Draw walkable zone objects first so walls overwrite them where they overlap
+    for (const obj of objs) {
+      const gx1 = Math.max(0, s2g(obj.x));
+      const gy1 = Math.max(0, s2g(obj.y));
+      const gx2 = Math.min(gridWidth  - 1, s2g(obj.x + (obj.w || 0)));
+      const gy2 = Math.min(gridHeight - 1, s2g(obj.y + (obj.h || 0)));
+
+      switch (obj.type) {
+        case 'exit':
+          fillRect(gx1, gy1, gx2, gy2, 2, false); break;
+        case 'npc':
+          fillRect(gx1, gy1, gx2, gy2, 3, false); break;
+        case 'npc_count':
+          fillRect(gx1, gy1, gx2, gy2, 4, false); break;
+        case 'safezone':
+          fillRect(gx1, gy1, gx2, gy2, 5, false); break;
+        case 'concrete_stairs':
+          fillRect(gx1, gy1, gx2, gy2, 6, false); break;
+        case 'fire_ladder':
+          fillRect(gx1, gy1, gx2, gy2, 7, false); break;
+        case 'path_walkable':
+          fillRect(gx1, gy1, gx2, gy2, 8, false); break;
+        case 'path_danger':
+          fillRect(gx1, gy1, gx2, gy2, 9, false); break;
+        case 'gate':
+          fillRect(gx1, gy1, gx2, gy2, obj.is_open === false ? 11 : 10, false); break;
+      }
+    }
+
+    // ── Pass 2: walls (highest priority — always overwrite) ──────────────────
+    for (const obj of objs) {
+      const gx1 = s2g(obj.x), gy1 = s2g(obj.y);
+      const gx2 = s2g(obj.x + (obj.w || 0)), gy2 = s2g(obj.y + (obj.h || 0));
+
+      switch (obj.type) {
+        case 'wall':
+          borderRect(gx1, gy1, gx2, gy2); break;
+        case 'fence':
+          fillRect(gx1, gy1, gx2, gy2, 12, true); break;
+        case 'line': {
+          const lgx1 = s2g(obj.x1 ?? 0), lgy1 = s2g(obj.y1 ?? 0);
+          const lgx2 = s2g(obj.x2 ?? 0), lgy2 = s2g(obj.y2 ?? 0);
+          bresenham(lgx1, lgy1, lgx2, lgy2, 1);
+          break;
+        }
+      }
+    }
+
+    return g;
+  }, [gridWidth, gridHeight, cellSize]);
+
+  const getProjectData = useCallback(() => {
+    const snapped = snapObjectsToGrid(objects);
+    const unified = buildUnifiedGrid(snapped);
+    return {
+      version: '2.0',
+      cell_size: cellSize,
+      width: gridWidth,
+      height: gridHeight,
+      // Legacy field names used by PathVisualization + SimulationPlayback
+      grid_width: gridWidth,
+      grid_height: gridHeight,
+      buildings: [{
+        name: 'Campus',
+        outline: { shape: 'rect', x: 0, y: 0, w: gridWidth * cellSize, h: gridHeight * cellSize },
+        // objects kept for rendering (playback, path viz) — not used by simulation
+        layers: [snapped],
+        // unified grid: single 2D array, each cell = integer value
+        // 0=empty 1=wall 2=exit 3=npc 4=npc_count 5=safezone
+        // 6=stairs 7=ladder 8=path_walkable 9=path_danger 10=gate_open 11=gate_closed 12=fence
+        // A* blocked: 1, 11, 12
+        grid: [unified],
+      }],
+    };
+  }, [objects, cellSize, gridWidth, gridHeight, snapObjectsToGrid, buildUnifiedGrid]);
 
   const saveToDatabase = async () => {
     setIsSaving(true);
@@ -598,7 +746,16 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
       let changed = false;
       const next: MapObject[] = [];
       for (const obj of prev) {
-        // Eraser ONLY affects line objects (room walls + regular lines)
+        // Path tiles (path_walkable / path_danger) — erase whole tile if overlapped
+        if (obj.type === 'path_walkable' || obj.type === 'path_danger') {
+          if (eraserTouchesObject(obj, wx, wy, hs)) {
+            changed = true; // skip — remove tile
+          } else {
+            next.push(obj);
+          }
+          continue;
+        }
+        // Line objects (room walls + regular lines) — split or remove
         if (obj.type !== 'line') {
           next.push(obj);
           continue;

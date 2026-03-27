@@ -1,6 +1,7 @@
 // PathVisualization.tsx
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { X, Download, ArrowUpDown } from 'lucide-react';
+import { T, C } from '../design/DesignTokens';
 
 interface PathVisualizationProps {
   projectData: any;
@@ -163,17 +164,33 @@ export default function PathVisualization({ projectData, simulationResults, onCl
   const panStartRef  = useRef<{ x: number; y: number } | null>(null);
 
   const cellSize   = projectData?.cell_size  || 10;
-  const gridWidth  = projectData?.grid_width  || 80;
-  const gridHeight = projectData?.grid_height || 60;
+  const gridWidth  = projectData?.grid_width  || projectData?.width  || 80;
+  const gridHeight = projectData?.grid_height || projectData?.height || 60;
 
   // Get the flat object list — works for single-building single-floor maps
+  const cellSize_raw = projectData?.cell_size || projectData?.cell_size || 10;
+
+  // Snap all object coordinates to the cell grid so they align with path lines.
+  // Paths are now recorded at cell origins (gx*cellSize), so objects must match.
+  const snapV = (v: number) => Math.round(v / cellSize_raw) * cellSize_raw;
+  const snapObj = (obj: any): any => {
+    if (!obj) return obj;
+    if (obj.type === 'line') {
+      return { ...obj,
+        x1: snapV(obj.x1 ?? 0), y1: snapV(obj.y1 ?? 0),
+        x2: snapV(obj.x2 ?? 0), y2: snapV(obj.y2 ?? 0) };
+    }
+    return { ...obj,
+      x: snapV(obj.x ?? 0), y: snapV(obj.y ?? 0),
+      w: snapV(obj.w ?? 0), h: snapV(obj.h ?? 0) };
+  };
+
   const objects: any[] = (() => {
     if (!projectData) return [];
-    // buildings[0].layers[0] structure
-    if (projectData.buildings?.[0]?.layers?.[0]) return projectData.buildings[0].layers[0];
-    // flat objects array
-    if (Array.isArray(projectData.objects)) return projectData.objects;
-    return [];
+    let raw: any[] = [];
+    if (projectData.buildings?.[0]?.layers?.[0]) raw = projectData.buildings[0].layers[0];
+    else if (Array.isArray(projectData.objects)) raw = projectData.objects;
+    return raw.map(snapObj);
   })();
 
   const allPaths = collectAllPaths(simulationResults?.paths);
@@ -325,8 +342,8 @@ export default function PathVisualization({ projectData, simulationResults, onCl
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 flex items-center justify-between flex-shrink-0">
           <div>
-            <h2 className="text-2xl font-bold text-white">Evacuation Path Visualization</h2>
-            <p className="text-blue-100 text-sm mt-0.5">
+            <h2 className="text-white" style={T.pageTitle}>Evacuation Path Visualization</h2>
+            <p className="text-blue-100 mt-0.5" style={T.body}>
               {pathCount > 0
                 ? `${pathCount} evacuation path${pathCount !== 1 ? 's' : ''} recorded`
                 : 'No paths recorded for this simulation'}
@@ -359,7 +376,7 @@ export default function PathVisualization({ projectData, simulationResults, onCl
               className="w-8 h-8 bg-white border border-gray-300 rounded-lg shadow text-gray-500 hover:bg-gray-50 flex items-center justify-center text-xs">↺</button>
           </div>
 
-          <p className="absolute bottom-3 left-1/2 -translate-x-1/2 text-xs text-gray-400 bg-white/80 px-3 py-1 rounded-full pointer-events-none z-10">
+          <p className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-white/80 px-3 py-1 rounded-full pointer-events-none z-10" style={T.meta}>
             Scroll to zoom · Drag to pan
           </p>
 

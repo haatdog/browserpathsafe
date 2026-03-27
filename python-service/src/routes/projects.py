@@ -88,6 +88,10 @@ def get_project(project_id):
         d = dict(project)
         if d.get('created_at'): d['created_at'] = d['created_at'].isoformat()
         if d.get('updated_at'): d['updated_at'] = d['updated_at'].isoformat()
+        # Parse JSON columns — psycopg2 returns TEXT as strings
+        if isinstance(d.get('project_data'), str):
+            import json as _json
+            d['project_data'] = _json.loads(d['project_data'])
         return jsonify(d)
 
     except Exception as e:

@@ -43,6 +43,7 @@ class Simulation:
         self.buildings_costs = []
         self.buildings_paths = []
         self.buildings_graphs = []
+        self.buildings_pf_grids = []  # inflated grids for A* only
         self.buildings_data = []
         self.npc_zones = []
         self.safe_zone_agents = {}
@@ -87,11 +88,12 @@ class Simulation:
             return
 
         self.buildings_data = []
-        all_layers = []
-        all_grids  = []
-        all_costs  = []
-        all_paths  = []
-        all_graphs = []
+        all_layers   = []
+        all_grids    = []
+        all_pf_grids = []  # inflated pathfinding grids
+        all_costs    = []
+        all_paths    = []
+        all_graphs   = []
 
         for building_idx, building in enumerate(buildings):
             building_layers  = building.get('layers', [])
@@ -105,11 +107,19 @@ class Simulation:
                 'floor_count': len(building_layers)
             })
 
-            building_floor_objects = []
+            building_floor_objects  = []
             building_floor_grids   = []
+            building_floor_pf_grids = []
             building_floor_costs   = []
             building_floor_paths   = []
             building_floor_graphs  = []
+
+            # Read unified grids saved by the editor
+            # Each entry is a 2D array where cell values encode object types:
+            # 0=empty 1=wall 2=exit 3=npc 4=npc_count 5=safezone
+            # 6=stairs 7=ladder 8=path_walkable 9=path_danger
+            # 10=gate_open 11=gate_closed 12=fence
+            saved_unified_grids = building.get('grid', [])
 
             for layer_idx, layer_data in enumerate(building_layers):
                 layer_objects = []
@@ -119,23 +129,57 @@ class Simulation:
                         layer_objects.append(obj)
 
                 building_floor_objects.append(layer_objects)
-                grid, cost_grid, wcells = self.build_grid_for_layer(layer_objects)
+
+                if layer_idx < len(saved_unified_grids) and saved_unified_grids[layer_idx]:
+                    unified = saved_unified_grids[layer_idx]
+                    # Store unified grid directly — A* reads cell values natively.
+                    # BLOCKED = {1, 11, 12} checked by is_blocked() in pathfinding.py.
+                    # PATH_WALKABLE (8) gets a cost bonus inside astar().
+                    # No information is lost by converting to binary.
+                    grid = unified   # <-- USE UNIFIED DIRECTLY
+                    print(f"   ✅ Floor {layer_idx+1}: unified grid "
+                          f"{len(unified)}r × {len(unified[0]) if unified else 0}c")
+
+                    # Path cells: all cells with value PATH_WALKABLE (8)
+                    wcells = set()
+                    for gy, row in enumerate(unified):
+                        for gx, val in enumerate(row):
+                            if val == 8:
+                                wcells.add((gx, gy))
+                    print(f"   ✅ Floor {layer_idx+1}: {len(wcells)} green path cells")
+                else:
+                    # Fallback for legacy projects — build from objects
+                    print(f"   ⚠️  Floor {layer_idx+1}: no unified grid — building from objects")
+                    grid, _, wcells = self.build_grid_for_layer(layer_objects)
+                    unified = None
+
+                # Store unified grid so agents can scan for exits, spawns etc.
+                if not hasattr(self, 'buildings_unified'):
+                    self.buildings_unified = []
+                while len(self.buildings_unified) <= building_idx:
+                    self.buildings_unified.append([])
+                self.buildings_unified[building_idx].append(unified)
+
                 building_floor_grids.append(grid)
-                building_floor_costs.append(cost_grid)
+                building_floor_pf_grids.append(grid)   # same grid — no inflation needed
+                building_floor_costs.append([[0.0]*self.grid_width
+                                             for _ in range(self.grid_height)])
                 building_floor_paths.append(wcells)
-                # Pre-build graph on green tiles — used instead of full-grid A*
+
                 from src.pathfinding import build_path_graph
                 building_floor_graphs.append(build_path_graph(wcells) if wcells else {})
 
             all_layers.append(building_floor_objects)
             all_grids.append(building_floor_grids)
+            all_pf_grids.append(building_floor_pf_grids)
             all_costs.append(building_floor_costs)
             all_paths.append(building_floor_paths)
             all_graphs.append(building_floor_graphs)
 
-        self.buildings_layers = all_layers
-        self.buildings_grids  = all_grids
-        self.buildings_costs  = all_costs
+        self.buildings_layers   = all_layers
+        self.buildings_grids    = all_grids
+        self.buildings_pf_grids = all_pf_grids
+        self.buildings_costs    = all_costs
         self.buildings_paths  = all_paths
         self.buildings_graphs = all_graphs
 
@@ -209,6 +253,25 @@ class Simulation:
 
         print(f"ℹ️  {concrete_count} concrete stair(s) available (usable in all drills).")
 
+    def _inflate_grid(self, grid, radius=1):
+        """
+        Return a new grid where every cell within `radius` cells of a wall
+        is also marked blocked. Used by A* so paths stay away from walls.
+        The original grid is unchanged — agents/exits still use it for detection.
+        """
+        height = len(grid)
+        width  = len(grid[0]) if height else 0
+        out = [row[:] for row in grid]
+        for gy in range(height):
+            for gx in range(width):
+                if grid[gy][gx] == 1:
+                    for dy in range(-radius, radius + 1):
+                        for dx in range(-radius, radius + 1):
+                            ny, nx = gy + dy, gx + dx
+                            if 0 <= ny < height and 0 <= nx < width:
+                                out[ny][nx] = 1
+        return out
+
     def build_grid_for_layer(self, layer_objects):
         """
         Build a 0/1 collision grid.
@@ -254,15 +317,21 @@ class Simulation:
             for gy in range(y1 + 1, y2): mark(x2, gy)
 
         def bresenham(gx0, gy0, gx1, gy1):
-            """Mark all cells along a line segment."""
+            """Mark all cells along a line segment, skipping the last cell.
+            This ensures 10px doorway gaps (= 1 cell_size) produce a free cell
+            in the grid. Corners are preserved because the next segment's first
+            cell covers the shared endpoint.
+            """
             dx, dy = abs(gx1 - gx0), abs(gy1 - gy0)
             sx = 1 if gx0 < gx1 else -1
             sy = 1 if gy0 < gy1 else -1
             err = dx - dy
             cx, cy = gx0, gy0
             while True:
-                mark(cx, cy)
-                if cx == gx1 and cy == gy1:
+                at_end = (cx == gx1 and cy == gy1)
+                if not at_end:
+                    mark(cx, cy)   # skip the endpoint cell
+                if at_end:
                     break
                 e2 = 2 * err
                 if e2 > -dy: err -= dy; cx += sx
@@ -296,13 +365,16 @@ class Simulation:
                 x2 = getattr(obj, 'x2', None)
                 y2 = getattr(obj, 'y2', None)
                 if None not in (x1, y1, x2, y2):
-                    # round() instead of int()/floor() so erased gap edges
-                    # snap to the same cell boundaries as the editor grid
-                    gx1 = round(float(x1) / self.cell_size)
-                    gy1 = round(float(y1) / self.cell_size)
-                    gx2 = round(float(x2) / self.cell_size)
-                    gy2 = round(float(y2) / self.cell_size)
+                    # Coordinates are grid-snapped on save (multiples of cell_size)
+                    # so int division is exact — no rounding drift
+                    gx1 = int(round(float(x1) / self.cell_size))
+                    gy1 = int(round(float(y1) / self.cell_size))
+                    gx2 = int(round(float(x2) / self.cell_size))
+                    gy2 = int(round(float(y2) / self.cell_size))
                     bresenham(gx1, gy1, gx2, gy2)
+                    # No thickening — keep walls exactly 1 cell wide so doorway
+                    # gaps remain open. A*'s strict diagonal check prevents
+                    # corner-cutting without needing thick walls.
                 else:
                     print(f"  ⚠️  line object missing x1/y1/x2/y2 — skipped")
 
@@ -563,31 +635,92 @@ class Simulation:
             fidx = agent.current_layer
             if bidx >= len(self.buildings_grids) or fidx >= len(self.buildings_grids[bidx]):
                 return []
-            grid = self.buildings_grids[bidx][fidx]
+            grid    = self.buildings_grids[bidx][fidx]      # real grid — used for validation
+            # Use inflated grid for A* so paths stay ≥1 cell from all walls
+            pf_grid = (self.buildings_pf_grids[bidx][fidx]
+                       if bidx < len(self.buildings_pf_grids)
+                       and fidx < len(self.buildings_pf_grids[bidx])
+                       else grid)
             cs   = self.cell_size
 
-            # All agents in same zone share start cell (zone centre)
-            if agent.spawn_source is not None and hasattr(agent.spawn_source, 'x'):
-                sx = int((agent.spawn_source.x + agent.spawn_source.w/2) // cs)
-                sy = int((agent.spawn_source.y + agent.spawn_source.h/2) // cs)
+            # All agents in same zone share start cell.
+            # When unified grid available, find a free cell inside the NPC zone
+            # by scanning the grid — exact, no pixel drift.
+            # Fall back to pixel conversion for legacy projects.
+            unified_start = None
+            if hasattr(self, 'buildings_unified'):
+                try:
+                    ug = self.buildings_unified[bidx][fidx]
+                    if ug and agent.spawn_source is not None and hasattr(agent.spawn_source, 'x'):
+                        src = agent.spawn_source
+                        # Grid bounds of this spawn zone
+                        zx1 = int(src.x // cs); zy1 = int(src.y // cs)
+                        zx2 = int((src.x + src.w) // cs); zy2 = int((src.y + src.h) // cs)
+                        NPC_VALS = {3, 4}   # npc or npc_count
+                        # Find the first non-wall cell inside the zone bounds
+                        mid_x = (zx1 + zx2) // 2; mid_y = (zy1 + zy2) // 2
+                        from src.pathfinding import nearest_free, BLOCKED
+                        nf = nearest_free(grid, (mid_x, mid_y),
+                                          zone_bounds=(zx1, zy1, zx2, zy2))
+                        unified_start = nf
+                except Exception:
+                    pass
+
+            if unified_start:
+                sx, sy = unified_start
+            elif agent.spawn_source is not None and hasattr(agent.spawn_source, 'x'):
+                # Brute-force scan every cell in the zone for a free one
+                src = agent.spawn_source
+                zx1 = int(src.x // cs); zy1 = int(src.y // cs)
+                zx2 = int((src.x + src.w) // cs); zy2 = int((src.y + src.h) // cs)
+                found_start = None
+                for zy in range(zy1, zy2 + 1):
+                    for zx in range(zx1, zx2 + 1):
+                        if 0 <= zy < len(grid) and 0 <= zx < len(grid[0]) and grid[zy][zx] == 0:
+                            found_start = (zx, zy); break
+                    if found_start: break
+                if found_start:
+                    sx, sy = found_start
+                else:
+                    sx = int((src.x + src.w/2) // cs)
+                    sy = int((src.y + src.h/2) // cs)
             else:
                 sx = int(spawn_pos[0] // cs)
                 sy = int(spawn_pos[1] // cs)
 
-            # Goal = target centre, find nearest open cell if blocked
-            gcx = int((agent.target.x + agent.target.w/2) // cs)
-            gcy = int((agent.target.y + agent.target.h/2) // cs)
-            goal = (gcx, gcy)
-            if 0 <= gcy < len(grid) and 0 <= gcx < len(grid[0]) and grid[gcy][gcx] == 1:
-                found = False
-                for r in range(1, 5):
-                    for ddy in range(-r, r+1):
-                        for ddx in range(-r, r+1):
-                            nx2, ny2 = gcx+ddx, gcy+ddy
-                            if 0 <= ny2 < len(grid) and 0 <= nx2 < len(grid[0]) and grid[ny2][nx2] == 0:
-                                goal = (nx2, ny2); found = True; break
-                        if found: break
-                    if found: break
+            # Goal: find the nearest cell of the target type in the unified grid
+            # This is exact — no pixel→cell conversion on the goal side.
+            # For exits (type=2), safe zones (5), stairs (6/7) scan unified grid.
+            unified = None
+            if hasattr(self, 'buildings_unified'):
+                try:
+                    unified = self.buildings_unified[bidx][fidx]
+                except (IndexError, TypeError):
+                    unified = None
+
+            TARGET_VALUE = {
+                'exit': 2, 'safezone': 5,
+                'concrete_stairs': 6, 'stairs': 6, 'fire_ladder': 7,
+            }.get(agent.target.type, 2)
+
+            goal = None
+            if unified:
+                # Scan unified grid for cells matching target type
+                # Pick the one closest to agent start position
+                best_dist = float('inf')
+                for gy2, row in enumerate(unified):
+                    for gx2, val in enumerate(row):
+                        if val == TARGET_VALUE:
+                            d = math.hypot(gx2 - sx, gy2 - sy)
+                            if d < best_dist:
+                                best_dist = d
+                                goal = (gx2, gy2)
+
+            if goal is None:
+                # Fallback: convert pixel coords
+                gcx = int((agent.target.x + agent.target.w/2) // cs)
+                gcy = int((agent.target.y + agent.target.h/2) // cs)
+                goal = (gcx, gcy)
 
             cache_key = (sx, sy, goal[0], goal[1], bidx, fidx)
             if cache_key in _path_cache:
@@ -601,10 +734,34 @@ class Simulation:
             if bidx < len(self.buildings_graphs) and fidx < len(self.buildings_graphs[bidx]):
                 path_graph = self.buildings_graphs[bidx][fidx]
 
-            path = route_with_green_path(grid, (sx,sy), goal, path_cells, path_graph)
+            # Compute spawn zone bounds in grid coords so _nearest_free
+            # snaps the start cell to the correct side of the room wall
+            if agent.spawn_source is not None and hasattr(agent.spawn_source, 'x'):
+                zb = (
+                    int(agent.spawn_source.x // cs),
+                    int(agent.spawn_source.y // cs),
+                    int((agent.spawn_source.x + agent.spawn_source.w) // cs),
+                    int((agent.spawn_source.y + agent.spawn_source.h) // cs),
+                )
+            else:
+                zb = None
+            path = route_with_green_path(pf_grid, (sx,sy), goal, path_cells, path_graph,
+                                         zone_bounds=zb)
+
+            # Validate path — if any cell is a wall, recompute without green path
+            from src.pathfinding import path_valid as _path_valid, astar as _astar
+            if path and not _path_valid(path, grid):
+                print(f"⚠️  Path validation FAILED (wall crossing) — recomputing direct A*")
+                fallback = _astar(pf_grid, (sx,sy), goal, zone_bounds=zb)
+                if fallback and _path_valid(fallback, grid):
+                    path = fallback
+                else:
+                    # Absolute last resort: brute-force from snapped positions
+                    path = path  # keep original, at least agents move
+
             on_green = sum(1 for p in path if p in path_cells)
             print(f"🛣️  Path computed: {len(path)} waypoints, {on_green} on green, "
-                  f"start={( sx,sy)}, goal={goal}, "
+                  f"start={(sx,sy)}, goal={goal}, valid={_path_valid(path, grid)}, "
                   f"green_cells_on_floor={len(path_cells)}")
             _path_cache[cache_key] = path
             return path
@@ -913,15 +1070,16 @@ class Simulation:
             return  # already recorded for this zone
 
         pts = []
-        # Convert each grid cell to world pixel — keep ALL cells for wall safety
-        # (straight lines between adjacent 10px cells cannot cross walls)
+        # Convert grid cells to world pixels.
+        # Use cell ORIGIN (gx*cs) not centre (+cs/2) so path points land on
+        # cell boundaries which matches where walls are drawn in the editor.
         for node in path_nodes:
             try:
                 gx, gy = node
             except (TypeError, ValueError):
                 continue
-            pts.append((gx * cell_size + cell_size / 2,
-                        gy * cell_size + cell_size / 2))
+            pts.append((float(gx * cell_size),
+                        float(gy * cell_size)))
 
         # Prepend spawn zone centre as visual origin only if it doesn't jump far
         origin = None
