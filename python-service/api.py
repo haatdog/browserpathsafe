@@ -304,15 +304,3 @@ if __name__ == "__main__":
     print("=" * 60)
 
     app.run(host="0.0.0.0", port=API_PORT, debug=True)
-
-@app.route("/reset-admin", methods=["GET"])
-def reset_admin():
-    from src.utils import get_db, hash_password
-    conn = get_db()
-    cursor = conn.cursor()
-    new_hash = hash_password("Admin@123")
-    cursor.execute("UPDATE auth_users SET password_hash = %s WHERE email = %s",
-                   (new_hash, 'admin@pathsafe.com'))
-    conn.commit()
-    cursor.close(); conn.close()
-    return jsonify({"status": "done", "message": "Admin password reset to Admin@123"})
