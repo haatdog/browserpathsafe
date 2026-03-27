@@ -70,32 +70,10 @@ def get_user_id() -> str | None:
 
 
 def require_auth():
-    """Check session cookie OR Authorization: Bearer token. Returns 401 or None."""
-    # 1. Check session cookie (local dev)
-    if get_user_id():
-        return None
-
-    # 2. Check Authorization: Bearer <token> (production cross-domain)
-    auth_header = request.headers.get('Authorization', '')
-    if auth_header.startswith('Bearer '):
-        token = auth_header[7:]
-        try:
-            import jwt as pyjwt, os
-            from datetime import timezone
-            payload = pyjwt.decode(
-                token,
-                os.getenv('SECRET_KEY', 'dev-secret'),
-                algorithms=['HS256']
-            )
-            # Inject into session so route handlers can use session['user_id']
-            session['user_id'] = payload['user_id']
-            session['email']   = payload.get('email', '')
-            session['role']    = payload.get('role', 'member')
-            return None
-        except Exception:
-            pass
-
-    return jsonify({"error": "Not authenticated"}), 401
+    uid = get_user_id()
+    if not uid:
+        return jsonify({"error": "Not authenticated"}), 401
+    return None
 
 def get_current_role(user_id: str) -> str | None:
     """Look up the role for user_id. Returns None if not found."""
