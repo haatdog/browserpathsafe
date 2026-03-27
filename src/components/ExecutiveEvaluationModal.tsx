@@ -6,6 +6,7 @@ import {
   Download, FileText, PlusCircle, CheckCircle, AlertCircle,
   Upload, ChevronLeft, ChevronRight, Images
 } from 'lucide-react';
+import { evaluationAPI } from '../lib/api';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface Event {
@@ -195,14 +196,13 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
   const loadEvaluations = async () => {
     setLoading(true); setFetchError('');
     try {
-      const res = await fetch(`http://localhost:5000/api/evaluations/event/${event.id}`, { credentials: 'include' });
-      if (!res.ok) { const d = await res.json(); setFetchError(d.error || 'Failed to load'); return; }
-      const data = await res.json();
+      const data = await evaluationAPI.forEvent(event.id);
       setEvaluations(Array.isArray(data.evaluations) ? data.evaluations : []);
-    } catch { setFetchError('Network error loading evaluations.'); }
-    finally { setLoading(false); }
+    } catch (e: any) {
+      setFetchError(e.message || 'Failed to load');
+    } finally { setLoading(false); }
   };
-
+  
   const handleSubmitEvaluation = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true); setSubmitError('');
@@ -210,18 +210,17 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
     if (!form.classroom_office.trim()) { setSubmitError('Classroom / Office is required.'); setSubmitting(false); return; }
     if (form.male_count + form.female_count === 0) { setSubmitError('Total participants must be at least 1.'); setSubmitting(false); return; }
     try {
-      const res = await fetch('http://localhost:5000/api/evaluations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ event_id: event.id, ...form, program_class: form.program_class || 'N/A', image_url: images[0] || '', image_urls: images })
+      await evaluationAPI.submit({
+        event_id: event.id,
+        ...form,
+        program_class: form.program_class || 'N/A',
+        image_urls: images,
       });
-      const data = await res.json();
-      if (!res.ok) { setSubmitError(data.error || 'Failed to submit.'); return; }
       setSubmitSuccess(true); setForm(EMPTY_FORM); setImages([]);
       loadEvaluations();
-    } catch { setSubmitError('Network error. Please try again.'); }
-    finally { setSubmitting(false); }
+    } catch (e: any) {
+      setSubmitError(e.message || 'Failed to submit.');
+    } finally { setSubmitting(false); }
   };
 
   // ── Download Report as CSV ────────────────────────────────────────────────

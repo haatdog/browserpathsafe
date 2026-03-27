@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { Calendar, Clock, MapPin, Users, Edit, Trash2, CheckCircle, Play, FileText, X, Save } from 'lucide-react';
 import MemberEvaluationModal from './MemberEvaluationModal';
 import ExecutiveEvaluationModal from './ExecutiveEvaluationModal';
-import { profileAPI } from '../lib/api';
+import { profileAPI, evaluationAPI, eventAPI } from '../lib/api';
 import { T, C } from '../design/DesignTokens';
 
 interface Event {
@@ -39,40 +39,34 @@ export default function EventManagement() {
     try { const p = await profileAPI.getMe(); setUserRole(p.role); setUserId(p.id); } catch {}
   };
 
-  const fetchUserEvaluations = async () => {
-    try {
-      const res = await fetch('http://localhost:5000/api/evaluations/my', { credentials: 'include' });
-      if (res.ok) {
-        const data = await res.json();
-        const m: {[id:number]:boolean} = {};
-        data.forEach((e:any) => { m[e.event_id] = true; });
-        setUserEvaluations(m);
-      }
-    } catch {}
-  };
-
-  const calculateStatus = (start: string, end: string): 'upcoming'|'ongoing'|'done' => {
+  const calculateStatus = (start: string, end: string): 'upcoming' | 'ongoing' | 'done' => {
     const now = new Date(), s = new Date(start), e = new Date(end);
     if (now < s) return 'upcoming';
     if (now >= s && now <= e) return 'ongoing';
     return 'done';
   };
 
+  const fetchUserEvaluations = async () => {
+    try {
+      const data = await evaluationAPI.mine();
+      const m: {[id: number]: boolean} = {};
+      data.forEach((e: any) => { m[e.event_id] = true; });
+      setUserEvaluations(m);
+    } catch {}
+  };
+  
   const fetchEvents = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/events', { credentials: 'include' });
-      if (res.ok) {
-        const data = await res.json();
-        setEvents(data.map((e:Event) => ({ ...e, status: calculateStatus(e.start_time, e.end_time) })));
-      }
+      const data = await eventAPI.getAll();
+      setEvents(data.map((e: any) => ({ ...e, status: calculateStatus(e.start_time, e.end_time) })));
     } catch {} finally { setLoading(false); }
   };
-
+  
   const handleDelete = async (id: number) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/events/${id}`, { method: 'DELETE', credentials: 'include' });
-      if (res.ok) { setEvents(events.filter(e => e.id !== id)); setShowDeleteConfirm(null); }
-      else alert('Failed to delete event');
+      await eventAPI.delete(id);
+      setEvents(events.filter(e => e.id !== id));
+      setShowDeleteConfirm(null);
     } catch { alert('Failed to delete event'); }
   };
 

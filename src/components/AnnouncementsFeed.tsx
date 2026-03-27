@@ -5,6 +5,7 @@ import {
   MessageSquare, Heart, Pin, Trash2, Send, FileText,
   AlertCircle, Upload, X, ChevronLeft, ChevronRight, Images, Filter, Star
 } from 'lucide-react';
+import { announcementAPI, organizationAPI } from '../lib/api';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface Announcement {
@@ -310,90 +311,76 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
 
   const loadGroups = async () => {
     try {
-      const r = await fetch('http://localhost:5000/api/groups', { credentials: 'include' });
-      const data = await r.json();
+      const data = await organizationAPI.listGroups();
       setGroups(Array.isArray(data) ? data : []);
     } catch {}
   };
-
+  
   const loadAnnouncements = async () => {
     try {
       setAuthError(false);
-      const response = await fetch('http://localhost:5000/api/announcements', { credentials: 'include' });
-      if (response.status === 401) { setAuthError(true); setAnnouncements([]); return; }
-      if (!response.ok) { setAnnouncements([]); return; }
-      const data = await response.json();
+      const data = await announcementAPI.getAll();
       setAnnouncements(Array.isArray(data) ? data : []);
-    } catch { setAnnouncements([]); }
-    finally { setLoading(false); }
+    } catch (e: any) {
+      if (e.message?.includes('401')) setAuthError(true);
+      setAnnouncements([]);
+    } finally {
+      setLoading(false);
+    }
   };
-
+  
   const createAnnouncement = async () => {
     if (!newPost.title.trim() || !newPost.content.trim()) { alert('Please fill in title and content'); return; }
     try {
-      const response = await fetch('http://localhost:5000/api/announcements', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          title: newPost.title,
-          content: newPost.content,
-          image_url: newImages[0] || '',
-          image_urls: newImages,
-          target_group_id: newPost.target_group_id || null,
-          target_heads_only: newPost.target_heads_only,
-        })
+      await announcementAPI.create({
+        title: newPost.title,
+        content: newPost.content,
+        image_url: newImages[0] || '',
+        image_urls: newImages,
+        target_group_id: newPost.target_group_id || null,
+        target_heads_only: newPost.target_heads_only,
       });
-      if (response.ok) {
-        setNewPost({ title: '', content: '', target_group_id: '', target_heads_only: false });
-        setNewImages([]);
-        setShowCreateModal(false);
-        loadAnnouncements();
-      }
+      setNewPost({ title: '', content: '', target_group_id: '', target_heads_only: false });
+      setNewImages([]);
+      setShowCreateModal(false);
+      loadAnnouncements();
     } catch { alert('Failed to create announcement'); }
   };
-
+  
   const togglePin = async (id: number, currentlyPinned: boolean) => {
     try {
-      await fetch(`http://localhost:5000/api/announcements/${id}/pin`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-        body: JSON.stringify({ is_pinned: !currentlyPinned })
-      });
+      await announcementAPI.togglePin(id, !currentlyPinned);
       loadAnnouncements();
     } catch {}
   };
-
+  
   const toggleLike = async (id: number) => {
     try {
-      await fetch(`http://localhost:5000/api/announcements/${id}/like`, { method: 'POST', credentials: 'include' });
+      await announcementAPI.toggleLike(id);
       loadAnnouncements();
     } catch {}
   };
-
+  
   const deleteAnnouncement = async (id: number) => {
     if (!confirm('Delete this announcement?')) return;
     try {
-      await fetch(`http://localhost:5000/api/announcements/${id}`, { method: 'DELETE', credentials: 'include' });
+      await announcementAPI.delete(id);
       loadAnnouncements();
     } catch {}
   };
-
+  
   const loadComments = async (id: number) => {
     try {
-      const r = await fetch(`http://localhost:5000/api/announcements/${id}/comments`, { credentials: 'include' });
-      const data = await r.json();
-      setComments(prev => ({ ...prev, [id]: data }));
+      const data = await announcementAPI.getComments(id);
+      setComments(prev => ({ ...prev, [id]: data as Comment[] }));
     } catch {}
   };
-
+  
   const addComment = async (id: number) => {
     const content = newComment[id]?.trim();
     if (!content) return;
     try {
-      await fetch(`http://localhost:5000/api/announcements/${id}/comments`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-        body: JSON.stringify({ content })
-      });
+      await announcementAPI.addComment(id, content);
       setNewComment(prev => ({ ...prev, [id]: '' }));
       loadComments(id);
       loadAnnouncements();

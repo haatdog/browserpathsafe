@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { X, Save, User, Users, MapPin, MessageSquare, GraduationCap } from 'lucide-react';
 import { T, C } from '../design/DesignTokens';
+import { evaluationAPI } from '@/lib/api';
 
 interface Event {
   id: number; title: string; event_type: string; start_time: string;
@@ -38,7 +39,7 @@ export default function MemberEvaluationModal({ event, userId, onClose, onSubmit
     if (!validateForm()) return;
     setIsSubmitting(true);
     try {
-      const payload = {
+      await evaluationAPI.submit({
         event_id: event.id,
         instructor_name: formData.instructor_name.trim(),
         program_class: formData.program_class.trim() || 'N/A',
@@ -46,12 +47,7 @@ export default function MemberEvaluationModal({ event, userId, onClose, onSubmit
         male_count: parseInt(formData.male_count),
         female_count: parseInt(formData.female_count),
         comments: formData.comments.trim(),
-      };
-      const res = await fetch('http://localhost:5000/api/evaluations', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-        body: JSON.stringify(payload),
       });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed to submit'); }
       alert('Evaluation submitted successfully!');
       onSubmitted();
     } catch (err) {
