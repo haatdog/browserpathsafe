@@ -31,30 +31,50 @@ function DateTimeInput({ value, onChange, label, required }: {
 
   const combine = (d: string, h: string, m: string, ap: string) => {
     let h24 = parseInt(h) || 12;
+    if (h24 < 1) h24 = 1;
+    if (h24 > 12) h24 = 12;
     if (ap === 'PM' && h24 !== 12) h24 += 12;
     if (ap === 'AM' && h24 === 12) h24 = 0;
-    return `${d}T${String(h24).padStart(2, '0')}:${m}`;
+    const mm = Math.min(59, Math.max(0, parseInt(m) || 0));
+    return `${d}T${String(h24).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
   };
 
-  const sel = 'px-2 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white';
+  const inputCls = 'px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white text-center';
 
   return (
     <div>
-      <label className="block mb-1.5" style={T.bodyMedium}>{label}{required && ' *'}</label>
-      <div className="flex flex-wrap gap-2 items-center">
-        <input type="date" value={datePart} required={required}
-          onChange={e => onChange(combine(e.target.value, hour, minute, ampm))}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent" />
-        <select value={hour} onChange={e => onChange(combine(datePart, e.target.value, minute, ampm))} className={`w-16 ${sel}`}>
-          {[1,2,3,4,5,6,7,8,9,10,11,12].map(h => <option key={h} value={h}>{h}</option>)}
-        </select>
-        <span className="text-gray-400 font-bold">:</span>
-        <select value={minute} onChange={e => onChange(combine(datePart, hour, e.target.value, ampm))} className={`w-16 ${sel}`}>
-          {['00','05','10','15','20','25','30','35','40','45','50','55'].map(m => <option key={m} value={m}>{m}</option>)}
-        </select>
-        <select value={ampm} onChange={e => onChange(combine(datePart, hour, minute, e.target.value))} className={`w-16 ${sel}`}>
-          <option>AM</option><option>PM</option>
-        </select>
+      <label className="block mb-2" style={T.bodyMedium}>{label}{required && ' *'}</label>
+      <div className="flex flex-wrap gap-3 items-end">
+        {/* Date box */}
+        <div>
+          <p className="text-xs text-gray-500 mb-1">Date</p>
+          <input type="date" value={datePart} required={required}
+            onChange={e => onChange(combine(e.target.value, hour, minute, ampm))}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent" />
+        </div>
+        {/* Hour box */}
+        <div>
+          <p className="text-xs text-gray-500 mb-1">Hour</p>
+          <input type="number" min={1} max={12} value={hour}
+            onChange={e => onChange(combine(datePart, e.target.value, minute, ampm))}
+            className={`w-16 ${inputCls}`} placeholder="12" />
+        </div>
+        <span className="text-gray-400 font-bold pb-2">:</span>
+        {/* Minute box */}
+        <div>
+          <p className="text-xs text-gray-500 mb-1">Minute</p>
+          <input type="number" min={0} max={59} value={minute}
+            onChange={e => onChange(combine(datePart, hour, e.target.value, ampm))}
+            className={`w-16 ${inputCls}`} placeholder="00" />
+        </div>
+        {/* AM/PM */}
+        <div>
+          <p className="text-xs text-gray-500 mb-1">AM/PM</p>
+          <select value={ampm} onChange={e => onChange(combine(datePart, hour, minute, e.target.value))}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white">
+            <option>AM</option><option>PM</option>
+          </select>
+        </div>
       </div>
     </div>
   );

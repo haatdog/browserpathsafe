@@ -18,32 +18,36 @@ function TimeInput({ value, onChange }: { value: string; onChange: (v: string) =
 
   const emit = (h: string, m: string, ap: string) => {
     if (!h) { onChange(''); return; }
-    let h24 = parseInt(h);
+    let h24 = parseInt(h) || 12;
+    if (h24 < 1) h24 = 1;
+    if (h24 > 12) h24 = 12;
     if (ap === 'PM' && h24 !== 12) h24 += 12;
     if (ap === 'AM' && h24 === 12) h24 = 0;
-    onChange(`${String(h24).padStart(2, '0')}:${m}`);
+    const mm = Math.min(59, Math.max(0, parseInt(m) || 0));
+    onChange(`${String(h24).padStart(2, '0')}:${String(mm).padStart(2, '0')}`);
   };
 
-  const sel = 'px-2 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white';
+  const inputCls = 'w-16 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white text-center';
 
   return (
-    <div className="space-y-1">
-      <div className="flex items-center gap-1 text-xs text-gray-500 font-medium">
-        <span className="w-14">Hour</span>
-        <span className="w-4" />
-        <span className="w-14">Minute</span>
-        <span className="w-14 ml-1">AM/PM</span>
+    <div className="flex flex-wrap gap-3 items-end">
+      <div>
+        <p className="text-xs text-gray-500 mb-1">Hour</p>
+        <input type="number" min={1} max={12} value={hour} placeholder="12"
+          onChange={e => emit(e.target.value, minute, ampm)}
+          className={inputCls} />
       </div>
-      <div className="flex items-center gap-2">
-        <select value={hour} onChange={e => emit(e.target.value, minute, ampm)} className={`w-16 ${sel}`}>
-          <option value="">--</option>
-          {[1,2,3,4,5,6,7,8,9,10,11,12].map(h => <option key={h} value={h}>{h}</option>)}
-        </select>
-        <span className="text-gray-400 font-bold">:</span>
-        <select value={minute} onChange={e => emit(hour, e.target.value, ampm)} className={`w-16 ${sel}`}>
-          {['00','05','10','15','20','25','30','35','40','45','50','55'].map(m => <option key={m} value={m}>{m}</option>)}
-        </select>
-        <select value={ampm} onChange={e => emit(hour, minute, e.target.value)} className={`w-16 ${sel}`}>
+      <span className="text-gray-400 font-bold pb-2">:</span>
+      <div>
+        <p className="text-xs text-gray-500 mb-1">Minute</p>
+        <input type="number" min={0} max={59} value={minute} placeholder="00"
+          onChange={e => emit(hour, e.target.value, ampm)}
+          className={inputCls} />
+      </div>
+      <div>
+        <p className="text-xs text-gray-500 mb-1">AM/PM</p>
+        <select value={ampm} onChange={e => emit(hour, minute, e.target.value)}
+          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white">
           <option>AM</option><option>PM</option>
         </select>
       </div>
