@@ -27,18 +27,26 @@ function TimeInput({ value, onChange }: { value: string; onChange: (v: string) =
   const sel = 'px-2 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white';
 
   return (
-    <div className="flex gap-2 items-center">
-      <select value={hour} onChange={e => emit(e.target.value, minute, ampm)} className={`w-16 ${sel}`}>
-        <option value="">--</option>
-        {[1,2,3,4,5,6,7,8,9,10,11,12].map(h => <option key={h} value={h}>{h}</option>)}
-      </select>
-      <span className="text-gray-400 font-bold">:</span>
-      <select value={minute} onChange={e => emit(hour, e.target.value, ampm)} className={`w-16 ${sel}`}>
-        {['00','05','10','15','20','25','30','35','40','45','50','55'].map(m => <option key={m} value={m}>{m}</option>)}
-      </select>
-      <select value={ampm} onChange={e => emit(hour, minute, e.target.value)} className={`w-16 ${sel}`}>
-        <option>AM</option><option>PM</option>
-      </select>
+    <div className="space-y-1">
+      <div className="flex items-center gap-1 text-xs text-gray-500 font-medium">
+        <span className="w-14">Hour</span>
+        <span className="w-4" />
+        <span className="w-14">Minute</span>
+        <span className="w-14 ml-1">AM/PM</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <select value={hour} onChange={e => emit(e.target.value, minute, ampm)} className={`w-16 ${sel}`}>
+          <option value="">--</option>
+          {[1,2,3,4,5,6,7,8,9,10,11,12].map(h => <option key={h} value={h}>{h}</option>)}
+        </select>
+        <span className="text-gray-400 font-bold">:</span>
+        <select value={minute} onChange={e => emit(hour, e.target.value, ampm)} className={`w-16 ${sel}`}>
+          {['00','05','10','15','20','25','30','35','40','45','50','55'].map(m => <option key={m} value={m}>{m}</option>)}
+        </select>
+        <select value={ampm} onChange={e => emit(hour, minute, e.target.value)} className={`w-16 ${sel}`}>
+          <option>AM</option><option>PM</option>
+        </select>
+      </div>
     </div>
   );
 }

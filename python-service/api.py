@@ -11,11 +11,13 @@ load_dotenv()
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024   # 50 MB
 app.secret_key = os.getenv('SECRET_KEY')
-app.config['SESSION_COOKIE_PATH']     = '/api'
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-CORS(app, origins=[
-    "https://browserpathsafe.vercel.app",
-])
+app.config['SESSION_COOKIE_PATH']     = '/'
+app.config['SESSION_COOKIE_SAMESITE'] = 'None'
+app.config['SESSION_COOKIE_SECURE']   = True
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+CORS(app,
+     origins=["http://localhost:5173", "https://browserpathsafe.vercel.app"],
+     supports_credentials=True)
 
 @app.after_request
 def after_request(response):

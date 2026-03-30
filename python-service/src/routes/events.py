@@ -63,7 +63,7 @@ def create_event():
         user = cursor.fetchone()
         if not user or user['role'] != 'coordinator':
             cursor.close(); conn.close()
-            return jsonify({"error": "Only coordinators can create events"}), 403
+            return jsonify({"error": "Only executives can create events"}), 403
 
         data = request.json
         cursor.execute('''
@@ -105,7 +105,7 @@ def update_event(event_id):
         user = cursor.fetchone()
         if not user or user['role'] != 'coordinator':
             cursor.close(); conn.close()
-            return jsonify({"error": "Only coordinators can update events"}), 403
+            return jsonify({"error": "Only executives can update events"}), 403
 
         data = request.json
         cursor.execute('''
@@ -152,7 +152,7 @@ def delete_event(event_id):
         user = cursor.fetchone()
         if not user or user['role'] != 'coordinator':
             cursor.close(); conn.close()
-            return jsonify({"error": "Only coordinators can delete events"}), 403
+            return jsonify({"error": "Only executives can delete events"}), 403
 
         cursor.execute('DELETE FROM events WHERE id = %s', (event_id,))
         conn.commit(); cursor.close(); conn.close()

@@ -1,5 +1,5 @@
 # src/routes/users.py
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, session
 from psycopg2.extras import RealDictCursor
 from src.utils import get_user_id, get_db
 

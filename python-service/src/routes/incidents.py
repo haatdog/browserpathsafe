@@ -1,8 +1,8 @@
 # src/routes/incidents.py
 import json
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, session
 from psycopg2.extras import RealDictCursor
-from src.utils import get_db, get_user_id
+from src.utils import get_user_id, get_db
 
 incidents_bp = Blueprint('incidents', __name__)
 
@@ -165,7 +165,7 @@ def add_remark(incident_id):
         user = cursor.fetchone()
         if not user or user['role'] not in ['coordinator', 'admin']:
             cursor.close(); conn.close()
-            return jsonify({'error': 'Only coordinators can add remarks'}), 403
+            return jsonify({'error': 'Only executives can add remarks'}), 403
 
         data = request.json
         if 'remark' not in data:
@@ -214,7 +214,7 @@ def update_incident_status(incident_id):
         user = cursor.fetchone()
         if not user or user['role'] not in ['coordinator', 'admin']:
             cursor.close(); conn.close()
-            return jsonify({'error': 'Only coordinators can update status'}), 403
+            return jsonify({'error': 'Only executives can update status'}), 403
 
         data = request.json
         valid = ['pending', 'under_review', 'resolved', 'closed']

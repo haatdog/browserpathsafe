@@ -22,18 +22,18 @@ const authFetch = (url: string, opts: RequestInit = {}) => {
 interface Group { id: number; name: string; is_custom: boolean; }
 interface UserProfile {
   id: string; email: string; first_name?: string | null; last_name?: string | null;
-  role: 'admin' | 'coordinator' | 'member'; group_id: number | null;
+  role: 'admin' | 'executive' | 'member'; group_id: number | null;
   group_name: string | null; is_head: boolean; created_at: string; updated_at: string;
 }
 
 const getRoleIcon = (role: string) => {
   if (role === 'admin')     return <Crown  className="w-4 h-4 text-yellow-600" />;
-  if (role === 'coordinator') return <Shield className="w-4 h-4 text-green-600"  />;
+  if (role === 'executive') return <Shield className="w-4 h-4 text-green-600"  />;
   return <User className="w-4 h-4 text-gray-500" />;
 };
 const getRoleBadge = (role: string) => {
   if (role === 'admin')     return 'bg-yellow-100 text-yellow-800';
-  if (role === 'coordinator') return 'bg-green-100 text-green-800';
+  if (role === 'executive') return 'bg-green-100 text-green-800';
   return 'bg-gray-100 text-gray-700';
 };
 const getDisplayName = (user: UserProfile) => {
@@ -45,7 +45,7 @@ export default function UserManagement({
   currentUserRole = 'admin', currentUserGroupId = null,
   currentUserIsHead = false, currentUserId = '',
 }: {
-  currentUserRole?: 'admin' | 'coordinator' | 'member';
+  currentUserRole?: 'admin' | 'executive' | 'member';
   currentUserGroupId?: number | null;
   currentUserIsHead?: boolean;
   currentUserId?: string;
@@ -59,7 +59,7 @@ export default function UserManagement({
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creating,        setCreating]        = useState(false);
-  const [newUser, setNewUser] = useState({ email: '', password: '', first_name: '', last_name: '', role: 'member' as 'admin' | 'coordinator' | 'member', group_id: '' as number | '', is_head: false });
+  const [newUser, setNewUser] = useState({ email: '', password: '', first_name: '', last_name: '', role: 'member' as 'admin' | 'executive' | 'member', group_id: '' as number | '', is_head: false });
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editGroup,     setEditGroup]     = useState<number | ''>('');
   const [editIsHead,    setEditIsHead]    = useState(false);
@@ -78,14 +78,6 @@ export default function UserManagement({
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [ur, gr] = await Promise.all([
-        authFetch(`${API}/api/users`),
-        authFetch(`${API}/api/groups`),
-      ]);
-      setUsers( Array.isArray(await ur.json()) ? await ur.clone().json() : []);
-      setGroups(Array.isArray(await gr.json()) ? await gr.clone().json() : []);
-
-      // Re-fetch properly
       const [ud, gd] = await Promise.all([
         authFetch(`${API}/api/users`).then(r => r.json()),
         authFetch(`${API}/api/groups`).then(r => r.json()),
@@ -358,7 +350,7 @@ export default function UserManagement({
                     <select value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value as any })}
                       className="w-full px-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent">
                       <option value="member">Member</option>
-                      <option value="coordinator">Coordinator</option>
+                      <option value="executive">Executive</option>
                       <option value="admin">Admin</option>
                     </select>
                   </div>

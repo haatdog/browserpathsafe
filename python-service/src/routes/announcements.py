@@ -80,7 +80,7 @@ def create_announcement():
 
         if not user or user['role'] != 'coordinator':
             cursor.close(); conn.close()
-            return jsonify({"error": "Only coordinators can create announcements"}), 403
+            return jsonify({"error": "Only executives can create announcements"}), 403
 
         data = request.json
         cursor.execute('''
@@ -121,7 +121,7 @@ def toggle_pin(announcement_id):
         user = cursor.fetchone()
         if not user or user['role'] != 'coordinator':
             cursor.close(); conn.close()
-            return jsonify({"error": "Only coordinators can pin announcements"}), 403
+            return jsonify({"error": "Only executives can pin announcements"}), 403
 
         cursor.execute(
             'UPDATE announcements SET is_pinned = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s',
@@ -175,7 +175,7 @@ def delete_announcement(announcement_id):
         user = cursor.fetchone()
         if not user or user['role'] != 'coordinator':
             cursor.close(); conn.close()
-            return jsonify({"error": "Only coordinators can delete announcements"}), 403
+            return jsonify({"error": "Only executives can delete announcements"}), 403
 
         cursor.execute('DELETE FROM announcements WHERE id = %s', (announcement_id,))
         conn.commit(); cursor.close(); conn.close()
