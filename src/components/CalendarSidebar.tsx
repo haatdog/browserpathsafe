@@ -20,7 +20,7 @@ interface Event {
 }
 
 interface CalendarSidebarProps {
-  userRole: 'admin' | 'coordinator' | 'member';
+  userRole: 'admin' | 'executive' | 'member';
 }
 
 export default function CalendarSidebar({ userRole }: CalendarSidebarProps) {
@@ -38,6 +38,52 @@ export default function CalendarSidebar({ userRole }: CalendarSidebarProps) {
     meeting_link: '', max_participants: undefined as number | undefined,
   });
 
+  // ── Custom DateTime Picker ──────────────────────────────────────────────────
+  const DateTimeInput = ({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) => {
+    const datePart = value.split('T')[0] || '';
+    const timePart = value.split('T')[1] || '';
+    const parse = (t: string) => {
+      if (!t) return { hour: '12', minute: '00', ampm: 'AM' };
+      const [h, m] = t.split(':');
+      const h24 = parseInt(h) || 0;
+      return { hour: String(h24 % 12 || 12), minute: m || '00', ampm: h24 >= 12 ? 'PM' : 'AM' };
+    };
+    const { hour, minute, ampm } = parse(timePart);
+    const combine = (d: string, h: string, m: string, ap: string) => {
+      let h24 = parseInt(h) || 12;
+      if (h24 < 1) h24 = 1; if (h24 > 12) h24 = 12;
+      if (ap === 'PM' && h24 !== 12) h24 += 12;
+      if (ap === 'AM' && h24 === 12) h24 = 0;
+      const mm = Math.min(59, Math.max(0, parseInt(m) || 0));
+      return `${d}T${String(h24).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+    };
+    const inputCls = 'px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white text-center';
+    return (
+      <div>
+        <label className="block mb-2" style={T.bodyMedium}>{label}</label>
+        <div className="flex flex-wrap gap-2 items-end">
+          <div><p className="text-xs text-gray-500 mb-1">Date</p>
+            <input type="date" value={datePart} onChange={e => onChange(combine(e.target.value, hour, minute, ampm))}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent" /></div>
+          <div><p className="text-xs text-gray-500 mb-1">Hour</p>
+            <input type="number" min={1} max={12} value={hour} placeholder="12"
+              onChange={e => onChange(combine(datePart, e.target.value, minute, ampm))}
+              className={`w-14 ${inputCls}`} /></div>
+          <span className="text-gray-400 font-bold pb-2">:</span>
+          <div><p className="text-xs text-gray-500 mb-1">Min</p>
+            <input type="number" min={0} max={59} value={minute} placeholder="00"
+              onChange={e => onChange(combine(datePart, hour, e.target.value, ampm))}
+              className={`w-14 ${inputCls}`} /></div>
+          <div><p className="text-xs text-gray-500 mb-1">AM/PM</p>
+            <select value={ampm} onChange={e => onChange(combine(datePart, hour, minute, e.target.value))}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white">
+              <option>AM</option><option>PM</option>
+            </select></div>
+        </div>
+      </div>
+    );
+  };
+
   useEffect(() => { loadEvents(); }, [currentDate]);
 
   const loadEvents = async () => {
@@ -50,7 +96,7 @@ export default function CalendarSidebar({ userRole }: CalendarSidebarProps) {
   };
 
   const createEvent = async () => {
-    if (userRole !== 'coordinator') { alert('Only coordinators can create events'); return; }
+    if (userRole !== 'executive') { alert('Only executives can create events'); return; }
     if (!newEvent.title || !newEvent.start_time || !newEvent.end_time) {
       alert('Please fill in title, start time, and end time'); return;
     }
@@ -118,7 +164,7 @@ export default function CalendarSidebar({ userRole }: CalendarSidebarProps) {
           <div className="flex items-center justify-between mb-4">
             <h2 style={T.sectionHeader}>Calendar & Events</h2>
             <div className="flex items-center gap-1">
-              {userRole === 'coordinator' && (
+              {userRole === 'executive' && (
                 <button onClick={() => setShowCreateModal(true)}
                   className="p-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition" title="Create Event">
                   <Plus className="w-4 h-4" />
@@ -260,18 +306,8 @@ export default function CalendarSidebar({ userRole }: CalendarSidebarProps) {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
                   placeholder="Event details..." />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block mb-1" style={T.bodyMedium}>Start Time</label>
-                  <input type="datetime-local" value={newEvent.start_time} onChange={e => setNewEvent({...newEvent, start_time: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent" />
-                </div>
-                <div>
-                  <label className="block mb-1" style={T.bodyMedium}>End Time</label>
-                  <input type="datetime-local" value={newEvent.end_time} onChange={e => setNewEvent({...newEvent, end_time: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent" />
-                </div>
-              </div>
+              <DateTimeInput value={newEvent.start_time} onChange={v => setNewEvent({...newEvent, start_time: v})} label="Start Time" />
+              <DateTimeInput value={newEvent.end_time}   onChange={v => setNewEvent({...newEvent, end_time: v})}   label="End Time" />
               <div className="flex items-center gap-2">
                 <input type="checkbox" id="is_virtual" checked={newEvent.is_virtual}
                   onChange={e => setNewEvent({...newEvent, is_virtual: e.target.checked})}
