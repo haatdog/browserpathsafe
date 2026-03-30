@@ -52,9 +52,7 @@ export default function Sidebar({ profile, currentPage, onNavigate, isOpen, onCl
         <div className={`p-4 border-b border-gray-200 flex items-center ${collapsed ? 'justify-center' : 'justify-between'}`}>
           {!collapsed && (
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 bg-green-600 rounded-lg flex items-center justify-center">
-                <span className="text-white text-xs font-bold">PS</span>
-              </div>
+              <img src="/PathSafe(32x32).png" alt="PathSafe" className="w-7 h-7 object-contain" />
               <h2 style={T.pageTitle}>PathSafe</h2>
             </div>
           )}
