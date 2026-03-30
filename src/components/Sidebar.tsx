@@ -1,15 +1,13 @@
 // Sidebar.tsx
 import { Home, BarChart3, Plus, Users, FolderOpen, X, Calendar, AlertTriangle, GitBranch, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Page } from '../types/navigation';
-import { T, C } from '../design/DesignTokens';
+import { T } from '../design/DesignTokens';
 
 interface SidebarProps {
   profile: {
-    id: string;
-    email: string;
+    id: string; email: string;
     role: 'admin' | 'executive' | 'member';
-    group_id?: number | null;
-    is_head?: boolean;
+    group_id?: number | null; is_head?: boolean;
   } | null;
   currentPage: Page;
   onNavigate: (page: Page) => void;
@@ -30,7 +28,9 @@ export default function Sidebar({ profile, currentPage, onNavigate, isOpen, onCl
       onClick={() => onNavigate(page)}
       title={collapsed ? label : undefined}
       className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all
-        ${currentPage === page ? 'bg-blue-600 text-white shadow-md' : 'text-gray-700 hover:bg-gray-100'}
+        ${currentPage === page
+          ? 'bg-green-600 text-white shadow-md'
+          : 'text-gray-700 hover:bg-green-50 hover:text-green-700'}
         ${collapsed ? 'justify-center px-0' : ''}`}
     >
       <Icon className="w-5 h-5 flex-shrink-0" />
@@ -40,10 +40,7 @@ export default function Sidebar({ profile, currentPage, onNavigate, isOpen, onCl
 
   return (
     <>
-      {isOpen && (
-        <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={onClose} />
-      )}
-
+      {isOpen && <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={onClose} />}
       <aside className={`
         fixed md:static inset-y-0 left-0 z-50
         bg-white border-r border-gray-200 flex flex-col
@@ -53,13 +50,20 @@ export default function Sidebar({ profile, currentPage, onNavigate, isOpen, onCl
       `}>
         {/* Header */}
         <div className={`p-4 border-b border-gray-200 flex items-center ${collapsed ? 'justify-center' : 'justify-between'}`}>
-          {!collapsed && <h2 style={T.pageTitle}>PathSafe</h2>}
+          {!collapsed && (
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 bg-green-600 rounded-lg flex items-center justify-center">
+                <span className="text-white text-xs font-bold">PS</span>
+              </div>
+              <h2 style={T.pageTitle}>PathSafe</h2>
+            </div>
+          )}
           <button onClick={onClose} className="md:hidden p-1 hover:bg-gray-100 rounded-lg">
             <X className="w-5 h-5" />
           </button>
           <button
             onClick={onToggleCollapse}
-            className="hidden md:flex items-center justify-center p-1 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-700 transition"
+            className="hidden md:flex items-center justify-center p-1 hover:bg-green-50 rounded-lg text-gray-400 hover:text-green-600 transition"
             title={collapsed ? 'Expand' : 'Collapse'}
           >
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
@@ -68,12 +72,12 @@ export default function Sidebar({ profile, currentPage, onNavigate, isOpen, onCl
 
         {/* Nav */}
         <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
-          <NavBtn page="home"          icon={Home}          label="Home"              />
-          <NavBtn page="organization"  icon={GitBranch}     label="Organization"      />
+          <NavBtn page="home"         icon={Home}          label="Home"              />
+          <NavBtn page="organization" icon={GitBranch}     label="Organization"      />
           {(isExecutive || isMember) && (
-            <NavBtn page="events"      icon={Calendar}      label="Events & Drills"   />
+            <NavBtn page="events"     icon={Calendar}      label="Events & Drills"   />
           )}
-          <NavBtn page="incidents"     icon={AlertTriangle} label="Incident Reports"  />
+          <NavBtn page="incidents"    icon={AlertTriangle} label="Incident Reports"  />
           {isExecutive && <NavBtn page="simulations" icon={BarChart3}  label="Simulations"       />}
           {isExecutive && <NavBtn page="projects"    icon={FolderOpen} label="Projects"          />}
           {isExecutive && <NavBtn page="create"      icon={Plus}       label="Create Simulation" />}
@@ -87,16 +91,16 @@ export default function Sidebar({ profile, currentPage, onNavigate, isOpen, onCl
             <div
               title={profile?.role}
               className={`w-2.5 h-2.5 rounded-full
-                ${profile?.role === 'admin'     ? 'bg-red-500'   : ''}
-                ${profile?.role === 'executive' ? 'bg-blue-500'  : ''}
-                ${profile?.role === 'member'    ? 'bg-green-500' : ''}`}
+                ${profile?.role === 'admin'     ? 'bg-red-500'    : ''}
+                ${profile?.role === 'executive' ? 'bg-green-500'  : ''}
+                ${profile?.role === 'member'    ? 'bg-emerald-400' : ''}`}
             />
           ) : (
             <div className="flex items-center gap-2 w-full">
               <div className={`px-2 py-1 rounded text-xs font-medium capitalize
-                ${profile?.role === 'admin'     ? 'bg-red-100 text-red-700'     : ''}
-                ${profile?.role === 'executive' ? 'bg-blue-100 text-blue-700'   : ''}
-                ${profile?.role === 'member'    ? 'bg-green-100 text-green-700' : ''}`}>
+                ${profile?.role === 'admin'     ? 'bg-red-100    text-red-700'     : ''}
+                ${profile?.role === 'executive' ? 'bg-green-100  text-green-700'   : ''}
+                ${profile?.role === 'member'    ? 'bg-emerald-100 text-emerald-700' : ''}`}>
                 {profile?.role}
               </div>
               <span style={T.meta}>Access Level</span>
