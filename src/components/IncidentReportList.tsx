@@ -6,11 +6,7 @@ import {
 } from 'lucide-react';
 import CreateIncidentModal from './CreateIncidentModal';
 import { T, C } from '../design/DesignTokens';
-
-const API_BASE =
-  (import.meta.env.VITE_API_URL as string) ??
-  (import.meta.env.VITE_PYTHON_API_URL as string) ??
-  `${location.protocol}//${location.hostname}:5000`;
+import { incidentAPI } from '../lib/api';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface RichData {
@@ -324,8 +320,8 @@ export default function IncidentReportsList() {
 
   const fetchIncidents = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/incidents`, { credentials: 'include' });
-      if (res.ok) setIncidents(await res.json());
+      const data = await incidentAPI.getAll();
+      setIncidents(Array.isArray(data) ? data : []);
     } catch (e) { console.error('Failed to fetch incidents:', e); }
     finally { setLoading(false); }
   };

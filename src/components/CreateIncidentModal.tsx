@@ -1,11 +1,7 @@
 // CreateIncidentModal.tsx
 import { useState } from 'react';
 import { X, Plus, Trash2, AlertCircle, Upload, User, Phone, Briefcase } from 'lucide-react';
-
-const API_BASE =
-  (import.meta.env.VITE_API_URL as string) ??
-  (import.meta.env.VITE_PYTHON_API_URL as string) ??
-  `${location.protocol}//${location.hostname}:5000`;
+import { incidentAPI } from '../lib/api';
 
 interface Person {
   name: string;
@@ -240,27 +236,16 @@ export default function CreateIncidentModal({ onClose, onSuccess }: {
     };
 
     try {
-      const res = await fetch(`${API_BASE}/api/incidents`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          title: `Incident at ${location || 'Unknown Location'} — ${incidentDate}`,
-          description: JSON.stringify(richData),
-          incident_type: 'safety',
-          severity: (hasInjuries || hasPropertyDamage) ? 'high' : 'medium',
-          location,
-          incident_date: incidentTime ? `${incidentDate}T${incidentTime}` : `${incidentDate}T00:00`,
-          image_url:  images[0] || '',
-          image_urls: images,
-        }),
+      await incidentAPI.create({
+        title: `Incident at ${location || 'Unknown Location'} — ${incidentDate}`,
+        description: JSON.stringify(richData),
+        incident_type: 'safety',
+        severity: (hasInjuries || hasPropertyDamage) ? 'high' : 'medium',
+        location,
+        incident_date: incidentTime ? `${incidentDate}T${incidentTime}` : `${incidentDate}T00:00`,
+        image_urls: images,
       });
-
-      if (res.ok) { onSuccess(); onClose(); }
-      else {
-        const d = await res.json();
-        setError(d.error || 'Failed to submit report');
-      }
+      onSuccess(); onClose();
     } catch {
       setError('Network error. Please try again.');
     } finally {

@@ -7,12 +7,6 @@ import PathVisualization from './PathVisualization';
 import { Clock, CheckCircle, XCircle, Loader, Eye, Trash2, Route } from 'lucide-react';
 import { T, C } from '../design/DesignTokens';
 
-const API_BASE =
-  (import.meta.env.VITE_API_URL as string) ??
-  (import.meta.env.VITE_PYTHON_API_URL as string) ??
-  `${location.protocol}//${location.hostname}:5000`;
-
-
 
 const disasterEmoji: Record<string, string> = { fire: '🔥', earthquake: '🌍', bomb: '💣' };
 
@@ -88,12 +82,9 @@ export default function SimulationList() {
     if (!confirm(`Delete simulation from ${new Date(sim.created_at).toLocaleString()}?\nThis cannot be undone.`)) return;
     setDeletingId(sim.id);
     try {
-      const res = await fetch(`${API_BASE}/api/simulations/${sim.id}`, {
-        method: 'DELETE', credentials: 'include',
-      });
-      if (res.ok) setSimulations(prev => prev.filter(s => s.id !== sim.id));
-      else alert('Failed to delete simulation.');
-    } catch { alert('Network error.'); }
+      await simulationAPI.delete(sim.id);
+      setSimulations(prev => prev.filter(s => s.id !== sim.id));
+    } catch { alert('Failed to delete simulation.'); }
     finally { setDeletingId(null); }
   };
 
@@ -119,7 +110,7 @@ export default function SimulationList() {
 
   if (loading) return (
     <div className="flex items-center justify-center p-12">
-      <Loader className="w-8 h-8 animate-spin text-blue-600"/>
+      <Loader className="w-8 h-8 animate-spin text-green-600"/>
     </div>
   );
 
