@@ -3,22 +3,49 @@ import { useState } from 'react';
 import { X, Plus, Trash2, AlertCircle, Upload, User, Phone, Briefcase } from 'lucide-react';
 import { incidentAPI } from '../lib/api';
 
-interface Person {
-  name: string;
-  role: string;
-  contact: string;
-}
-
+interface Person { name: string; role: string; contact: string; }
 const emptyPerson = (): Person => ({ name: '', role: '', contact: '' });
 
+// ── Custom Time Picker ────────────────────────────────────────────────────────
+function TimeInput({ value, onChange }: { value: string; onChange: (v: string) => void; }) {
+  const parse = (v: string) => {
+    if (!v) return { hour: '', minute: '00', ampm: 'AM' };
+    const [h, m] = v.split(':');
+    const h24 = parseInt(h) || 0;
+    return { hour: String(h24 % 12 || 12), minute: m || '00', ampm: h24 >= 12 ? 'PM' : 'AM' };
+  };
+  const { hour, minute, ampm } = parse(value);
+
+  const emit = (h: string, m: string, ap: string) => {
+    if (!h) { onChange(''); return; }
+    let h24 = parseInt(h);
+    if (ap === 'PM' && h24 !== 12) h24 += 12;
+    if (ap === 'AM' && h24 === 12) h24 = 0;
+    onChange(`${String(h24).padStart(2, '0')}:${m}`);
+  };
+
+  const sel = 'px-2 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white';
+
+  return (
+    <div className="flex gap-2 items-center">
+      <select value={hour} onChange={e => emit(e.target.value, minute, ampm)} className={`w-16 ${sel}`}>
+        <option value="">--</option>
+        {[1,2,3,4,5,6,7,8,9,10,11,12].map(h => <option key={h} value={h}>{h}</option>)}
+      </select>
+      <span className="text-gray-400 font-bold">:</span>
+      <select value={minute} onChange={e => emit(hour, e.target.value, ampm)} className={`w-16 ${sel}`}>
+        {['00','05','10','15','20','25','30','35','40','45','50','55'].map(m => <option key={m} value={m}>{m}</option>)}
+      </select>
+      <select value={ampm} onChange={e => emit(hour, minute, e.target.value)} className={`w-16 ${sel}`}>
+        <option>AM</option><option>PM</option>
+      </select>
+    </div>
+  );
+}
+
 // ── Multi-image uploader ──────────────────────────────────────────────────────
-export function MultiImageUploader({
-  images, onChange, max = 5, accentColor = 'blue',
-}: {
-  images: string[];
-  onChange: (imgs: string[]) => void;
-  max?: number;
-  accentColor?: 'blue' | 'purple';
+export function MultiImageUploader({ images, onChange, max = 5, accentColor = 'green' }: {
+  images: string[]; onChange: (imgs: string[]) => void; max?: number; accentColor?: 'green' | 'purple';
 }) {
   const [dragOver, setDragOver] = useState(false);
 
@@ -53,9 +80,11 @@ export function MultiImageUploader({
     Promise.all(list.map(compress)).then(r => onChange([...images, ...r]));
   };
 
-  const border = dragOver ? 'border-blue-500 bg-blue-50'
-    : accentColor === 'purple' ? 'border-gray-300 hover:border-purple-400 hover:bg-purple-50'
-    : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50';
+  const border = dragOver
+    ? 'border-green-500 bg-green-50'
+    : accentColor === 'purple'
+    ? 'border-gray-300 hover:border-purple-400 hover:bg-purple-50'
+    : 'border-gray-300 hover:border-green-400 hover:bg-green-50';
 
   return (
     <div className="space-y-3">
@@ -83,8 +112,7 @@ export function MultiImageUploader({
             <span className="text-sm font-medium">{images.length === 0 ? 'Upload photos' : 'Add more photos'}</span>
             <span className="text-xs text-gray-400">{images.length}/{max} • PNG, JPG, WEBP up to 10MB</span>
           </div>
-          <input type="file" accept="image/*" multiple className="hidden"
-            onChange={e => { process(e.target.files); e.target.value = ''; }} />
+          <input type="file" accept="image/*" multiple className="hidden" onChange={e => { process(e.target.files); e.target.value = ''; }} />
         </label>
       )}
       {images.length >= max && <p className="text-xs text-center text-gray-400">Maximum {max} photos reached</p>}
@@ -95,8 +123,8 @@ export function MultiImageUploader({
 // ── Section header ────────────────────────────────────────────────────────────
 function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
-    <div className="border-b-2 border-blue-600 pb-2 mb-5">
-      <h3 className="text-sm font-bold text-blue-700 uppercase tracking-widest">{title}</h3>
+    <div className="border-b-2 border-green-600 pb-2 mb-5">
+      <h3 className="text-sm font-bold text-green-700 uppercase tracking-widest">{title}</h3>
       {subtitle && <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>}
     </div>
   );
@@ -109,48 +137,32 @@ function PersonRow({ person, onChange, onRemove, canRemove }: {
   return (
     <div className="relative bg-gray-50 border border-gray-200 rounded-xl p-4">
       {canRemove && (
-        <button type="button" onClick={onRemove}
-          className="absolute top-3 right-3 text-gray-400 hover:text-red-500 transition">
+        <button type="button" onClick={onRemove} className="absolute top-3 right-3 text-gray-400 hover:text-red-500 transition">
           <Trash2 className="w-4 h-4" />
         </button>
       )}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
-          <label className="flex items-center gap-1 text-xs font-medium text-gray-500 mb-1">
-            <User className="w-3 h-3" /> Full Name *
-          </label>
-          <input type="text" required value={person.name}
-            onChange={e => onChange({ ...person, name: e.target.value })}
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="e.g. Juan dela Cruz" />
+          <label className="flex items-center gap-1 text-xs font-medium text-gray-500 mb-1"><User className="w-3 h-3" /> Full Name *</label>
+          <input type="text" required value={person.name} onChange={e => onChange({ ...person, name: e.target.value })}
+            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="e.g. Juan dela Cruz" />
         </div>
         <div>
-          <label className="flex items-center gap-1 text-xs font-medium text-gray-500 mb-1">
-            <Briefcase className="w-3 h-3" /> Role / Position *
-          </label>
-          <input type="text" required value={person.role}
-            onChange={e => onChange({ ...person, role: e.target.value })}
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="e.g. Student, Faculty" />
+          <label className="flex items-center gap-1 text-xs font-medium text-gray-500 mb-1"><Briefcase className="w-3 h-3" /> Role / Position *</label>
+          <input type="text" required value={person.role} onChange={e => onChange({ ...person, role: e.target.value })}
+            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="e.g. Student, Faculty" />
         </div>
         <div>
-          <label className="flex items-center gap-1 text-xs font-medium text-gray-500 mb-1">
-            <Phone className="w-3 h-3" /> Contact *
-          </label>
-          <input type="text" required value={person.contact}
-            onChange={e => onChange({ ...person, contact: e.target.value })}
-            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Phone or email" />
+          <label className="flex items-center gap-1 text-xs font-medium text-gray-500 mb-1"><Phone className="w-3 h-3" /> Contact *</label>
+          <input type="text" required value={person.contact} onChange={e => onChange({ ...person, contact: e.target.value })}
+            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="Phone or email" />
         </div>
       </div>
     </div>
   );
 }
 
-// ── Person list ───────────────────────────────────────────────────────────────
-function PersonList({ people, onChange, addLabel }: {
-  people: Person[]; onChange: (p: Person[]) => void; addLabel: string;
-}) {
+function PersonList({ people, onChange, addLabel }: { people: Person[]; onChange: (p: Person[]) => void; addLabel: string; }) {
   return (
     <div className="space-y-3">
       {people.map((p, i) => (
@@ -160,27 +172,21 @@ function PersonList({ people, onChange, addLabel }: {
           canRemove={people.length > 1} />
       ))}
       <button type="button" onClick={() => onChange([...people, emptyPerson()])}
-        className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 font-medium transition">
+        className="flex items-center gap-1.5 text-sm text-green-600 hover:text-green-800 font-medium transition">
         <Plus className="w-4 h-4" /> {addLabel}
       </button>
     </div>
   );
 }
 
-// ── Yes / No toggle ───────────────────────────────────────────────────────────
-function YesNo({ label, value, onChange }: {
-  label: string; value: boolean | null; onChange: (v: boolean) => void;
-}) {
+function YesNo({ label, value, onChange }: { label: string; value: boolean | null; onChange: (v: boolean) => void; }) {
   return (
     <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
       <span className="text-sm font-medium text-gray-700">{label}</span>
       <div className="flex gap-2">
         {([true, false] as const).map(opt => (
           <button key={String(opt)} type="button" onClick={() => onChange(opt)}
-            className={`px-4 py-1.5 rounded-lg text-sm font-semibold border transition
-              ${value === opt
-                ? opt ? 'bg-green-600 text-white border-green-600' : 'bg-red-500 text-white border-red-500'
-                : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'}`}>
+            className={`px-4 py-1.5 rounded-lg text-sm font-semibold border transition ${value === opt ? opt ? 'bg-green-600 text-white border-green-600' : 'bg-red-500 text-white border-red-500' : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'}`}>
             {opt ? 'Yes' : 'No'}
           </button>
         ))}
@@ -190,73 +196,59 @@ function YesNo({ label, value, onChange }: {
 }
 
 // ── Main modal ────────────────────────────────────────────────────────────────
-export default function CreateIncidentModal({ onClose, onSuccess }: {
-  onClose: () => void; onSuccess: () => void;
-}) {
-  const [reportDate,         setReportDate]         = useState(new Date().toISOString().slice(0, 10));
-  const [personsInvolved,    setPersonsInvolved]    = useState<Person[]>([emptyPerson()]);
-  const [incidentDate,       setIncidentDate]       = useState(new Date().toISOString().slice(0, 10));
-  const [incidentTime,       setIncidentTime]       = useState('');
-  const [location,           setLocation]           = useState('');
-  const [description,        setDescription]        = useState('');
-  const [hasInjuries,        setHasInjuries]        = useState<boolean | null>(null);
-  const [injuryDescription,  setInjuryDescription]  = useState('');
-  const [hasPropertyDamage,  setHasPropertyDamage]  = useState<boolean | null>(null);
-  const [damageDescription,  setDamageDescription]  = useState('');
-  const [hasWitnesses,       setHasWitnesses]       = useState<boolean | null>(null);
-  const [witnesses,          setWitnesses]          = useState<Person[]>([emptyPerson()]);
-  const [actionsTaken,       setActionsTaken]       = useState('');
-  const [images,             setImages]             = useState<string[]>([]);
-  const [loading,            setLoading]            = useState(false);
-  const [error,              setError]              = useState('');
+export default function CreateIncidentModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void; }) {
+  const [reportDate,        setReportDate]        = useState(new Date().toISOString().slice(0, 10));
+  const [personsInvolved,   setPersonsInvolved]   = useState<Person[]>([emptyPerson()]);
+  const [incidentDate,      setIncidentDate]      = useState(new Date().toISOString().slice(0, 10));
+  const [incidentTime,      setIncidentTime]      = useState('');
+  const [location,          setLocation]          = useState('');
+  const [description,       setDescription]       = useState('');
+  const [hasInjuries,       setHasInjuries]       = useState<boolean | null>(null);
+  const [injuryDescription, setInjuryDescription] = useState('');
+  const [hasPropertyDamage, setHasPropertyDamage] = useState<boolean | null>(null);
+  const [damageDescription, setDamageDescription] = useState('');
+  const [hasWitnesses,      setHasWitnesses]      = useState<boolean | null>(null);
+  const [witnesses,         setWitnesses]         = useState<Person[]>([emptyPerson()]);
+  const [actionsTaken,      setActionsTaken]      = useState('');
+  const [images,            setImages]            = useState<string[]>([]);
+  const [loading,           setLoading]           = useState(false);
+  const [error,             setError]             = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (hasInjuries === null || hasPropertyDamage === null || hasWitnesses === null) {
-      setError('Please answer all Yes/No questions before submitting.');
-      return;
+      setError('Please answer all Yes/No questions before submitting.'); return;
     }
-    setLoading(true);
-    setError('');
+    setLoading(true); setError('');
 
     const richData = {
-      report_date: reportDate,
-      persons_involved: personsInvolved,
-      incident_date: incidentDate,
-      incident_time: incidentTime,
-      location,
-      description,
-      has_injuries: hasInjuries,
-      injury_description: hasInjuries ? injuryDescription : '',
-      has_property_damage: hasPropertyDamage,
-      damage_description: hasPropertyDamage ? damageDescription : '',
-      has_witnesses: hasWitnesses,
-      witnesses: hasWitnesses ? witnesses : [],
+      report_date: reportDate, persons_involved: personsInvolved,
+      incident_date: incidentDate, incident_time: incidentTime,
+      location, description,
+      has_injuries: hasInjuries, injury_description: hasInjuries ? injuryDescription : '',
+      has_property_damage: hasPropertyDamage, damage_description: hasPropertyDamage ? damageDescription : '',
+      has_witnesses: hasWitnesses, witnesses: hasWitnesses ? witnesses : [],
       actions_taken: actionsTaken,
     };
 
     try {
       await incidentAPI.create({
-        title: `Incident at ${location || 'Unknown Location'} — ${incidentDate}`,
-        description: JSON.stringify(richData),
+        title:         `Incident at ${location || 'Unknown Location'} — ${incidentDate}`,
+        description:   JSON.stringify(richData),
         incident_type: 'safety',
-        severity: (hasInjuries || hasPropertyDamage) ? 'high' : 'medium',
+        severity:      (hasInjuries || hasPropertyDamage) ? 'high' : 'medium',
         location,
         incident_date: incidentTime ? `${incidentDate}T${incidentTime}` : `${incidentDate}T00:00`,
-        image_urls: images,
+        image_urls:    images,
       });
       onSuccess(); onClose();
-    } catch {
-      setError('Network error. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+    } catch { setError('Network error. Please try again.'); }
+    finally { setLoading(false); }
   };
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[92vh] overflow-y-auto">
-
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
           <h2 className="text-xl font-bold text-gray-900">Report Incident</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition"><X className="w-6 h-6" /></button>
@@ -272,10 +264,8 @@ export default function CreateIncidentModal({ onClose, onSuccess }: {
           {/* Date of Report */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Date of Report *</label>
-            <input type="date" required value={reportDate}
-              max={new Date().toISOString().slice(0, 10)}
-              onChange={e => setReportDate(e.target.value)}
-              className="w-48 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+            <input type="date" required value={reportDate} max={new Date().toISOString().slice(0, 10)} onChange={e => setReportDate(e.target.value)}
+              className="w-48 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent" />
           </div>
 
           {/* Persons Involved */}
@@ -291,28 +281,24 @@ export default function CreateIncidentModal({ onClose, onSuccess }: {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Date of Incident *</label>
-                  <input type="date" required value={incidentDate}
-                    onChange={e => setIncidentDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                  <input type="date" required value={incidentDate} onChange={e => setIncidentDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Time of Incident</label>
-                  <input type="time" value={incidentTime}
-                    onChange={e => setIncidentTime(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                  <TimeInput value={incidentTime} onChange={setIncidentTime} />
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Location *</label>
-                <input type="text" required value={location}
-                  onChange={e => setLocation(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                <input type="text" required value={location} onChange={e => setLocation(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   placeholder="e.g. Building A, Room 203" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Description of Incident *</label>
                 <textarea required value={description} onChange={e => setDescription(e.target.value)} rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
                   placeholder="Describe what happened in detail..." />
               </div>
             </div>
@@ -327,7 +313,7 @@ export default function CreateIncidentModal({ onClose, onSuccess }: {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Description of Injuries *</label>
                   <textarea required value={injuryDescription} onChange={e => setInjuryDescription(e.target.value)} rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
                     placeholder="Describe the injuries sustained..." />
                 </div>
               )}
@@ -336,7 +322,7 @@ export default function CreateIncidentModal({ onClose, onSuccess }: {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Description of Property Damage *</label>
                   <textarea required value={damageDescription} onChange={e => setDamageDescription(e.target.value)} rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
                     placeholder="Describe the property damage..." />
                 </div>
               )}
@@ -348,9 +334,7 @@ export default function CreateIncidentModal({ onClose, onSuccess }: {
             <SectionHeader title="Witnesses" />
             <div className="space-y-4">
               <YesNo label="Were there any witnesses?" value={hasWitnesses} onChange={setHasWitnesses} />
-              {hasWitnesses && (
-                <PersonList people={witnesses} onChange={setWitnesses} addLabel="Add another witness" />
-              )}
+              {hasWitnesses && <PersonList people={witnesses} onChange={setWitnesses} addLabel="Add another witness" />}
             </div>
           </div>
 
@@ -358,14 +342,14 @@ export default function CreateIncidentModal({ onClose, onSuccess }: {
           <div>
             <SectionHeader title="Actions Taken" subtitle="Describe any immediate actions or responses" />
             <textarea value={actionsTaken} onChange={e => setActionsTaken(e.target.value)} rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
               placeholder="e.g. Notified security, called emergency services, evacuated area..." />
           </div>
 
           {/* Photo Evidence */}
           <div>
             <SectionHeader title="Photo Evidence" subtitle="Optional — up to 5 photos" />
-            <MultiImageUploader images={images} onChange={setImages} max={5} />
+            <MultiImageUploader images={images} onChange={setImages} max={5} accentColor="green" />
           </div>
 
           {/* Submit */}
@@ -375,7 +359,7 @@ export default function CreateIncidentModal({ onClose, onSuccess }: {
               Cancel
             </button>
             <button type="submit" disabled={loading}
-              className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition text-sm font-medium">
+              className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition text-sm font-medium">
               {loading ? 'Submitting...' : 'Submit Report'}
             </button>
           </div>

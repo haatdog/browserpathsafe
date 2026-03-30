@@ -1,6 +1,6 @@
-// EventManagement.tsx - WITH EVACUATION EVALUATION INTEGRATION
+// EventManagement.tsx
 import { useState, useEffect } from 'react';
-import { Calendar, Clock, MapPin, Users, Edit, Trash2, CheckCircle, Play, FileText, X, Save } from 'lucide-react';
+import { Calendar, Clock, MapPin, FileText, Edit, Trash2, CheckCircle, Play, X, Save } from 'lucide-react';
 import MemberEvaluationModal from './MemberEvaluationModal';
 import ExecutiveEvaluationModal from './ExecutiveEvaluationModal';
 import { profileAPI, evaluationAPI, eventAPI } from '../lib/api';
@@ -14,19 +14,65 @@ interface Event {
 }
 interface EventWithStatus extends Event { status: 'upcoming'|'ongoing'|'done'; }
 
+// ── Custom DateTime Picker ────────────────────────────────────────────────────
+function DateTimeInput({ value, onChange, label, required }: {
+  value: string; onChange: (v: string) => void; label: string; required?: boolean;
+}) {
+  const datePart = value.split('T')[0] || '';
+  const timePart = value.split('T')[1] || '';
+
+  const parse = (t: string) => {
+    if (!t) return { hour: '12', minute: '00', ampm: 'AM' };
+    const [h, m] = t.split(':');
+    const h24 = parseInt(h) || 0;
+    return { hour: String(h24 % 12 || 12), minute: m || '00', ampm: h24 >= 12 ? 'PM' : 'AM' };
+  };
+  const { hour, minute, ampm } = parse(timePart);
+
+  const combine = (d: string, h: string, m: string, ap: string) => {
+    let h24 = parseInt(h) || 12;
+    if (ap === 'PM' && h24 !== 12) h24 += 12;
+    if (ap === 'AM' && h24 === 12) h24 = 0;
+    return `${d}T${String(h24).padStart(2, '0')}:${m}`;
+  };
+
+  const sel = 'px-2 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white';
+
+  return (
+    <div>
+      <label className="block mb-1.5" style={T.bodyMedium}>{label}{required && ' *'}</label>
+      <div className="flex flex-wrap gap-2 items-center">
+        <input type="date" value={datePart} required={required}
+          onChange={e => onChange(combine(e.target.value, hour, minute, ampm))}
+          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent" />
+        <select value={hour} onChange={e => onChange(combine(datePart, e.target.value, minute, ampm))} className={`w-16 ${sel}`}>
+          {[1,2,3,4,5,6,7,8,9,10,11,12].map(h => <option key={h} value={h}>{h}</option>)}
+        </select>
+        <span className="text-gray-400 font-bold">:</span>
+        <select value={minute} onChange={e => onChange(combine(datePart, hour, e.target.value, ampm))} className={`w-16 ${sel}`}>
+          {['00','05','10','15','20','25','30','35','40','45','50','55'].map(m => <option key={m} value={m}>{m}</option>)}
+        </select>
+        <select value={ampm} onChange={e => onChange(combine(datePart, hour, minute, e.target.value))} className={`w-16 ${sel}`}>
+          <option>AM</option><option>PM</option>
+        </select>
+      </div>
+    </div>
+  );
+}
+
 export default function EventManagement() {
-  const [events, setEvents] = useState<EventWithStatus[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filterStatus, setFilterStatus] = useState<'all'|'upcoming'|'ongoing'|'done'>('all');
-  const [filterType,   setFilterType]   = useState<string>('all');
-  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+  const [events,        setEvents]        = useState<EventWithStatus[]>([]);
+  const [loading,       setLoading]       = useState(true);
+  const [filterStatus,  setFilterStatus]  = useState<'all'|'upcoming'|'ongoing'|'done'>('all');
+  const [filterType,    setFilterType]    = useState<string>('all');
+  const [editingEvent,  setEditingEvent]  = useState<Event | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<number|null>(null);
-  const [showMemberEvalModal,    setShowMemberEvalModal]    = useState(false);
-  const [showExecutiveEvalModal, setShowExecutiveEvalModal] = useState(false);
-  const [selectedEventForEval,   setSelectedEventForEval]   = useState<Event|null>(null);
-  const [userRole,    setUserRole]    = useState<'admin'|'coordinator'|'member'>('member');
-  const [userId,      setUserId]      = useState<string>('');
+  const [showDeleteConfirm,       setShowDeleteConfirm]       = useState<number|null>(null);
+  const [showMemberEvalModal,     setShowMemberEvalModal]     = useState(false);
+  const [showExecutiveEvalModal,  setShowExecutiveEvalModal]  = useState(false);
+  const [selectedEventForEval,    setSelectedEventForEval]    = useState<Event|null>(null);
+  const [userRole,        setUserRole]        = useState<'admin'|'coordinator'|'member'>('member');
+  const [userId,          setUserId]          = useState<string>('');
   const [userEvaluations, setUserEvaluations] = useState<{[id:number]:boolean}>({});
 
   useEffect(() => {
@@ -36,10 +82,10 @@ export default function EventManagement() {
   }, []);
 
   const loadUserProfile = async () => {
-    try { const p = await profileAPI.getMe(); setUserRole(p.role); setUserId(p.id); } catch {}
+    try { const p = await profileAPI.getMe(); setUserRole(p.role as any); setUserId(p.id); } catch {}
   };
 
-  const calculateStatus = (start: string, end: string): 'upcoming' | 'ongoing' | 'done' => {
+  const calculateStatus = (start: string, end: string): 'upcoming'|'ongoing'|'done' => {
     const now = new Date(), s = new Date(start), e = new Date(end);
     if (now < s) return 'upcoming';
     if (now >= s && now <= e) return 'ongoing';
@@ -54,14 +100,14 @@ export default function EventManagement() {
       setUserEvaluations(m);
     } catch {}
   };
-  
+
   const fetchEvents = async () => {
     try {
       const data = await eventAPI.getAll();
       setEvents(data.map((e: any) => ({ ...e, status: calculateStatus(e.start_time, e.end_time) })));
     } catch {} finally { setLoading(false); }
   };
-  
+
   const handleDelete = async (id: number) => {
     try {
       await eventAPI.delete(id);
@@ -75,11 +121,11 @@ export default function EventManagement() {
     userRole === 'coordinator' ? setShowExecutiveEvalModal(true) : setShowMemberEvalModal(true);
   };
 
-  const isDrillEvent = (t: string) => ['drill','fire_drill','earthquake_drill','bomb_threat_drill'].includes(t);
+  const isDrillEvent  = (t: string) => ['drill','fire_drill','earthquake_drill','bomb_threat_drill'].includes(t);
 
   const getTypeColor = (t: string) => {
-    if (isDrillEvent(t)) return 'bg-red-50 text-red-700 border-red-200';
-    if (t === 'meeting')    return 'bg-blue-50 text-blue-700 border-blue-200';
+    if (isDrillEvent(t))    return 'bg-red-50 text-red-700 border-red-200';
+    if (t === 'meeting')    return 'bg-green-50 text-green-700 border-green-200';
     if (t === 'training')   return 'bg-purple-50 text-purple-700 border-purple-200';
     if (t === 'inspection') return 'bg-orange-50 text-orange-700 border-orange-200';
     return 'bg-gray-100 text-gray-600 border-gray-200';
@@ -87,12 +133,12 @@ export default function EventManagement() {
 
   const getStatusBadge = (status: string) => {
     if (status === 'upcoming') return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200" style={T.bodyMedium}>
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-green-50 text-green-700 border border-green-200" style={T.bodyMedium}>
         <Clock className="w-3 h-3" /> Upcoming
       </span>
     );
     if (status === 'ongoing') return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-green-50 text-green-700 border border-green-200 animate-pulse" style={T.bodyMedium}>
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 animate-pulse" style={T.bodyMedium}>
         <Play className="w-3 h-3" /> Ongoing
       </span>
     );
@@ -113,12 +159,12 @@ export default function EventManagement() {
 
   const filtered = events.filter(e => {
     if (filterStatus !== 'all' && e.status !== filterStatus) return false;
-    if (filterType !== 'all' && e.event_type !== filterType) return false;
+    if (filterType   !== 'all' && e.event_type !== filterType) return false;
     return true;
   });
 
   const counts = {
-    all: events.length,
+    all:      events.length,
     upcoming: events.filter(e => e.status === 'upcoming').length,
     ongoing:  events.filter(e => e.status === 'ongoing').length,
     done:     events.filter(e => e.status === 'done').length,
@@ -127,7 +173,7 @@ export default function EventManagement() {
   if (loading) return (
     <div className="flex items-center justify-center h-64">
       <div className="text-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto" />
         <p className="mt-3" style={{...T.body, color: C.inkMuted}}>Loading events…</p>
       </div>
     </div>
@@ -155,10 +201,10 @@ export default function EventManagement() {
             <span style={T.bodyMedium}>Status:</span>
             <div className="flex gap-1.5">
               {[
-                { key: 'all',      label: `All (${counts.all})`,           active: 'bg-gray-900 text-white',  inactive: 'bg-gray-100 text-gray-600 hover:bg-gray-200' },
-                { key: 'upcoming', label: `Upcoming (${counts.upcoming})`, active: 'bg-blue-600 text-white',  inactive: 'bg-blue-50 text-blue-700 hover:bg-blue-100' },
-                { key: 'ongoing',  label: `Ongoing (${counts.ongoing})`,   active: 'bg-green-600 text-white', inactive: 'bg-green-50 text-green-700 hover:bg-green-100' },
-                { key: 'done',     label: `Done (${counts.done})`,         active: 'bg-gray-600 text-white',  inactive: 'bg-gray-100 text-gray-600 hover:bg-gray-200' },
+                { key: 'all',      label: `All (${counts.all})`,           active: 'bg-gray-900 text-white',   inactive: 'bg-gray-100 text-gray-600 hover:bg-gray-200' },
+                { key: 'upcoming', label: `Upcoming (${counts.upcoming})`, active: 'bg-green-600 text-white',  inactive: 'bg-green-50 text-green-700 hover:bg-green-100' },
+                { key: 'ongoing',  label: `Ongoing (${counts.ongoing})`,   active: 'bg-emerald-600 text-white',inactive: 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
+                { key: 'done',     label: `Done (${counts.done})`,         active: 'bg-gray-600 text-white',   inactive: 'bg-gray-100 text-gray-600 hover:bg-gray-200' },
               ].map(btn => (
                 <button key={btn.key} onClick={() => setFilterStatus(btn.key as any)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${filterStatus === btn.key ? btn.active : btn.inactive}`}>
@@ -170,7 +216,7 @@ export default function EventManagement() {
           <div className="flex items-center gap-2">
             <span style={T.bodyMedium}>Type:</span>
             <select value={filterType} onChange={e => setFilterType(e.target.value)}
-              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent">
               <option value="all">All Types</option>
               <option value="meeting">Meeting</option>
               <option value="drill">Drill</option>
@@ -222,7 +268,7 @@ export default function EventManagement() {
                       </td>
                       <td className="px-5 py-4">
                         <span className={`px-2 py-0.5 rounded text-xs font-medium border ${getTypeColor(event.event_type)}`}>
-                          {event.event_type.replace(/_/g,' ').replace(/\w/g,c=>c.toUpperCase())}
+                          {event.event_type.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}
                         </span>
                       </td>
                       <td className="px-5 py-4">
@@ -245,7 +291,7 @@ export default function EventManagement() {
                             </button>
                           )}
                           <button onClick={() => { setEditingEvent(event); setShowEditModal(true); }}
-                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Edit">
+                            className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition" title="Edit">
                             <Edit className="w-4 h-4" />
                           </button>
                           <button onClick={() => setShowDeleteConfirm(event.id)}
@@ -311,10 +357,12 @@ interface EditEventModalProps { event: Event; onClose: () => void; onSave: (e: E
 
 function EditEventModal({ event, onClose, onSave }: EditEventModalProps) {
   const [form, setForm] = useState({
-    title: event.title, description: event.description, event_type: event.event_type,
-    start_time: new Date(event.start_time).toISOString().slice(0,16),
-    end_time:   new Date(event.end_time).toISOString().slice(0,16),
-    location: event.location,
+    title:       event.title,
+    description: event.description,
+    event_type:  event.event_type,
+    start_time:  new Date(event.start_time).toISOString().slice(0,16),
+    end_time:    new Date(event.end_time).toISOString().slice(0,16),
+    location:    event.location,
   });
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState('');
@@ -324,14 +372,11 @@ function EditEventModal({ event, onClose, onSave }: EditEventModalProps) {
     if (new Date(form.start_time) >= new Date(form.end_time)) { setError('End time must be after start time'); return; }
     setSaving(true);
     try {
-      const res = await fetch(`http://localhost:5000/api/events/${event.id}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-        body: JSON.stringify(form),
-      });
-      if (res.ok) onSave(await res.json());
-      else { const d = await res.json(); setError(d.error || 'Failed to update event'); }
-    } catch { setError('Failed to update event'); }
-    finally { setSaving(false); }
+      const updated = await eventAPI.update(event.id, form);
+      onSave(updated as Event);
+    } catch (err: any) {
+      setError(err.message || 'Failed to update event');
+    } finally { setSaving(false); }
   };
 
   return (
@@ -343,23 +388,23 @@ function EditEventModal({ event, onClose, onSave }: EditEventModalProps) {
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>}
-          {[
-            { key: 'title',       label: 'Event Title', type: 'text', required: true },
-          ].map(() => null)}
+
           <div>
             <label className="block mb-1.5" style={T.bodyMedium}>Event Title *</label>
             <input type="text" value={form.title} onChange={e => setForm({...form, title: e.target.value})} required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent" />
           </div>
+
           <div>
             <label className="block mb-1.5" style={T.bodyMedium}>Description</label>
             <textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none" />
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none" />
           </div>
+
           <div>
             <label className="block mb-1.5" style={T.bodyMedium}>Event Type *</label>
             <select value={form.event_type} onChange={e => setForm({...form, event_type: e.target.value as any})} required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent">
               <option value="meeting">Meeting</option>
               <option value="drill">Drill</option>
               <option value="fire_drill">Fire Drill</option>
@@ -370,30 +415,25 @@ function EditEventModal({ event, onClose, onSave }: EditEventModalProps) {
               <option value="other">Other</option>
             </select>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block mb-1.5" style={T.bodyMedium}>Start Date & Time *</label>
-              <input type="datetime-local" value={form.start_time} onChange={e => setForm({...form, start_time: e.target.value})} required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-            </div>
-            <div>
-              <label className="block mb-1.5" style={T.bodyMedium}>End Date & Time *</label>
-              <input type="datetime-local" value={form.end_time} onChange={e => setForm({...form, end_time: e.target.value})} required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-            </div>
-          </div>
+
+          <DateTimeInput value={form.start_time} onChange={v => setForm({...form, start_time: v})} label="Start Date & Time" required />
+          <DateTimeInput value={form.end_time}   onChange={v => setForm({...form, end_time: v})}   label="End Date & Time"   required />
+
           <div>
             <label className="block mb-1.5" style={T.bodyMedium}>Location</label>
             <input type="text" value={form.location} onChange={e => setForm({...form, location: e.target.value})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent"
               placeholder="Building, room number, etc." />
           </div>
+
           <div className="flex gap-3 pt-2 border-t border-gray-200">
             <button type="button" onClick={onClose}
               className="flex-1 px-4 py-2.5 border border-gray-300 text-sm text-gray-700 rounded-lg hover:bg-gray-50 transition">Cancel</button>
             <button type="submit" disabled={saving}
-              className="flex-1 px-4 py-2.5 bg-blue-600 text-sm text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition flex items-center justify-center gap-2">
-              {saving ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Saving…</> : <><Save className="w-4 h-4" />Save Changes</>}
+              className="flex-1 px-4 py-2.5 bg-green-600 text-sm text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition flex items-center justify-center gap-2">
+              {saving
+                ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Saving…</>
+                : <><Save className="w-4 h-4" />Save Changes</>}
             </button>
           </div>
         </form>
