@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Loader, Users, Star, Shield, Crown, User, ChevronDown, ChevronUp } from 'lucide-react';
 import { T, C } from '../design/DesignTokens';
+import { organizationAPI, UserProfile } from '../lib/api';
 
 interface Group {
   id: number;
@@ -9,21 +10,6 @@ interface Group {
   is_custom: boolean;
 }
 
-interface UserProfile {
-  id: string;
-  email: string;
-  first_name?: string | null;
-  last_name?: string | null;
-  role: 'admin' | 'executive' | 'member';
-  group_id: number | null;
-  group_name: string | null;
-  is_head: boolean;
-}
-
-const API_BASE =
-  (import.meta.env.VITE_API_URL as string) ??
-  (import.meta.env.VITE_PYTHON_API_URL as string) ??
-  `${location.protocol}//${location.hostname}:5000`;
 
 // ── Group colour palette ───────────────────────────────────────────────────────
 const GROUP_COLORS = [
@@ -265,9 +251,7 @@ export default function OrganizationChart() {
   useEffect(() => {
     (async () => {
       try {
-        const res  = await fetch(`${API_BASE}/api/organization`, { credentials: 'include' });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to load organization');
+        const data = await organizationAPI.get();
         setUsers(Array.isArray(data.users)  ? data.users  : []);
         setGroups(Array.isArray(data.groups) ? data.groups : []);
       } catch (e: any) {
