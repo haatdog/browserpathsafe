@@ -257,7 +257,7 @@ def init_db():
                         '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TiGc8L4pNgq7Bxv3j5W2tZ8K9Lem');
 
                 INSERT INTO user_profiles (id, email, role, first_name, last_name)
-                VALUES (admin_id, 'admin@pathsafe.com', 'executive', 'Admin', 'PathSafe');
+                VALUES (admin_id, 'admin@pathsafe.com', 'coordinator', 'Admin', 'PathSafe');
             END IF;
         END $$;''',
     ]

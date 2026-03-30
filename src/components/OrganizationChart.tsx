@@ -52,7 +52,7 @@ function Avatar({ email, firstName, lastName, size = 'md', highlight = false }: 
 // Role icon
 function RoleIcon({ role }: { role: string }) {
   if (role === 'admin')     return <Crown  className="w-3.5 h-3.5 text-amber-500" />;
-  if (role === 'executive') return <Shield className="w-3.5 h-3.5 text-blue-500"  />;
+  if (role === 'coordinator') return <Shield className="w-3.5 h-3.5 text-blue-500"  />;
   return <User className="w-3.5 h-3.5 text-gray-400" />;
 }
 
@@ -179,8 +179,8 @@ function GroupCard({ group, members, colorIdx }: { group: Group | null; members:
 // ── Leadership row ────────────────────────────────────────────────────────────
 function LeadershipRow({ users }: { users: UserProfile[] }) {
   const admins     = users.filter(u => u.role === 'admin');
-  const executives = users.filter(u => u.role === 'executive');
-  const all        = [...admins, ...executives];
+  const coordinators = users.filter(u => u.role === 'coordinator');
+  const all        = [...admins, ...coordinators];
   if (all.length === 0) return null;
 
   return (
@@ -207,7 +207,7 @@ function LeadershipRow({ users }: { users: UserProfile[] }) {
                   ? 'bg-amber-400/20 text-amber-300 border border-amber-500/30'
                   : 'bg-blue-400/20 text-blue-300 border border-blue-500/30'}`}>
                 {isAdmin ? <Crown className="w-3 h-3" /> : <Shield className="w-3 h-3" />}
-                {isAdmin ? 'Admin' : 'Executive'}
+                {isAdmin ? 'Admin' : 'Coordinator'}
               </span>
             </div>
           );

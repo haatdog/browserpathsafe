@@ -354,7 +354,7 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
         {/* Header */}
         <div className="bg-gradient-to-r from-purple-600 to-purple-700 px-6 py-4 flex items-center justify-between flex-shrink-0">
           <div>
-            <h2 className="text-white" style={T.pageTitle}>Evacuation Evaluations — Executive View</h2>
+            <h2 className="text-white" style={T.pageTitle}>Evacuation Evaluations — Coordinator View</h2>
             <p className="text-purple-100 mt-1" style={T.body}>{event.title}</p>
           </div>
           <button onClick={onClose} className="text-white hover:bg-purple-800 rounded-lg p-2 transition">

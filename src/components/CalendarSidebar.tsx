@@ -20,7 +20,7 @@ interface Event {
 }
 
 interface CalendarSidebarProps {
-  userRole: 'admin' | 'executive' | 'member';
+  userRole: 'admin' | 'coordinator' | 'member';
 }
 
 export default function CalendarSidebar({ userRole }: CalendarSidebarProps) {
@@ -50,7 +50,7 @@ export default function CalendarSidebar({ userRole }: CalendarSidebarProps) {
   };
 
   const createEvent = async () => {
-    if (userRole !== 'executive') { alert('Only executives can create events'); return; }
+    if (userRole !== 'coordinator') { alert('Only coordinators can create events'); return; }
     if (!newEvent.title || !newEvent.start_time || !newEvent.end_time) {
       alert('Please fill in title, start time, and end time'); return;
     }
@@ -118,7 +118,7 @@ export default function CalendarSidebar({ userRole }: CalendarSidebarProps) {
           <div className="flex items-center justify-between mb-4">
             <h2 style={T.sectionHeader}>Calendar & Events</h2>
             <div className="flex items-center gap-1">
-              {userRole === 'executive' && (
+              {userRole === 'coordinator' && (
                 <button onClick={() => setShowCreateModal(true)}
                   className="p-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition" title="Create Event">
                   <Plus className="w-4 h-4" />

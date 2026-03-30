@@ -94,7 +94,7 @@ def update_user_role(uid):
             return jsonify({"error": "Admin access required"}), 403
 
         new_role = request.json.get('role')
-        if new_role not in ['admin', 'executive', 'member']:
+        if new_role not in ['admin', 'coordinator', 'member']:
             cursor.close(); conn.close()
             return jsonify({"error": "Invalid role"}), 400
 

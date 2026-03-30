@@ -6,7 +6,7 @@ import DashboardPage from './pages/DashboardPage';
 interface User {
   id: string;
   email: string;
-  role: 'admin' | 'executive' | 'member';
+  role: 'admin' | 'coordinator' | 'member';
 }
 
 function App() {

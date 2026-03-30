@@ -25,7 +25,7 @@ export default function EventManagement() {
   const [showMemberEvalModal,    setShowMemberEvalModal]    = useState(false);
   const [showExecutiveEvalModal, setShowExecutiveEvalModal] = useState(false);
   const [selectedEventForEval,   setSelectedEventForEval]   = useState<Event|null>(null);
-  const [userRole,    setUserRole]    = useState<'admin'|'executive'|'member'>('member');
+  const [userRole,    setUserRole]    = useState<'admin'|'coordinator'|'member'>('member');
   const [userId,      setUserId]      = useState<string>('');
   const [userEvaluations, setUserEvaluations] = useState<{[id:number]:boolean}>({});
 
@@ -72,7 +72,7 @@ export default function EventManagement() {
 
   const handleEvaluate = (event: Event) => {
     setSelectedEventForEval(event);
-    userRole === 'executive' ? setShowExecutiveEvalModal(true) : setShowMemberEvalModal(true);
+    userRole === 'coordinator' ? setShowExecutiveEvalModal(true) : setShowMemberEvalModal(true);
   };
 
   const isDrillEvent = (t: string) => ['drill','fire_drill','earthquake_drill','bomb_threat_drill'].includes(t);
@@ -237,11 +237,11 @@ export default function EventManagement() {
                           {isDrillEvent(event.event_type) && event.status === 'done' && (
                             <button onClick={() => handleEvaluate(event)}
                               className={`inline-flex items-center gap-1 px-3 py-1.5 text-white text-xs font-medium rounded-lg transition ${
-                                userRole === 'executive' ? 'bg-purple-600 hover:bg-purple-700' :
+                                userRole === 'coordinator' ? 'bg-purple-600 hover:bg-purple-700' :
                                 userEvaluations[event.id] ? 'bg-green-600 hover:bg-green-700' :
                                 'bg-purple-600 hover:bg-purple-700'}`}>
                               <FileText className="w-3.5 h-3.5" />
-                              {userRole === 'executive' ? 'View' : userEvaluations[event.id] ? 'Edit' : 'Evaluate'}
+                              {userRole === 'coordinator' ? 'View' : userEvaluations[event.id] ? 'Edit' : 'Evaluate'}
                             </button>
                           )}
                           <button onClick={() => { setEditingEvent(event); setShowEditModal(true); }}

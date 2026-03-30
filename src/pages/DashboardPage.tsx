@@ -32,7 +32,7 @@ const PAGE_TITLES: Record<Page, string> = {
 const PUBLIC_PAGES: Page[] = ['home', 'organization', 'incidents'];
 const ROLE_PAGES: Record<string, Page[]> = {
   admin:     ['users'],
-  executive: ['events', 'simulations', 'create', 'projects'],
+  coordinator: ['events', 'simulations', 'create', 'projects'],
   member:    ['events'],
 };
 
@@ -216,12 +216,12 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
             {currentPage === 'organization' && <OrganizationChart />}
             {currentPage === 'incidents'    && <IncidentReportsList />}
             {currentPage === 'events'       && (
-              profile?.role === 'executive' || profile?.role === 'member'
+              profile?.role === 'coordinator' || profile?.role === 'member'
                 ? <EventManagement /> : <AccessDenied />
             )}
-            {currentPage === 'simulations'  && (profile?.role === 'executive' ? <SimulationList />    : <AccessDenied />)}
-            {currentPage === 'create'       && (profile?.role === 'executive' ? <SimulationCreator /> : <AccessDenied />)}
-            {currentPage === 'projects'     && (profile?.role === 'executive' ? <ProjectList />       : <AccessDenied />)}
+            {currentPage === 'simulations'  && (profile?.role === 'coordinator' ? <SimulationList />    : <AccessDenied />)}
+            {currentPage === 'create'       && (profile?.role === 'coordinator' ? <SimulationCreator /> : <AccessDenied />)}
+            {currentPage === 'projects'     && (profile?.role === 'coordinator' ? <ProjectList />       : <AccessDenied />)}
             {currentPage === 'users'        && (
               profile?.role === 'admin' || (profile?.is_head && profile?.group_id !== null)
                 ? <UserManagement

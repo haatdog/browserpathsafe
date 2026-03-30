@@ -5,7 +5,7 @@ const PYTHON_API = import.meta.env.VITE_PYTHON_API_URL || 'https://browserpathsa
    SHARED TYPES
 ========================= */
 
-export type Role = 'admin' | 'executive' | 'member';
+export type Role = 'admin' | 'coordinator' | 'member';
 export type DisasterType = 'fire' | 'earthquake' | 'bomb';
 
 export interface UserProfile {

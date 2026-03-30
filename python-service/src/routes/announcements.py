@@ -33,7 +33,7 @@ def get_announcements():
             LEFT JOIN groups g         ON u.group_id = g.id
             LEFT JOIN groups tg        ON a.target_group_id = tg.id
             WHERE (
-                (SELECT role FROM user_profiles WHERE id = %(uid)s) IN ('executive', 'admin')
+                (SELECT role FROM user_profiles WHERE id = %(uid)s) IN ('coordinator', 'admin')
                 OR (a.target_group_id IS NULL AND a.target_heads_only = FALSE)
                 OR (a.target_group_id IS NOT NULL
                     AND a.target_group_id = (SELECT group_id FROM user_profiles WHERE id = %(uid)s))
@@ -78,9 +78,9 @@ def create_announcement():
         cursor.execute('SELECT role, email FROM user_profiles WHERE id = %s', (user_id,))
         user = cursor.fetchone()
 
-        if not user or user['role'] != 'executive':
+        if not user or user['role'] != 'coordinator':
             cursor.close(); conn.close()
-            return jsonify({"error": "Only executives can create announcements"}), 403
+            return jsonify({"error": "Only coordinators can create announcements"}), 403
 
         data = request.json
         cursor.execute('''
@@ -119,9 +119,9 @@ def toggle_pin(announcement_id):
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute('SELECT role FROM user_profiles WHERE id = %s', (user_id,))
         user = cursor.fetchone()
-        if not user or user['role'] != 'executive':
+        if not user or user['role'] != 'coordinator':
             cursor.close(); conn.close()
-            return jsonify({"error": "Only executives can pin announcements"}), 403
+            return jsonify({"error": "Only coordinators can pin announcements"}), 403
 
         cursor.execute(
             'UPDATE announcements SET is_pinned = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s',
@@ -173,9 +173,9 @@ def delete_announcement(announcement_id):
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute('SELECT role FROM user_profiles WHERE id = %s', (user_id,))
         user = cursor.fetchone()
-        if not user or user['role'] != 'executive':
+        if not user or user['role'] != 'coordinator':
             cursor.close(); conn.close()
-            return jsonify({"error": "Only executives can delete announcements"}), 403
+            return jsonify({"error": "Only coordinators can delete announcements"}), 403
 
         cursor.execute('DELETE FROM announcements WHERE id = %s', (announcement_id,))
         conn.commit(); cursor.close(); conn.close()

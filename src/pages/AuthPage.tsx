@@ -61,7 +61,7 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
                 <p>admin@example.com / password</p>
               </div>
               <div>
-                <p className="font-medium text-gray-700">Executive:</p>
+                <p className="font-medium text-gray-700">Coordinator:</p>
                 <p>executive@example.com / password</p>
               </div>
               <div>

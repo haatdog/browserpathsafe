@@ -75,7 +75,7 @@ def get_incidents():
                    (SELECT COUNT(*) FROM incident_remarks WHERE incident_id = i.id) as remarks_count
             FROM incidents i JOIN user_profiles u ON i.reporter_id = u.id
         '''
-        if user_role in ['executive', 'admin']:
+        if user_role in ['coordinator', 'admin']:
             cursor.execute(base_select + ' ORDER BY i.incident_date DESC')
         else:
             cursor.execute(base_select + ' WHERE i.reporter_id = %s ORDER BY i.incident_date DESC', (user_id,))
@@ -126,7 +126,7 @@ def get_incident(incident_id):
             cursor.close(); conn.close()
             return jsonify({'error': 'Incident not found'}), 404
 
-        if user_role not in ['executive', 'admin'] and incident['reporter_id'] != user_id:
+        if user_role not in ['coordinator', 'admin'] and incident['reporter_id'] != user_id:
             cursor.close(); conn.close()
             return jsonify({'error': 'Access denied'}), 403
 
@@ -163,9 +163,9 @@ def add_remark(incident_id):
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute('SELECT role FROM user_profiles WHERE id = %s', (user_id,))
         user = cursor.fetchone()
-        if not user or user['role'] not in ['executive', 'admin']:
+        if not user or user['role'] not in ['coordinator', 'admin']:
             cursor.close(); conn.close()
-            return jsonify({'error': 'Only executives can add remarks'}), 403
+            return jsonify({'error': 'Only coordinators can add remarks'}), 403
 
         data = request.json
         if 'remark' not in data:
@@ -212,9 +212,9 @@ def update_incident_status(incident_id):
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute('SELECT role FROM user_profiles WHERE id = %s', (user_id,))
         user = cursor.fetchone()
-        if not user or user['role'] not in ['executive', 'admin']:
+        if not user or user['role'] not in ['coordinator', 'admin']:
             cursor.close(); conn.close()
-            return jsonify({'error': 'Only executives can update status'}), 403
+            return jsonify({'error': 'Only coordinators can update status'}), 403
 
         data = request.json
         valid = ['pending', 'under_review', 'resolved', 'closed']

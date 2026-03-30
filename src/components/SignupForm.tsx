@@ -1,7 +1,8 @@
+// SignupForm.tsx
 import { useState } from 'react';
 import { authService } from '../lib/api';
 import { Mail, Lock, User, Loader } from 'lucide-react';
-import { T, C } from '../design/DesignTokens';
+import { T } from '../design/DesignTokens';
 
 interface SignupFormProps {
   onError: (error: string | null) => void;
@@ -40,7 +41,7 @@ export default function SignupForm({ onError, onSuccess }: SignupFormProps) {
           <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)}
             required placeholder="you@example.com"
-            className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" />
+            className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition" />
         </div>
       </div>
 
@@ -52,7 +53,7 @@ export default function SignupForm({ onError, onSuccess }: SignupFormProps) {
           <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)}
             required placeholder="••••••••"
-            className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" />
+            className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition" />
         </div>
         <p className="mt-1" style={T.meta}>Minimum 6 characters</p>
       </div>
@@ -65,12 +66,12 @@ export default function SignupForm({ onError, onSuccess }: SignupFormProps) {
           <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input id="confirmPassword" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
             required placeholder="••••••••"
-            className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" />
+            className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition" />
         </div>
       </div>
 
       <button type="submit" disabled={loading}
-        className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2.5 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+        className="w-full bg-green-600 hover:bg-green-700 text-white text-sm font-medium py-2.5 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
         {loading
           ? <><Loader className="w-4 h-4 animate-spin" /> Creating account…</>
           : <><User className="w-4 h-4" /> Sign Up</>}

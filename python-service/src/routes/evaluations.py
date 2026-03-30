@@ -164,9 +164,9 @@ def get_recent_drills():
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute('SELECT role FROM user_profiles WHERE id = %s', (user_id,))
         user = cursor.fetchone()
-        if not user or user['role'] != 'executive':
+        if not user or user['role'] != 'coordinator':
             cursor.close(); conn.close()
-            return jsonify({'error': 'Executive role required'}), 403
+            return jsonify({'error': 'Coordinator role required'}), 403
 
         cursor.execute('''
             SELECT e.id, e.title, e.event_type, e.start_time, e.end_time, e.description,
@@ -212,9 +212,9 @@ def get_event_evaluations(event_id):
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute('SELECT role FROM user_profiles WHERE id = %s', (user_id,))
         user = cursor.fetchone()
-        if not user or user['role'] != 'executive':
+        if not user or user['role'] != 'coordinator':
             cursor.close(); conn.close()
-            return jsonify({'error': 'Executive role required'}), 403
+            return jsonify({'error': 'Coordinator role required'}), 403
 
         cursor.execute('SELECT id, title FROM events WHERE id = %s', (event_id,))
         event = cursor.fetchone()

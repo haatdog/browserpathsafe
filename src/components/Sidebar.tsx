@@ -6,7 +6,7 @@ import { T } from '../design/DesignTokens';
 interface SidebarProps {
   profile: {
     id: string; email: string;
-    role: 'admin' | 'executive' | 'member';
+    role: 'admin' | 'coordinator' | 'member';
     group_id?: number | null; is_head?: boolean;
   } | null;
   currentPage: Page;
@@ -18,7 +18,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ profile, currentPage, onNavigate, isOpen, onClose, collapsed, onToggleCollapse }: SidebarProps) {
-  const isExecutive = profile?.role === 'executive';
+  const isCoordinator = profile?.role === 'coordinator';
   const isAdmin     = profile?.role === 'admin';
   const isMember    = profile?.role === 'member';
   const isUnitHead  = !!(profile?.is_head && profile?.group_id);
@@ -74,13 +74,13 @@ export default function Sidebar({ profile, currentPage, onNavigate, isOpen, onCl
         <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
           <NavBtn page="home"         icon={Home}          label="Home"              />
           <NavBtn page="organization" icon={GitBranch}     label="Organization"      />
-          {(isExecutive || isMember) && (
+          {(isCoordinator || isMember) && (
             <NavBtn page="events"     icon={Calendar}      label="Events & Drills"   />
           )}
           <NavBtn page="incidents"    icon={AlertTriangle} label="Incident Reports"  />
-          {isExecutive && <NavBtn page="simulations" icon={BarChart3}  label="Simulations"       />}
-          {isExecutive && <NavBtn page="projects"    icon={FolderOpen} label="Projects"          />}
-          {isExecutive && <NavBtn page="create"      icon={Plus}       label="Create Simulation" />}
+          {isCoordinator && <NavBtn page="simulations" icon={BarChart3}  label="Simulations"       />}
+          {isCoordinator && <NavBtn page="projects"    icon={FolderOpen} label="Projects"          />}
+          {isCoordinator && <NavBtn page="create"      icon={Plus}       label="Create Simulation" />}
           {isAdmin     && <NavBtn page="users"       icon={Users}      label="User Management"   />}
           {isUnitHead && !isAdmin && <NavBtn page="users" icon={Users} label="My Group" />}
         </nav>
@@ -92,14 +92,14 @@ export default function Sidebar({ profile, currentPage, onNavigate, isOpen, onCl
               title={profile?.role}
               className={`w-2.5 h-2.5 rounded-full
                 ${profile?.role === 'admin'     ? 'bg-red-500'    : ''}
-                ${profile?.role === 'executive' ? 'bg-green-500'  : ''}
+                ${profile?.role === 'coordinator' ? 'bg-green-500'  : ''}
                 ${profile?.role === 'member'    ? 'bg-emerald-400' : ''}`}
             />
           ) : (
             <div className="flex items-center gap-2 w-full">
               <div className={`px-2 py-1 rounded text-xs font-medium capitalize
                 ${profile?.role === 'admin'     ? 'bg-red-100    text-red-700'     : ''}
-                ${profile?.role === 'executive' ? 'bg-green-100  text-green-700'   : ''}
+                ${profile?.role === 'coordinator' ? 'bg-green-100  text-green-700'   : ''}
                 ${profile?.role === 'member'    ? 'bg-emerald-100 text-emerald-700' : ''}`}>
                 {profile?.role}
               </div>
