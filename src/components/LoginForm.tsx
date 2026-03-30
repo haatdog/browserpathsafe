@@ -43,7 +43,7 @@ export default function LoginForm({ onError, onSuccess }: LoginFormProps) {
             onChange={e => setEmail(e.target.value)}
             required
             placeholder="you@example.com"
-            className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+            className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition"
           />
         </div>
       </div>
@@ -61,7 +61,7 @@ export default function LoginForm({ onError, onSuccess }: LoginFormProps) {
             onChange={e => setPassword(e.target.value)}
             required
             placeholder="••••••••"
-            className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+            className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition"
           />
         </div>
       </div>
@@ -69,7 +69,7 @@ export default function LoginForm({ onError, onSuccess }: LoginFormProps) {
       <button
         type="submit"
         disabled={loading}
-        className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2.5 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        className="w-full bg-green-600 hover:bg-green-700 text-white text-sm font-medium py-2.5 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
       >
         {loading ? (
           <><Loader className="w-4 h-4 animate-spin" /> Signing in…</>
