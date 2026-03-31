@@ -204,6 +204,7 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
 
   // ── Fullscreen ───────────────────────────────────────────────────────────────
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [hoveredTool, setHoveredTool]   = useState<string | null>(null);
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       containerRef.current?.requestFullscreen();
@@ -913,7 +914,113 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
     setOffsetY(my - wy * nz);
   };
 
-  // ==================== KEYBOARD ====================
+  // ==================== TOUCH SUPPORT ====================
+
+  const lastTouchRef      = useRef<{ x: number; y: number } | null>(null);
+  const lastPinchDistRef  = useRef<number | null>(null);
+  const touchStartTimeRef = useRef<number>(0);
+
+  const getTouchPos = (touch: Touch, canvas: HTMLCanvasElement) => {
+    const rect = canvas.getBoundingClientRect();
+    return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+  };
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    touchStartTimeRef.current = Date.now();
+
+    if (e.touches.length === 2) {
+      // Two fingers — start pinch zoom
+      const t0 = getTouchPos(e.touches[0], canvas);
+      const t1 = getTouchPos(e.touches[1], canvas);
+      lastPinchDistRef.current = Math.hypot(t1.x - t0.x, t1.y - t0.y);
+      lastTouchRef.current = { x: (t0.x + t1.x) / 2, y: (t0.y + t1.y) / 2 };
+      // Cancel any ongoing draw
+      setDragging(false);
+      return;
+    }
+
+    if (e.touches.length === 1) {
+      lastPinchDistRef.current = null;
+      const pos = getTouchPos(e.touches[0], canvas);
+      lastTouchRef.current = pos;
+
+      // Simulate mousedown — synthesise a left-click event
+      const synth = {
+        button: 0,
+        clientX: e.touches[0].clientX,
+        clientY: e.touches[0].clientY,
+      } as React.MouseEvent<HTMLCanvasElement>;
+      handleMouseDown(synth);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    if (e.touches.length === 2) {
+      // Pinch zoom
+      const t0 = getTouchPos(e.touches[0], canvas);
+      const t1 = getTouchPos(e.touches[1], canvas);
+      const dist = Math.hypot(t1.x - t0.x, t1.y - t0.y);
+      const midX = (t0.x + t1.x) / 2;
+      const midY = (t0.y + t1.y) / 2;
+
+      if (lastPinchDistRef.current !== null) {
+        const scale = dist / lastPinchDistRef.current;
+        const wx = (midX - offsetX) / zoom;
+        const wy = (midY - offsetY) / zoom;
+        const nz = Math.min(Math.max(zoom * scale, 0.2), 20.0);
+        setZoom(nz);
+        setOffsetX(midX - wx * nz);
+        setOffsetY(midY - wy * nz);
+      }
+
+      // Pan with two fingers
+      if (lastTouchRef.current) {
+        const dx = midX - lastTouchRef.current.x;
+        const dy = midY - lastTouchRef.current.y;
+        setOffsetX(prev => prev + dx);
+        setOffsetY(prev => prev + dy);
+      }
+
+      lastPinchDistRef.current = dist;
+      lastTouchRef.current = { x: midX, y: midY };
+      return;
+    }
+
+    if (e.touches.length === 1) {
+      const pos = getTouchPos(e.touches[0], canvas);
+      lastTouchRef.current = pos;
+
+      const synth = {
+        clientX: e.touches[0].clientX,
+        clientY: e.touches[0].clientY,
+      } as React.MouseEvent<HTMLCanvasElement>;
+      handleMouseMove(synth);
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    lastPinchDistRef.current = null;
+
+    if (e.changedTouches.length === 1) {
+      const synth = {
+        button: 0,
+        clientX: e.changedTouches[0].clientX,
+        clientY: e.changedTouches[0].clientY,
+      } as React.MouseEvent<HTMLCanvasElement>;
+      handleMouseUp(synth);
+    }
+    lastTouchRef.current = null;
+  };
+
+
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -1011,44 +1118,100 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
     if (initialProjectId && initialProjectId > 0) { setShowSetupDialog(false); loadFromDatabase(initialProjectId); }
   }, [initialProjectId]);
 
+  // ── Tool tooltips ─────────────────────────────────────────────────────────────
+  const TOOL_TIPS: Record<string, { title: string; desc: string; usage: string; tip?: string }> = {
+    line:             { title: 'Line / Wall Segment', desc: 'Draws a single straight wall segment. Best for precise doorways and partial walls.', usage: 'Click and drag to draw. Connect segments at corners to form rooms.', tip: 'Leave a 1-cell gap between segments to create a doorway.' },
+    room:             { title: 'Room (4 Walls)', desc: 'Draws a complete rectangular room with 4 wall sides in one stroke.', usage: 'Click and drag to define the room rectangle. Each side becomes a separate wall segment you can erase later.', tip: 'Use the Eraser tool on any wall segment to create doorways.' },
+    exit:             { title: 'Exit / Evacuation Door', desc: 'Marks an emergency exit. Agents will pathfind toward the nearest exit during evacuation.', usage: 'Draw a rectangle over a doorway or exit point. Larger areas are easier for agents to reach.', tip: 'Place exits on the outer edges of rooms. More exits = faster evacuation.' },
+    concrete_stairs:  { title: 'Concrete Stairs', desc: 'A staircase usable in both fire and earthquake drills. Agents can use these in any disaster scenario.', usage: 'Draw a rectangle where the stairs are located. Name them and set "Connects To" for multi-floor buildings.', tip: 'Concrete stairs are the safest option — always prefer them over fire ladders.' },
+    fire_ladder:      { title: 'Fire Ladder', desc: 'A metal fire escape ladder. Only usable during fire drills — skipped in earthquake scenarios due to structural risk.', usage: 'Draw a rectangle on an exterior wall where the ladder is mounted.', tip: 'In earthquake mode, agents will ignore this and use concrete stairs instead.' },
+    npc:              { title: 'Agent Spawn Zone', desc: 'Defines an area where evacuation agents spawn. Agents fill the zone based on cell density.', usage: 'Draw a rectangle over an occupied area (classroom, office). Adjust speed in the sidebar.', tip: 'Larger zones spawn more agents. Each cell spawns one agent at the start.' },
+    npc_count:        { title: 'Queue Spawn Zone', desc: 'Spawns a fixed number of agents one by one at a set interval — useful for simulating crowded entrances or bottlenecks.', usage: 'Draw over an entry point. Set agent count and spawn interval in the sidebar.', tip: 'Lower spawn interval = faster queue. Use this for hallways or building entrances.' },
+    safezone:         { title: 'Safe Zone / Assembly Area', desc: 'Marks the designated evacuation assembly point. Agents head here after exiting the building.', usage: 'Draw a large rectangle outside the building where evacuees gather.', tip: 'Place safe zones away from exits to prevent crowding near doorways.' },
+    gate:             { title: 'Gate / Controlled Access', desc: 'A gate that can be open or closed. Closed gates block agents like walls; open gates are passable.', usage: 'Draw over a gate or checkpoint. Toggle open/closed in the sidebar panel.', tip: 'Use gates to simulate locked emergency exits or security checkpoints.' },
+    fence:            { title: 'Fence / Barrier', desc: 'A solid impassable barrier. Agents cannot cross fences — they must go around.', usage: 'Draw along perimeter walls or barriers that agents cannot climb.', tip: 'Fences are thinner than walls but fully block agent movement.' },
+    path_walkable:    { title: 'Walkable Path', desc: 'Paints cells as preferred walkable areas. Agents are guided toward these paths during evacuation.', usage: 'Paint over hallways and corridors to guide agent flow. Use brush size to cover larger areas.', tip: 'Paint main evacuation routes to create more realistic agent behavior.' },
+    path_danger:      { title: 'Hazard Zone', desc: 'Marks cells as dangerous areas (fire spread, debris). Agents actively avoid these zones.', usage: 'Paint over fire hazard zones, collapsed areas, or obstacles agents should avoid.', tip: 'Combine with walkable paths to create realistic escape route alternatives.' },
+    eraser:           { title: 'Eraser', desc: 'Removes wall segments, path tiles, and other objects. Wall segments are split at the eraser boundary — great for creating doorways.', usage: 'Click and drag over any object to erase it. Use [ and ] keys or the size buttons to change eraser size.', tip: 'Erase the middle of a wall segment to create a doorway without redrawing.' },
+  };
+
   // ── Tool button ───────────────────────────────────────────────────────────────
   const ToolBtn = ({ icon: Icon, label, tool, shortcut, color }: {
     icon: any; label: string; tool: ToolType; shortcut?: string; color?: string;
   }) => {
     const active = currentTool === tool;
+    const tip = TOOL_TIPS[tool];
     return (
-      <button
-        onClick={() => setCurrentTool(tool)}
-        title={`${label}${shortcut ? ` (${shortcut})` : ''}`}
-        className={`group relative flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-lg transition-all text-xs font-medium
-          ${active
-            ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/30 scale-105'
-            : 'bg-slate-800/60 text-slate-400 hover:bg-slate-700/80 hover:text-slate-200'
-          }`}
-      >
-        <Icon size={17} className={active ? 'text-white' : (color || '')} />
-        <span className="leading-tight text-center">{label}</span>
-        {shortcut && (
-          <span className="absolute -top-1.5 -right-1.5 bg-slate-900 text-slate-500 text-[9px] px-1 py-0.5 rounded border border-slate-700">
-            {shortcut}
-          </span>
+      <div className="relative"
+        onMouseEnter={() => setHoveredTool(tool)}
+        onMouseLeave={() => setHoveredTool(null)}>
+        <button
+          onClick={() => setCurrentTool(tool)}
+          className={`group relative flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-lg transition-all text-xs font-medium w-full
+            ${active
+              ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/30 scale-105'
+              : 'bg-slate-800/60 text-slate-400 hover:bg-slate-700/80 hover:text-slate-200'
+            }`}
+        >
+          <Icon size={17} className={active ? 'text-white' : (color || '')} />
+          <span className="leading-tight text-center">{label}</span>
+          {shortcut && (
+            <span className="absolute -top-1.5 -right-1.5 bg-slate-900 text-slate-500 text-[9px] px-1 py-0.5 rounded border border-slate-700">
+              {shortcut}
+            </span>
+          )}
+        </button>
+
+        {/* Tooltip panel — appears to the right of the toolbar */}
+        {hoveredTool === tool && tip && (
+          <div className="absolute left-full top-0 ml-3 w-64 z-50 pointer-events-none"
+            style={{ filter: 'drop-shadow(0 8px 24px rgba(0,0,0,0.6))' }}>
+            {/* Arrow */}
+            <div className="absolute -left-1.5 top-4 w-3 h-3 bg-slate-800 rotate-45 border-l border-b border-slate-700" />
+            <div className="bg-slate-800 rounded-xl border border-slate-700 p-4 space-y-2.5">
+              <div className="flex items-start gap-2">
+                <Icon size={16} className={`mt-0.5 flex-shrink-0 ${color || 'text-blue-400'}`} />
+                <p className="text-white font-bold text-sm leading-tight">{tip.title}</p>
+              </div>
+              {shortcut && (
+                <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-700 font-mono">
+                  Shortcut: <kbd className="text-white ml-1">{shortcut}</kbd>
+                </span>
+              )}
+              <p className="text-slate-300 text-xs leading-relaxed">{tip.desc}</p>
+              <div className="border-t border-slate-700 pt-2.5">
+                <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">How to use</p>
+                <p className="text-slate-400 text-xs leading-relaxed">{tip.usage}</p>
+              </div>
+              {tip.tip && (
+                <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-2">
+                  <p className="text-blue-300 text-[11px] leading-relaxed">
+                    <span className="font-bold">💡 Tip: </span>{tip.tip}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
         )}
-      </button>
+      </div>
     );
   };
 
   return (
-    <div ref={containerRef} className="relative w-full h-screen overflow-hidden"
+    <div ref={containerRef} className="relative w-full h-screen overflow-hidden touch-none"
       style={{ fontFamily: '"JetBrains Mono", "Fira Mono", monospace', background: '#f8f7f4' }}
     >
       <canvas
         ref={canvasRef}
-        className="absolute inset-0"
+        className="absolute inset-0 touch-none"
         style={{ cursor: panning ? 'grabbing' : (currentTool === 'eraser' || currentTool === 'path_walkable' || currentTool === 'path_danger') ? 'crosshair' : 'crosshair' }}
         onMouseDown={handleMouseDown}
         onMouseUp={handleMouseUp}
         onMouseMove={handleMouseMove}
         onWheel={handleWheel}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
       />
 
       {/* ── Left toolbar (draggable) ─────────────────────────────────────────── */}
@@ -1434,7 +1597,7 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
 
       {/* ── Setup Dialog ──────────────────────────────────────────────────────── */}
       {showSetupDialog && (
-        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-30 pointer-events-auto">
+        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto">
           <div className="bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 p-8 max-w-xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold text-white mb-1" style={{ fontFamily: 'inherit' }}>Floor Plan Editor</h2>
             <p className="text-slate-400 text-sm mb-6">Configure your canvas or load an existing project.</p>
@@ -1497,7 +1660,7 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
 
       {/* ── Save Menu ─────────────────────────────────────────────────────────── */}
       {showSaveMenu && (
-        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-30 pointer-events-auto"
+        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto"
           onClick={() => setShowSaveMenu(false)}>
           <div className="bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 p-6 w-full max-w-sm mx-4"
             onClick={(e: React.MouseEvent) => e.stopPropagation()}>
@@ -1531,7 +1694,7 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
 
       {/* ── Load Menu ─────────────────────────────────────────────────────────── */}
       {showLoadMenu && (
-        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-30 pointer-events-auto"
+        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 pointer-events-auto"
           onClick={() => setShowLoadMenu(false)}>
           <div className="bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 p-6 w-full max-w-xl mx-4 max-h-[80vh] overflow-auto"
             onClick={(e: React.MouseEvent) => e.stopPropagation()}>
