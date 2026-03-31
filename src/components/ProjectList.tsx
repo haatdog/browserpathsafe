@@ -430,13 +430,13 @@ export default function ProjectList({ onOpenEditor, onRunSimulation }: ProjectLi
                     <div className="p-3 bg-orange-50 rounded-xl border border-orange-200">
                       <div className="flex items-center gap-2 mb-2">
                         <AlertTriangle className="w-3.5 h-3.5 text-orange-500" />
-                        <span className="text-[10px] uppercase tracking-widest" style={T.pageTitle}>Disaster Type</span>
+                        <span className="text-[10px] uppercase tracking-widest" style={T.pageTitle}>Evacuation Type</span>
                       </div>
                       <div className="grid grid-cols-3 gap-1.5">
                         {([
                           { key: 'fire',       emoji: '🔥', label: 'Fire'   },
-                          { key: 'earthquake', emoji: '🌍', label: 'Quake'  },
-                          { key: 'bomb',       emoji: '💣', label: 'Bomb'   },
+                          { key: 'earthquake', emoji: '🌍', label: 'Earthquake'  },
+                          { key: 'bomb',       emoji: '💣', label: 'Bomb Threat'   },
                         ] as const).map(({ key, emoji, label }) => (
                           <button
                             key={key}
