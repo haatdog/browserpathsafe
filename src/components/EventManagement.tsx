@@ -14,72 +14,6 @@ interface Event {
 }
 interface EventWithStatus extends Event { status: 'upcoming'|'ongoing'|'done'; }
 
-// ── Custom DateTime Picker ────────────────────────────────────────────────────
-function DateTimeInput({ value, onChange, label, required }: {
-  value: string; onChange: (v: string) => void; label: string; required?: boolean;
-}) {
-  const datePart = value.split('T')[0] || '';
-  const timePart = value.split('T')[1] || '';
-
-  const parse = (t: string) => {
-    if (!t) return { hour: '12', minute: '00', ampm: 'AM' };
-    const [h, m] = t.split(':');
-    const h24 = parseInt(h) || 0;
-    return { hour: String(h24 % 12 || 12), minute: m || '00', ampm: h24 >= 12 ? 'PM' : 'AM' };
-  };
-  const { hour, minute, ampm } = parse(timePart);
-
-  const combine = (d: string, h: string, m: string, ap: string) => {
-    let h24 = parseInt(h) || 12;
-    if (h24 < 1) h24 = 1;
-    if (h24 > 12) h24 = 12;
-    if (ap === 'PM' && h24 !== 12) h24 += 12;
-    if (ap === 'AM' && h24 === 12) h24 = 0;
-    const mm = Math.min(59, Math.max(0, parseInt(m) || 0));
-    return `${d}T${String(h24).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
-  };
-
-  const inputCls = 'px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white text-center';
-
-  return (
-    <div>
-      <label className="block mb-2" style={T.bodyMedium}>{label}{required && ' *'}</label>
-      <div className="flex flex-wrap gap-3 items-end">
-        {/* Date box */}
-        <div>
-          <p className="text-xs text-gray-500 mb-1">Date</p>
-          <input type="date" value={datePart} required={required}
-            onChange={e => onChange(combine(e.target.value, hour, minute, ampm))}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent" />
-        </div>
-        {/* Hour box */}
-        <div>
-          <p className="text-xs text-gray-500 mb-1">Hour</p>
-          <input type="number" min={1} max={12} value={hour}
-            onChange={e => onChange(combine(datePart, e.target.value, minute, ampm))}
-            className={`w-16 ${inputCls}`} placeholder="12" />
-        </div>
-        <span className="text-gray-400 font-bold pb-2">:</span>
-        {/* Minute box */}
-        <div>
-          <p className="text-xs text-gray-500 mb-1">Minute</p>
-          <input type="number" min={0} max={59} value={minute}
-            onChange={e => onChange(combine(datePart, hour, e.target.value, ampm))}
-            className={`w-16 ${inputCls}`} placeholder="00" />
-        </div>
-        {/* AM/PM */}
-        <div>
-          <p className="text-xs text-gray-500 mb-1">AM/PM</p>
-          <select value={ampm} onChange={e => onChange(combine(datePart, hour, minute, e.target.value))}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white">
-            <option>AM</option><option>PM</option>
-          </select>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function EventManagement() {
   const [events,        setEvents]        = useState<EventWithStatus[]>([]);
   const [loading,       setLoading]       = useState(true);
@@ -314,10 +248,12 @@ export default function EventManagement() {
                             className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition" title="Edit">
                             <Edit className="w-4 h-4" />
                           </button>
-                          <button onClick={() => setShowDeleteConfirm(event.id)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Delete">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {(userRole === 'admin' || (userRole === 'coordinator' && event.status === 'done')) && (
+                            <button onClick={() => setShowDeleteConfirm(event.id)}
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Delete">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -436,8 +372,16 @@ function EditEventModal({ event, onClose, onSave }: EditEventModalProps) {
             </select>
           </div>
 
-          <DateTimeInput value={form.start_time} onChange={v => setForm({...form, start_time: v})} label="Start Date & Time" required />
-          <DateTimeInput value={form.end_time}   onChange={v => setForm({...form, end_time: v})}   label="End Date & Time"   required />
+          <div>
+            <label className="block mb-1.5" style={T.bodyMedium}>Start Date & Time *</label>
+            <input type="datetime-local" value={form.start_time} onChange={e => setForm({...form, start_time: e.target.value})} required
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent" />
+          </div>
+          <div>
+            <label className="block mb-1.5" style={T.bodyMedium}>End Date & Time *</label>
+            <input type="datetime-local" value={form.end_time} onChange={e => setForm({...form, end_time: e.target.value})} required
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent" />
+          </div>
 
           <div>
             <label className="block mb-1.5" style={T.bodyMedium}>Location</label>
