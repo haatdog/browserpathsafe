@@ -916,110 +916,156 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
   };
 
   // ==================== TOUCH SUPPORT ====================
+  // Direct DOM listeners (not React synthetic) so preventDefault works
+  // and updates fire immediately every frame during drag.
 
   const lastTouchRef      = useRef<{ x: number; y: number } | null>(null);
   const lastPinchDistRef  = useRef<number | null>(null);
   const touchStartTimeRef = useRef<number>(0);
 
-  const getTouchPos = (touch: React.Touch, canvas: HTMLCanvasElement) => {
-    const rect = canvas.getBoundingClientRect();
-    return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
-  };
-
-  const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    touchStartTimeRef.current = Date.now();
 
-    if (e.touches.length === 2) {
-      // Two fingers — start pinch zoom
-      const t0 = getTouchPos(e.touches[0], canvas);
-      const t1 = getTouchPos(e.touches[1], canvas);
-      lastPinchDistRef.current = Math.hypot(t1.x - t0.x, t1.y - t0.y);
-      lastTouchRef.current = { x: (t0.x + t1.x) / 2, y: (t0.y + t1.y) / 2 };
-      // Cancel any ongoing draw
-      setDragging(false);
-      return;
-    }
+    const getTouchPos = (touch: Touch) => {
+      const rect = canvas.getBoundingClientRect();
+      return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+    };
 
-    if (e.touches.length === 1) {
+    const onTouchStart = (e: TouchEvent) => {
+      e.preventDefault();
+      touchStartTimeRef.current = Date.now();
+
+      if (e.touches.length === 2) {
+        const t0 = e.touches[0], t1 = e.touches[1];
+        lastPinchDistRef.current = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+        lastTouchRef.current = { x: (t0.clientX + t1.clientX) / 2, y: (t0.clientY + t1.clientY) / 2 };
+        setDragging(false);
+        return;
+      }
+
+      if (e.touches.length === 1) {
+        lastPinchDistRef.current = null;
+        const pos = getTouchPos(e.touches[0]);
+        lastTouchRef.current = pos;
+        const { x: wx, y: wy } = screenToWorldpx(pos.x, pos.y, zoom, offsetX, offsetY);
+
+        if (currentTool === 'eraser') { setIsErasing(true); eraseAt(wx, wy); return; }
+        if (currentTool === 'path_walkable' || currentTool === 'path_danger') {
+          setIsErasing(true);
+          paintAt(wx, wy, currentTool as 'path_walkable' | 'path_danger');
+          return;
+        }
+        setStartPos({ x: snapToGrid(wx), y: snapToGrid(wy) });
+        setDragging(true);
+        setSelectedIndex(null); setSelectedNPC(null); setSelectedStairs(null);
+        setSelectedGate(null); setSelectedNPCCount(null);
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      e.preventDefault();
+
+      if (e.touches.length === 2) {
+        const t0 = e.touches[0], t1 = e.touches[1];
+        const dist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+        const midX = (t0.clientX + t1.clientX) / 2;
+        const midY = (t0.clientY + t1.clientY) / 2;
+
+        if (lastPinchDistRef.current !== null) {
+          const scale = dist / lastPinchDistRef.current;
+          setZoom(prev => {
+            const nz = Math.min(Math.max(prev * scale, 0.2), 20.0);
+            const wx = (midX - offsetX) / prev;
+            const wy = (midY - offsetY) / prev;
+            setOffsetX(midX - wx * nz);
+            setOffsetY(midY - wy * nz);
+            return nz;
+          });
+        }
+        if (lastTouchRef.current) {
+          const dx = midX - lastTouchRef.current.x;
+          const dy = midY - lastTouchRef.current.y;
+          setOffsetX(prev => prev + dx);
+          setOffsetY(prev => prev + dy);
+        }
+        lastPinchDistRef.current = dist;
+        lastTouchRef.current = { x: midX, y: midY };
+        return;
+      }
+
+      if (e.touches.length === 1) {
+        const pos = getTouchPos(e.touches[0]);
+        setCurrentMousePos(pos);
+        lastTouchRef.current = pos;
+        const { x: wx, y: wy } = screenToWorldpx(pos.x, pos.y, zoom, offsetX, offsetY);
+
+        if (isErasing) {
+          if (currentTool === 'path_walkable' || currentTool === 'path_danger') {
+            paintAt(wx, wy, currentTool as 'path_walkable' | 'path_danger');
+          } else {
+            eraseAt(wx, wy);
+          }
+        }
+      }
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      e.preventDefault();
+      if (e.touches.length > 0) return;
+
       lastPinchDistRef.current = null;
-      const pos = getTouchPos(e.touches[0], canvas);
-      lastTouchRef.current = pos;
+      lastTouchRef.current = null;
 
-      // Simulate mousedown — synthesise a left-click event
-      const synth = {
-        button: 0,
-        clientX: e.touches[0].clientX,
-        clientY: e.touches[0].clientY,
-      } as React.MouseEvent<HTMLCanvasElement>;
-      handleMouseDown(synth);
-    }
-  };
+      if (isErasing) { setIsErasing(false); return; }
 
-  const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+      if (dragging && startPos) {
+        const lastTouch = e.changedTouches[0];
+        const pos = getTouchPos(lastTouch);
+        const { x: rawWx, y: rawWy } = screenToWorldpx(pos.x, pos.y, zoom, offsetX, offsetY);
+        const wx = snapToGrid(rawWx);
+        const wy = snapToGrid(rawWy);
+        const objRect = { x: Math.min(startPos.x, wx), y: Math.min(startPos.y, wy), w: Math.abs(wx - startPos.x), h: Math.abs(wy - startPos.y) };
 
-    if (e.touches.length === 2) {
-      // Pinch zoom
-      const t0 = getTouchPos(e.touches[0], canvas);
-      const t1 = getTouchPos(e.touches[1], canvas);
-      const dist = Math.hypot(t1.x - t0.x, t1.y - t0.y);
-      const midX = (t0.x + t1.x) / 2;
-      const midY = (t0.y + t1.y) / 2;
+        if (currentTool !== 'line' && (objRect.w < 2 || objRect.h < 2)) { setDragging(false); return; }
 
-      if (lastPinchDistRef.current !== null) {
-        const scale = dist / lastPinchDistRef.current;
-        const wx = (midX - offsetX) / zoom;
-        const wy = (midY - offsetY) / zoom;
-        const nz = Math.min(Math.max(zoom * scale, 0.2), 20.0);
-        setZoom(nz);
-        setOffsetX(midX - wx * nz);
-        setOffsetY(midY - wy * nz);
+        if (currentTool === 'room') {
+          if (objRect.w > 4 && objRect.h > 4) {
+            const walls = createRoomWalls(objRect);
+            setObjects(prev => {
+              const next = [...prev, ...walls];
+              historyRef.current = historyRef.current.slice(0, historyIdxRef.current + 1);
+              historyRef.current.push(next); historyIdxRef.current++;
+              return next;
+            });
+          }
+        } else if (isObjectTool(currentTool)) {
+          const newObj = createMapObject(currentTool, objRect, { x1: startPos.x, y1: startPos.y, x2: wx, y2: wy }, cellSize);
+          setObjects(prev => {
+            const next = [...prev, newObj];
+            historyRef.current = historyRef.current.slice(0, historyIdxRef.current + 1);
+            historyRef.current.push(next); historyIdxRef.current++;
+            return next;
+          });
+          if (newObj.type === 'npc') setSelectedNPC(newObj);
+          if (newObj.type === 'npc_count') setSelectedNPCCount(newObj);
+          if (newObj.type === 'concrete_stairs' || newObj.type === 'fire_ladder') setSelectedStairs(newObj);
+          if (newObj.type === 'gate') setSelectedGate(newObj);
+        }
+        setDragging(false);
       }
+    };
 
-      // Pan with two fingers
-      if (lastTouchRef.current) {
-        const dx = midX - lastTouchRef.current.x;
-        const dy = midY - lastTouchRef.current.y;
-        setOffsetX(prev => prev + dx);
-        setOffsetY(prev => prev + dy);
-      }
+    canvas.addEventListener('touchstart', onTouchStart, { passive: false });
+    canvas.addEventListener('touchmove',  onTouchMove,  { passive: false });
+    canvas.addEventListener('touchend',   onTouchEnd,   { passive: false });
 
-      lastPinchDistRef.current = dist;
-      lastTouchRef.current = { x: midX, y: midY };
-      return;
-    }
-
-    if (e.touches.length === 1) {
-      const pos = getTouchPos(e.touches[0], canvas);
-      lastTouchRef.current = pos;
-
-      const synth = {
-        clientX: e.touches[0].clientX,
-        clientY: e.touches[0].clientY,
-      } as React.MouseEvent<HTMLCanvasElement>;
-      handleMouseMove(synth);
-    }
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    lastPinchDistRef.current = null;
-
-    if (e.changedTouches.length === 1) {
-      const synth = {
-        button: 0,
-        clientX: e.changedTouches[0].clientX,
-        clientY: e.changedTouches[0].clientY,
-      } as React.MouseEvent<HTMLCanvasElement>;
-      handleMouseUp(synth);
-    }
-    lastTouchRef.current = null;
-  };
+    return () => {
+      canvas.removeEventListener('touchstart', onTouchStart);
+      canvas.removeEventListener('touchmove',  onTouchMove);
+      canvas.removeEventListener('touchend',   onTouchEnd);
+    };
+  }, [zoom, offsetX, offsetY, currentTool, isErasing, dragging, startPos, snapToGrid, eraseAt, paintAt, cellSize]);
 
 
 
@@ -1181,9 +1227,6 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
         onMouseUp={handleMouseUp}
         onMouseMove={handleMouseMove}
         onWheel={handleWheel}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
       />
 
       {/* ── Left toolbar (draggable) ─────────────────────────────────────────── */}
