@@ -205,6 +205,7 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
   // ── Fullscreen ───────────────────────────────────────────────────────────────
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hoveredTool, setHoveredTool]   = useState<string | null>(null);
+  const [tooltipPos,  setTooltipPos]    = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       containerRef.current?.requestFullscreen();
@@ -920,7 +921,7 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
   const lastPinchDistRef  = useRef<number | null>(null);
   const touchStartTimeRef = useRef<number>(0);
 
-  const getTouchPos = (touch: Touch, canvas: HTMLCanvasElement) => {
+  const getTouchPos = (touch: React.Touch, canvas: HTMLCanvasElement) => {
     const rect = canvas.getBoundingClientRect();
     return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
   };
@@ -1140,10 +1141,13 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
     icon: any; label: string; tool: ToolType; shortcut?: string; color?: string;
   }) => {
     const active = currentTool === tool;
-    const tip = TOOL_TIPS[tool];
     return (
-      <div className="relative"
-        onMouseEnter={() => setHoveredTool(tool)}
+      <div className="relative w-full"
+        onMouseEnter={e => {
+          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+          setTooltipPos({ x: rect.right + 12, y: rect.top });
+          setHoveredTool(tool);
+        }}
         onMouseLeave={() => setHoveredTool(null)}>
         <button
           onClick={() => setCurrentTool(tool)}
@@ -1161,38 +1165,6 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
             </span>
           )}
         </button>
-
-        {/* Tooltip panel — appears to the right of the toolbar */}
-        {hoveredTool === tool && tip && (
-          <div className="absolute left-full top-0 ml-3 w-64 z-50 pointer-events-none"
-            style={{ filter: 'drop-shadow(0 8px 24px rgba(0,0,0,0.6))' }}>
-            {/* Arrow */}
-            <div className="absolute -left-1.5 top-4 w-3 h-3 bg-slate-800 rotate-45 border-l border-b border-slate-700" />
-            <div className="bg-slate-800 rounded-xl border border-slate-700 p-4 space-y-2.5">
-              <div className="flex items-start gap-2">
-                <Icon size={16} className={`mt-0.5 flex-shrink-0 ${color || 'text-blue-400'}`} />
-                <p className="text-white font-bold text-sm leading-tight">{tip.title}</p>
-              </div>
-              {shortcut && (
-                <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-700 font-mono">
-                  Shortcut: <kbd className="text-white ml-1">{shortcut}</kbd>
-                </span>
-              )}
-              <p className="text-slate-300 text-xs leading-relaxed">{tip.desc}</p>
-              <div className="border-t border-slate-700 pt-2.5">
-                <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">How to use</p>
-                <p className="text-slate-400 text-xs leading-relaxed">{tip.usage}</p>
-              </div>
-              {tip.tip && (
-                <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-2">
-                  <p className="text-blue-300 text-[11px] leading-relaxed">
-                    <span className="font-bold">💡 Tip: </span>{tip.tip}
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
       </div>
     );
   };
@@ -1739,6 +1711,44 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
           </div>
         </div>
       )}
+
+      {/* ── Floating tooltip portal — fixed so it escapes toolbar overflow ── */}
+      {hoveredTool && TOOL_TIPS[hoveredTool] && (() => {
+        const tip = TOOL_TIPS[hoveredTool];
+        const SHORTCUTS: Record<string,string> = {
+          line:'L', room:'W', exit:'X', concrete_stairs:'C', fire_ladder:'R',
+          npc:'N', npc_count:'Q', safezone:'S', gate:'G', fence:'F',
+          path_walkable:'V', path_danger:'H', eraser:'E',
+        };
+        const maxY = window.innerHeight - 340;
+        const ty   = Math.min(tooltipPos.y, maxY);
+        return (
+          <div className="fixed z-[9999] w-64 pointer-events-none"
+            style={{ left: tooltipPos.x, top: ty, filter: 'drop-shadow(0 8px 24px rgba(0,0,0,0.7))' }}>
+            <div className="absolute -left-1.5 top-4 w-3 h-3 bg-slate-800 rotate-45 border-l border-b border-slate-700" />
+            <div className="bg-slate-800 rounded-xl border border-slate-700 p-4 space-y-2.5">
+              <p className="text-white font-bold text-sm leading-tight">{tip.title}</p>
+              {SHORTCUTS[hoveredTool] && (
+                <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-700 font-mono">
+                  Shortcut: <kbd className="text-white ml-1">{SHORTCUTS[hoveredTool]}</kbd>
+                </span>
+              )}
+              <p className="text-slate-300 text-xs leading-relaxed">{tip.desc}</p>
+              <div className="border-t border-slate-700 pt-2.5">
+                <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">How to use</p>
+                <p className="text-slate-400 text-xs leading-relaxed">{tip.usage}</p>
+              </div>
+              {tip.tip && (
+                <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-2">
+                  <p className="text-blue-300 text-[11px] leading-relaxed">
+                    <span className="font-bold">💡 </span>{tip.tip}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

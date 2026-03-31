@@ -160,8 +160,9 @@ export default function PathVisualization({ projectData, simulationResults, onCl
   const canvasRef    = useRef<HTMLCanvasElement>(null);
   const [zoom,       setZoom]   = useState(1);
   const [offset,     setOffset] = useState({ x: 0, y: 0 });
-  const isPanningRef = useRef(false);
-  const panStartRef  = useRef<{ x: number; y: number } | null>(null);
+  const isPanningRef     = useRef(false);
+  const panStartRef      = useRef<{ x: number; y: number } | null>(null);
+  const lastPinchDistRef = useRef<number | null>(null);
 
   const cellSize   = projectData?.cell_size  || 10;
   const gridWidth  = projectData?.grid_width  || projectData?.width  || 80;
@@ -313,6 +314,67 @@ export default function PathVisualization({ projectData, simulationResults, onCl
     e.currentTarget.style.cursor = 'grab';
   };
 
+  // ── Touch support ──────────────────────────────────────────────────────────
+  const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    if (e.touches.length === 2) {
+      const t0 = e.touches[0], t1 = e.touches[1];
+      lastPinchDistRef.current = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+      panStartRef.current = { x: (t0.clientX + t1.clientX) / 2, y: (t0.clientY + t1.clientY) / 2 };
+      isPanningRef.current = false;
+      return;
+    }
+    if (e.touches.length === 1) {
+      lastPinchDistRef.current = null;
+      isPanningRef.current = true;
+      panStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    if (e.touches.length === 2) {
+      const t0 = e.touches[0], t1 = e.touches[1];
+      const dist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+      const midX = (t0.clientX + t1.clientX) / 2;
+      const midY = (t0.clientY + t1.clientY) / 2;
+      if (lastPinchDistRef.current !== null) {
+        const scale = dist / lastPinchDistRef.current;
+        setZoom(prev => {
+          const nz = Math.min(Math.max(prev * scale, 0.15), 10);
+          setOffset(o => ({
+            x: midX - (midX - o.x) * (nz / prev),
+            y: midY - (midY - o.y) * (nz / prev),
+          }));
+          return nz;
+        });
+      }
+      if (panStartRef.current) {
+        const dx = midX - panStartRef.current.x;
+        const dy = midY - panStartRef.current.y;
+        setOffset(o => ({ x: o.x + dx, y: o.y + dy }));
+      }
+      lastPinchDistRef.current = dist;
+      panStartRef.current = { x: midX, y: midY };
+      return;
+    }
+    if (e.touches.length === 1 && isPanningRef.current && panStartRef.current) {
+      const dx = e.touches[0].clientX - panStartRef.current.x;
+      const dy = e.touches[0].clientY - panStartRef.current.y;
+      panStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      setOffset(o => ({ x: o.x + dx, y: o.y + dy }));
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    if (e.touches.length === 0) {
+      isPanningRef.current = false;
+      panStartRef.current = null;
+      lastPinchDistRef.current = null;
+    }
+  };
+
   const resetView = () => { setZoom(1); setOffset({ x:0, y:0 }); };
 
   const handleDownload = () => {
@@ -383,12 +445,15 @@ export default function PathVisualization({ projectData, simulationResults, onCl
           <div className="w-full h-full flex justify-center overflow-hidden">
             <canvas ref={canvasRef}
               className="border border-gray-300 rounded-xl shadow-xl bg-white"
-              style={{ cursor: 'grab' }}
+              style={{ cursor: 'grab', touchAction: 'none' }}
               onWheel={handleWheel}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
             />
           </div>
         </div>
