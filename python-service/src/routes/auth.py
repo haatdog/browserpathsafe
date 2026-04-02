@@ -223,43 +223,37 @@ def forgot_password():
 
         conn   = get_db()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Check user exists
         cursor.execute('SELECT id FROM auth_users WHERE email = %s', (email,))
         user = cursor.fetchone()
-
         if not user:
+            cursor.close(); conn.close()
             return jsonify({"error": "No account found with that email address"}), 404
 
-        # Generate a secure temporary password
+        # Generate secure temp password
         import secrets, string
         alphabet = string.ascii_letters + string.digits
         temp_password = ''.join(secrets.choice(alphabet) for _ in range(10))
         new_hash = hash_password(temp_password)
 
+        # Try sending email BEFORE saving — so we don't change password if email fails
+        email_sent = send_reset_email(email, temp_password)
+
+        if not email_sent:
+            cursor.close(); conn.close()
+            print(f"⚠️  Email not sent for: {email} — check EMAIL_ADDRESS and EMAIL_APP_PASSWORD env vars")
+            return jsonify({
+                "error": "Failed to send reset email. Email service is not configured. Please contact your administrator."
+            }), 500
+
+        # Email sent — now save the new password
         cursor.execute(
             'UPDATE auth_users SET password_hash = %s WHERE email = %s',
             (new_hash, email)
         )
         conn.commit()
         cursor.close(); conn.close()
-
-        # Send email — if not configured, return error so user knows
-        email_sent = send_reset_email(email, temp_password)
-
-        if not email_sent:
-            # Revert the password change since we can't deliver it
-            cursor2 = conn.cursor()
-            # Re-open connection since it was closed
-            conn2 = get_db()
-            cursor2 = conn2.cursor()
-            cursor2.execute(
-                'UPDATE auth_users SET password_hash = %s WHERE email = %s',
-                (new_hash, email)   # keep the new hash — admin can reset via /reset-admin
-            )
-            conn2.commit(); cursor2.close(); conn2.close()
-            print(f"⚠️  Email not sent for: {email} — check EMAIL_ADDRESS and EMAIL_APP_PASSWORD env vars")
-            return jsonify({
-                "error": "Failed to send reset email. Email service is not configured. Please contact your administrator."
-            }), 500
 
         print(f"✅ Password reset email sent to: {email}")
         return jsonify({"success": True, "email_sent": True})
