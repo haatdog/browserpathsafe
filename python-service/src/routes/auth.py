@@ -121,6 +121,143 @@ def login():
         return jsonify({"error": str(e)}), 500
 
 
+def send_reset_email(to_email: str, temp_password: str) -> bool:
+    """Send password reset email via SMTP. Works with Gmail, Yahoo, Outlook, etc."""
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+
+    sender_email    = os.getenv('EMAIL_ADDRESS')
+    sender_password = os.getenv('EMAIL_APP_PASSWORD')
+
+    if not sender_email or not sender_password:
+        print("⚠️  EMAIL_ADDRESS or EMAIL_APP_PASSWORD not set — skipping email")
+        return False
+
+    # Auto-detect SMTP settings from email domain
+    # You can also override with EMAIL_SMTP_HOST and EMAIL_SMTP_PORT env vars
+    domain = sender_email.split('@')[-1].lower()
+    SMTP_SETTINGS = {
+        'gmail.com':        ('smtp.gmail.com',        465, True),
+        'yahoo.com':        ('smtp.mail.yahoo.com',   465, True),
+        'yahoo.com.ph':     ('smtp.mail.yahoo.com',   465, True),
+        'ymail.com':        ('smtp.mail.yahoo.com',   465, True),
+        'outlook.com':      ('smtp.office365.com',    587, False),
+        'hotmail.com':      ('smtp.office365.com',    587, False),
+        'live.com':         ('smtp.office365.com',    587, False),
+        'icloud.com':       ('smtp.mail.me.com',      587, False),
+        'me.com':           ('smtp.mail.me.com',      587, False),
+        'protonmail.com':   ('smtp.protonmail.com',   587, False),
+        'zoho.com':         ('smtp.zoho.com',         465, True),
+    }
+
+    # Allow manual override via environment variables
+    smtp_host = os.getenv('EMAIL_SMTP_HOST')
+    smtp_port = int(os.getenv('EMAIL_SMTP_PORT', '0'))
+    use_ssl   = os.getenv('EMAIL_SMTP_SSL', '').lower() not in ('false', '0', 'no')
+
+    if not smtp_host:
+        host, port, ssl = SMTP_SETTINGS.get(domain, ('smtp.gmail.com', 465, True))
+        smtp_host = host
+        if smtp_port == 0:
+            smtp_port = port
+        use_ssl = ssl
+
+    html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#f9fafb;border-radius:12px;">
+      <div style="background:#16a34a;padding:20px;border-radius:8px;text-align:center;margin-bottom:24px;">
+        <h1 style="color:white;margin:0;font-size:24px;">🛡️ PathSafe</h1>
+      </div>
+      <h2 style="color:#111827;margin-bottom:8px;">Password Reset Request</h2>
+      <p style="color:#6b7280;margin-bottom:24px;">
+        A temporary password has been generated for your PathSafe account.
+        Use it to log in, then change your password immediately from your profile settings.
+      </p>
+      <div style="background:white;border:2px solid #e5e7eb;border-radius:8px;padding:20px;text-align:center;margin-bottom:24px;">
+        <p style="color:#6b7280;font-size:12px;margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">Temporary Password</p>
+        <p style="font-family:monospace;font-size:28px;font-weight:bold;color:#111827;letter-spacing:4px;margin:0;">{temp_password}</p>
+      </div>
+      <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:12px;">
+        <p style="color:#92400e;font-size:13px;margin:0;">
+          ⚠️ This is a temporary password. Please change it after logging in.
+          If you did not request this reset, contact your administrator immediately.
+        </p>
+      </div>
+      <p style="color:#9ca3af;font-size:12px;margin-top:24px;text-align:center;">
+        PathSafe — Disaster Risk Reduction and Management System
+      </p>
+    </div>
+    """
+
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = '🔑 PathSafe — Your Temporary Password'
+        msg['From']    = f'PathSafe <{sender_email}>'
+        msg['To']      = to_email
+        msg.attach(MIMEText(html, 'html'))
+
+        if use_ssl:
+            with smtplib.SMTP_SSL(smtp_host, smtp_port) as server:
+                server.login(sender_email, sender_password)
+                server.sendmail(sender_email, to_email, msg.as_string())
+        else:
+            with smtplib.SMTP(smtp_host, smtp_port) as server:
+                server.starttls()
+                server.login(sender_email, sender_password)
+                server.sendmail(sender_email, to_email, msg.as_string())
+        print(f"✅ Reset email sent to: {to_email}")
+        return True
+    except Exception as e:
+        print(f"❌ Email send failed: {e}")
+        return False
+
+
+@auth_bp.route("/api/auth/forgot-password", methods=["POST", "OPTIONS"])
+def forgot_password():
+    if request.method == "OPTIONS":
+        return '', 200
+    try:
+        email = (request.json or {}).get('email', '').strip().lower()
+        if not email:
+            return jsonify({"error": "Email is required"}), 400
+
+        conn   = get_db()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute('SELECT id FROM auth_users WHERE email = %s', (email,))
+        user = cursor.fetchone()
+
+        if not user:
+            return jsonify({"error": "No account found with that email address"}), 404
+
+        # Generate a secure temporary password
+        import secrets, string
+        alphabet = string.ascii_letters + string.digits
+        temp_password = ''.join(secrets.choice(alphabet) for _ in range(10))
+        new_hash = hash_password(temp_password)
+
+        cursor.execute(
+            'UPDATE auth_users SET password_hash = %s WHERE email = %s',
+            (new_hash, email)
+        )
+        conn.commit()
+        cursor.close(); conn.close()
+
+        # Try to send email — fall back to returning temp password if not configured
+        email_sent = send_reset_email(email, temp_password)
+
+        print(f"🔑 Password reset for: {email} | Email sent: {email_sent}")
+        return jsonify({
+            "success":    True,
+            "email_sent": email_sent,
+            # Only return temp password in response if email failed (no SMTP config)
+            "temp_password": None if email_sent else temp_password,
+        })
+
+    except Exception as e:
+        print(f"❌ Forgot password error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 @auth_bp.route("/api/auth/logout", methods=["POST", "OPTIONS"])
 def logout():
     if request.method == "OPTIONS":
