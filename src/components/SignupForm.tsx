@@ -1,7 +1,7 @@
 // SignupForm.tsx
 import { useState } from 'react';
 import { authService } from '../lib/api';
-import { Mail, Lock, User, Loader } from 'lucide-react';
+import { Mail, Lock, User, Loader, CheckCircle } from 'lucide-react';
 import { T } from '../design/DesignTokens';
 
 interface SignupFormProps {
@@ -14,6 +14,7 @@ export default function SignupForm({ onError, onSuccess }: SignupFormProps) {
   const [password,        setPassword]        = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading,         setLoading]         = useState(false);
+  const [success,         setSuccess]         = useState(false);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,14 +23,37 @@ export default function SignupForm({ onError, onSuccess }: SignupFormProps) {
     try {
       if (password !== confirmPassword) throw new Error('Passwords do not match');
       if (password.length < 6) throw new Error('Password must be at least 6 characters');
+
+      // Register
       await authService.signup(email, password);
+
+      // Show success briefly then auto-login
+      setSuccess(true);
+      await new Promise(res => setTimeout(res, 1200));
+
+      // Auto-login with same credentials so token is stored
+      await authService.login(email, password);
       onSuccess();
     } catch (err: any) {
+      setSuccess(false);
       onError(err.message);
     } finally {
       setLoading(false);
     }
   };
+
+  if (success) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-6">
+        <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center animate-bounce">
+          <CheckCircle className="w-8 h-8 text-green-600" />
+        </div>
+        <p className="text-green-700 font-semibold text-base">Account created successfully!</p>
+        <p className="text-gray-500 text-sm">Logging you in…</p>
+        <Loader className="w-5 h-5 text-green-500 animate-spin mt-1" />
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSignup} className="space-y-4">
@@ -55,7 +79,7 @@ export default function SignupForm({ onError, onSuccess }: SignupFormProps) {
             required placeholder="••••••••"
             className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition" />
         </div>
-        <p className="mt-1" style={T.meta}>Minimum 6 characters</p>
+        <p className="mt-1 text-xs text-gray-400">Minimum 6 characters</p>
       </div>
 
       <div>

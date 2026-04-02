@@ -13,12 +13,10 @@ const API = import.meta.env.VITE_PYTHON_API_URL || 'https://browserpathsafe.onre
 
 // ── Forgot Password Modal ─────────────────────────────────────────────────────
 function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
-  const [email,     setEmail]     = useState('');
-  const [loading,   setLoading]   = useState(false);
-  const [error,     setError]     = useState<string | null>(null);
-  const [tempPass,  setTempPass]  = useState<string | null>(null);
-  const [copied,    setCopied]    = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
+  const [email,   setEmail]   = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState<string | null>(null);
+  const [sent,    setSent]    = useState(false);
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,22 +34,12 @@ function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to reset password');
-      // If email was sent, temp_password is null — show "check email" message
-      // If no SMTP configured, temp_password is returned directly
-      setTempPass(data.temp_password ?? '__EMAIL_SENT__');
-      setEmailSent(data.email_sent);
+      setSent(true);
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleCopy = () => {
-    if (!tempPass) return;
-    navigator.clipboard.writeText(tempPass);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -71,10 +59,10 @@ function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="p-6">
-          {!tempPass ? (
+          {!sent ? (
             <>
               <p className="text-sm text-gray-500 mb-4">
-                Enter your email address and we'll generate a temporary password for you to log in with.
+                Enter your email address and we'll send you a temporary password to log in with.
               </p>
 
               {error && (
@@ -103,54 +91,29 @@ function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
                   </button>
                   <button type="submit" disabled={loading}
                     className="flex-1 px-4 py-2.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg transition disabled:opacity-50 flex items-center justify-center gap-2">
-                    {loading ? <><Loader className="w-4 h-4 animate-spin" /> Resetting…</> : 'Reset Password'}
+                    {loading
+                      ? <><Loader className="w-4 h-4 animate-spin" /> Sending…</>
+                      : 'Send Reset Email'}
                   </button>
                 </div>
               </form>
             </>
           ) : (
-            /* Success — show email sent or temp password */
-            <div className="space-y-4">
-              <div className="flex flex-col items-center gap-2 py-2">
-                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                  <CheckCircle className="w-6 h-6 text-green-600" />
-                </div>
-                {emailSent ? (
-                  <>
-                    <p className="text-sm font-medium text-gray-900">Check Your Email</p>
-                    <p className="text-xs text-gray-500 text-center">
-                      We sent a temporary password to <span className="font-semibold text-gray-700">{email}</span>.
-                      Check your inbox (and spam folder) then log in with the temporary password.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-sm font-medium text-gray-900">Password Reset Successfully</p>
-                    <p className="text-xs text-gray-500 text-center">Use this temporary password to log in, then change it in your profile settings.</p>
-                  </>
-                )}
+            /* Success — email sent */
+            <div className="flex flex-col items-center gap-4 py-2">
+              <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center">
+                <CheckCircle className="w-8 h-8 text-green-600" />
               </div>
-
-              {!emailSent && tempPass && tempPass !== '__EMAIL_SENT__' && (
-                <>
-                  <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-                    <p className="text-xs text-gray-500 mb-2 uppercase tracking-wider font-medium">Temporary Password</p>
-                    <div className="flex items-center gap-2">
-                      <code className="flex-1 text-lg font-mono font-bold text-gray-900 tracking-widest">
-                        {tempPass}
-                      </code>
-                      <button onClick={handleCopy}
-                        className={`px-3 py-1.5 text-xs rounded-lg transition font-medium ${copied ? 'bg-green-100 text-green-700' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}>
-                        {copied ? '✓ Copied' : 'Copy'}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                    <p className="text-xs text-amber-700">⚠ Save this password now. For security, change it after logging in.</p>
-                  </div>
-                </>
-              )}
-
+              <div className="text-center space-y-1">
+                <p className="font-semibold text-gray-900">Check your email</p>
+                <p className="text-sm text-gray-500">
+                  We sent a temporary password to{' '}
+                  <span className="font-medium text-gray-700">{email}</span>.
+                </p>
+                <p className="text-xs text-gray-400">
+                  Check your inbox and spam folder. Use the temporary password to log in, then change it from your profile.
+                </p>
+              </div>
               <button onClick={onClose}
                 className="w-full px-4 py-2.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg transition font-medium">
                 Back to Login

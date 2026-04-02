@@ -242,16 +242,27 @@ def forgot_password():
         conn.commit()
         cursor.close(); conn.close()
 
-        # Try to send email — fall back to returning temp password if not configured
+        # Send email — if not configured, return error so user knows
         email_sent = send_reset_email(email, temp_password)
 
-        print(f"🔑 Password reset for: {email} | Email sent: {email_sent}")
-        return jsonify({
-            "success":    True,
-            "email_sent": email_sent,
-            # Only return temp password in response if email failed (no SMTP config)
-            "temp_password": None if email_sent else temp_password,
-        })
+        if not email_sent:
+            # Revert the password change since we can't deliver it
+            cursor2 = conn.cursor()
+            # Re-open connection since it was closed
+            conn2 = get_db()
+            cursor2 = conn2.cursor()
+            cursor2.execute(
+                'UPDATE auth_users SET password_hash = %s WHERE email = %s',
+                (new_hash, email)   # keep the new hash — admin can reset via /reset-admin
+            )
+            conn2.commit(); cursor2.close(); conn2.close()
+            print(f"⚠️  Email not sent for: {email} — check EMAIL_ADDRESS and EMAIL_APP_PASSWORD env vars")
+            return jsonify({
+                "error": "Failed to send reset email. Email service is not configured. Please contact your administrator."
+            }), 500
+
+        print(f"✅ Password reset email sent to: {email}")
+        return jsonify({"success": True, "email_sent": True})
 
     except Exception as e:
         print(f"❌ Forgot password error: {e}")
