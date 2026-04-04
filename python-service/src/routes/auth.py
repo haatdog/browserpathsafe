@@ -237,17 +237,7 @@ def forgot_password():
         temp_password = ''.join(secrets.choice(alphabet) for _ in range(10))
         new_hash = hash_password(temp_password)
 
-        # Try sending email BEFORE saving — so we don't change password if email fails
-        email_sent = send_reset_email(email, temp_password)
-
-        if not email_sent:
-            cursor.close(); conn.close()
-            print(f"⚠️  Email not sent for: {email} — check EMAIL_ADDRESS and EMAIL_APP_PASSWORD env vars")
-            return jsonify({
-                "error": "Failed to send reset email. Email service is not configured. Please contact your administrator."
-            }), 500
-
-        # Email sent — now save the new password
+        # Save the new password
         cursor.execute(
             'UPDATE auth_users SET password_hash = %s WHERE email = %s',
             (new_hash, email)
@@ -255,13 +245,57 @@ def forgot_password():
         conn.commit()
         cursor.close(); conn.close()
 
-        print(f"✅ Password reset email sent to: {email}")
-        return jsonify({"success": True, "email_sent": True})
+        print(f"🔑 Password reset for: {email}")
+        return jsonify({"success": True, "temp_password": temp_password})
 
     except Exception as e:
         print(f"❌ Forgot password error: {e}")
         return jsonify({"error": str(e)}), 500
 
+
+
+@auth_bp.route("/api/auth/change-password", methods=["POST", "OPTIONS"])
+def change_password():
+    if request.method == "OPTIONS":
+        return '', 200
+    user_id = session.get('user_id')
+    if not user_id:
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            payload = decode_token(auth_header[7:])
+            if payload:
+                user_id = payload.get('user_id')
+    if not user_id:
+        return jsonify({"error": "Not authenticated"}), 401
+    try:
+        data             = request.json or {}
+        current_password = data.get('current_password', '')
+        new_password     = data.get('new_password', '')
+
+        if not current_password or not new_password:
+            return jsonify({"error": "Both current and new password are required"}), 400
+        if len(new_password) < 6:
+            return jsonify({"error": "New password must be at least 6 characters"}), 400
+
+        conn   = get_db()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute('SELECT password_hash FROM auth_users WHERE id = %s', (user_id,))
+        user = cursor.fetchone()
+
+        if not user or not check_password(current_password, user['password_hash']):
+            cursor.close(); conn.close()
+            return jsonify({"error": "Current password is incorrect"}), 400
+
+        new_hash = hash_password(new_password)
+        cursor.execute('UPDATE auth_users SET password_hash = %s WHERE id = %s', (new_hash, user_id))
+        conn.commit(); cursor.close(); conn.close()
+
+        print(f"✅ Password changed for user: {user_id}")
+        return jsonify({"success": True, "message": "Password changed successfully"})
+
+    except Exception as e:
+        print(f"❌ Change password error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @auth_bp.route("/api/auth/logout", methods=["POST", "OPTIONS"])
 def logout():
