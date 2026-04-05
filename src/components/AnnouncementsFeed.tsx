@@ -300,6 +300,12 @@ interface PostCardProps { post: Announcement; canManage: boolean; onTogglePin: (
 
 function PostCard({ post, canManage, onTogglePin, onToggleLike, onDelete, onToggleComments, showComments, comments, newComment, onCommentChange, onAddComment, formatTimeAgo, onOpenSlideshow }: PostCardProps) {
   const images = getImages(post);
+  const [expanded, setExpanded] = useState(false);
+  const CHAR_LIMIT = 300;
+  const isLong = post.content.length > CHAR_LIMIT;
+  const displayContent = isLong && !expanded
+    ? post.content.slice(0, CHAR_LIMIT).trimEnd() + '…'
+    : post.content;
   return (
     <div className={`bg-white rounded-xl shadow-sm border ${post.is_pinned ? 'border-green-300' : 'border-gray-200'} overflow-hidden`}>
       <div className="p-4 flex items-start justify-between">
@@ -322,7 +328,13 @@ function PostCard({ post, canManage, onTogglePin, onToggleLike, onDelete, onTogg
       </div>
       <div className="px-4 pb-3">
         <h3 className="font-semibold text-gray-900 mb-2" style={T.pageTitle}>{post.title}</h3>
-        <p className="text-gray-700 whitespace-pre-wrap" style={T.body}>{post.content}</p>
+        <p className="text-gray-700 whitespace-pre-wrap" style={T.body}>{displayContent}</p>
+        {isLong && (
+          <button onClick={() => setExpanded(e => !e)}
+            className="mt-1 text-green-600 hover:text-green-700 text-sm font-medium transition">
+            {expanded ? 'See less' : '…see more'}
+          </button>
+        )}
       </div>
       {(post.target_group_name || post.target_heads_only) && (
         <div className="px-4 pb-3">

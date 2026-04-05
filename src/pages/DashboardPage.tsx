@@ -31,9 +31,9 @@ const PAGE_TITLES: Record<Page, string> = {
 
 const PUBLIC_PAGES: Page[] = ['home', 'organization', 'incidents'];
 const ROLE_PAGES: Record<string, Page[]> = {
-  admin:     ['users'],
-  executive: ['events', 'simulations', 'create', 'projects'],
-  member:    ['events'],
+  admin:       ['users', 'events', 'simulations', 'create', 'projects'],
+  coordinator: ['events', 'simulations', 'create', 'projects'],
+  member:      ['events'],
 };
 
 function getDisplayName(profile: UserProfile | null) {
@@ -303,9 +303,9 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
               profile?.role === 'coordinator' || profile?.role === 'member'
                 ? <EventManagement /> : <AccessDenied />
             )}
-            {currentPage === 'simulations'  && (profile?.role === 'coordinator' ? <SimulationList />    : <AccessDenied />)}
-            {currentPage === 'create'       && (profile?.role === 'coordinator' ? <SimulationCreator /> : <AccessDenied />)}
-            {currentPage === 'projects'     && (profile?.role === 'coordinator' ? <ProjectList />       : <AccessDenied />)}
+            {currentPage === 'simulations'  && (profile?.role === 'coordinator' || profile?.role === 'admin' ? <SimulationList />    : <AccessDenied />)}
+            {currentPage === 'create'       && (profile?.role === 'coordinator' || profile?.role === 'admin' ? <SimulationCreator /> : <AccessDenied />)}
+            {currentPage === 'projects'     && (profile?.role === 'coordinator' || profile?.role === 'admin' ? <ProjectList />       : <AccessDenied />)}
             {currentPage === 'users'        && (
               profile?.role === 'admin' || (profile?.is_head && profile?.group_id !== null)
                 ? <UserManagement
