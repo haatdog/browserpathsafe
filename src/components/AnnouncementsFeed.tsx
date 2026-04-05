@@ -301,10 +301,11 @@ interface PostCardProps { post: Announcement; canManage: boolean; onTogglePin: (
 function PostCard({ post, canManage, onTogglePin, onToggleLike, onDelete, onToggleComments, showComments, comments, newComment, onCommentChange, onAddComment, formatTimeAgo, onOpenSlideshow }: PostCardProps) {
   const images = getImages(post);
   const [expanded, setExpanded] = useState(false);
-  const CHAR_LIMIT = 300;
-  const isLong = post.content.length > CHAR_LIMIT;
+  const WORD_LIMIT = 40;
+  const words = post.content.split(' ');
+  const isLong = words.length > WORD_LIMIT;
   const displayContent = isLong && !expanded
-    ? post.content.slice(0, CHAR_LIMIT).trimEnd() + '…'
+    ? words.slice(0, WORD_LIMIT).join(' ') + '…'
     : post.content;
   return (
     <div className={`bg-white rounded-xl shadow-sm border ${post.is_pinned ? 'border-green-300' : 'border-gray-200'} overflow-hidden`}>
