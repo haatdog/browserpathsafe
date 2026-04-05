@@ -103,7 +103,7 @@ function SlideshowModal({ images, initialIndex = 0, title, onClose }: { images: 
         <div className="flex items-center gap-3"><Images className="w-5 h-5 text-white/60" />{title && <span className="text-white truncate max-w-xs" style={T.sectionHeader}>{title}</span>}</div>
         <div className="flex items-center gap-4">
           <span className="text-white/60 tabular-nums" style={T.body}>{current + 1} / {images.length}</span>
-          <button onClick={onClose} className="text-white/70 hover:text-white transition p-1 rounded-lg hover:bg-white/10"><X className="w-6 h-6" /></button>
+          <button onClick={onClose} className="bg-white/20 hover:bg-white/40 text-white transition p-2.5 rounded-xl border border-white/30 backdrop-blur-sm"><X className="w-5 h-5" /></button>
         </div>
       </div>
       <div className="flex-1 flex items-center justify-center px-4 min-h-0 relative">
