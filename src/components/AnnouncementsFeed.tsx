@@ -248,13 +248,13 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
         )}
 
         {showCreateModal && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-auto">
-              <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+            <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-2xl max-h-[92vh] sm:max-h-[90vh] overflow-auto">
+              <div className="p-4 sm:p-6 border-b border-gray-200 flex items-center justify-between">
                 <h2 style={T.pageTitle}>Create Announcement</h2>
-                <button onClick={resetModal} className="text-gray-400 hover:text-gray-600 transition"><X className="w-6 h-6" /></button>
+                <button onClick={resetModal} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition"><X className="w-5 h-5" /></button>
               </div>
-              <div className="p-6 space-y-4">
+              <div className="p-4 sm:p-6 space-y-4">
                 <div>
                   <label className="block mb-2 text-sm font-medium text-gray-700">Title</label>
                   <input type="text" value={newPost.title} onChange={e => setNewPost({ ...newPost, title: e.target.value })}
@@ -280,9 +280,9 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
                   <MultiImageUploader images={newImages} onChange={setNewImages} max={5} accentColor="green" />
                 </div>
               </div>
-              <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
-                <button onClick={resetModal} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition">Cancel</button>
-                <button onClick={createAnnouncement} className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition">Post Announcement</button>
+              <div className="p-4 sm:p-6 border-t border-gray-200 flex gap-3">
+                <button onClick={resetModal} className="flex-1 sm:flex-none px-4 py-2.5 text-gray-600 hover:bg-gray-100 rounded-xl transition border border-gray-300">Cancel</button>
+                <button onClick={createAnnouncement} className="flex-1 sm:flex-none px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-medium transition">Post Announcement</button>
               </div>
             </div>
           </div>
@@ -357,9 +357,9 @@ function PostCard({ post, canManage, onTogglePin, onToggleLike, onDelete, onTogg
           })}
         </div>
       )}
-      <div className="px-4 py-3 border-t border-gray-100 flex items-center gap-4">
-        <button onClick={() => onToggleLike(post.id)} className="flex items-center gap-2 text-gray-600 hover:text-red-600 transition"><Heart className="w-5 h-5" /><span className="font-medium text-sm">{post.likes_count}</span></button>
-        <button onClick={() => onToggleComments(post.id)} className="flex items-center gap-2 text-gray-600 hover:text-green-600 transition"><MessageSquare className="w-5 h-5" /><span className="font-medium text-sm">{post.comments_count}</span></button>
+      <div className="px-4 py-3 border-t border-gray-100 flex items-center gap-2 sm:gap-4">
+        <button onClick={() => onToggleLike(post.id)} className="flex items-center gap-1.5 sm:gap-2 px-2 py-1.5 -mx-1 rounded-lg text-gray-600 hover:text-red-600 hover:bg-red-50 transition"><Heart className="w-5 h-5" /><span className="font-medium text-sm">{post.likes_count}</span></button>
+        <button onClick={() => onToggleComments(post.id)} className="flex items-center gap-1.5 sm:gap-2 px-2 py-1.5 -mx-1 rounded-lg text-gray-600 hover:text-green-600 hover:bg-green-50 transition"><MessageSquare className="w-5 h-5" /><span className="font-medium text-sm">{post.comments_count}</span></button>
         {images.length > 0 && <button onClick={() => onOpenSlideshow(0)} className="flex items-center gap-2 text-gray-600 hover:text-green-600 transition ml-auto"><Images className="w-4 h-4" /><span style={T.body}>{images.length} photo{images.length !== 1 ? 's' : ''}</span></button>}
       </div>
       {showComments && (
@@ -377,8 +377,8 @@ function PostCard({ post, canManage, onTogglePin, onToggleLike, onDelete, onTogg
             ))}
             <div className="flex gap-2 pt-2">
               <input type="text" value={newComment} onChange={e => onCommentChange(e.target.value)} onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && onAddComment(post.id)}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm" placeholder="Write a comment..." />
-              <button onClick={() => onAddComment(post.id)} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition"><Send className="w-4 h-4" /></button>
+                className="flex-1 px-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm" placeholder="Write a comment..." />
+              <button onClick={() => onAddComment(post.id)} className="px-3 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl transition flex-shrink-0"><Send className="w-4 h-4" /></button>
             </div>
           </div>
         </div>

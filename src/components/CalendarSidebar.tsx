@@ -21,9 +21,10 @@ interface Event {
 
 interface CalendarSidebarProps {
   userRole: 'admin' | 'coordinator' | 'member';
+  mobileSheet?: boolean;
 }
 
-export default function CalendarSidebar({ userRole }: CalendarSidebarProps) {
+export default function CalendarSidebar({ userRole, mobileSheet = false }: CalendarSidebarProps) {
   const [events,          setEvents]          = useState<Event[]>([]);
   const [currentDate,     setCurrentDate]     = useState(new Date());
   const [selectedDate,    setSelectedDate]    = useState(new Date());
@@ -96,7 +97,7 @@ export default function CalendarSidebar({ userRole }: CalendarSidebarProps) {
   };
 
   const createEvent = async () => {
-    if (userRole !== 'coordinator') { alert('Only coordinators can create events'); return; }
+    if (userRole !== 'coordinator' && userRole !== 'admin') { alert('Only executives can create events'); return; }
     if (!newEvent.title || !newEvent.start_time || !newEvent.end_time) {
       alert('Please fill in title, start time, and end time'); return;
     }
@@ -158,22 +159,22 @@ export default function CalendarSidebar({ userRole }: CalendarSidebarProps) {
 
   return (
     <>
-      <div className="w-80 bg-white border-l border-gray-200 flex flex-col h-full overflow-hidden">
+      <div className={mobileSheet ? "flex flex-col" : "w-80 bg-white border-l border-gray-200 flex flex-col h-full overflow-hidden"}>
         {/* Header */}
         <div className="p-4 border-b border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <h2 style={T.sectionHeader}>Calendar & Events</h2>
             <div className="flex items-center gap-1">
-              {userRole === 'coordinator' && (
+              {userRole === 'coordinator' || userRole === 'admin' && (
                 <button onClick={() => setShowCreateModal(true)}
                   className="p-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition" title="Create Event">
                   <Plus className="w-4 h-4" />
                 </button>
               )}
-              <button onClick={() => setCollapsed(true)}
+              {!mobileSheet && <button onClick={() => setCollapsed(true)}
                 className="p-1.5 hover:bg-green-50 text-gray-400 hover:text-green-600 rounded-lg transition" title="Collapse">
                 <PanelRightClose className="w-4 h-4" />
-              </button>
+              </button>}
             </div>
           </div>
 

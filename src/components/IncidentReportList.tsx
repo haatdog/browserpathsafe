@@ -6,7 +6,11 @@ import {
 } from 'lucide-react';
 import CreateIncidentModal from './CreateIncidentModal';
 import { T, C } from '../design/DesignTokens';
-import { incidentAPI } from '../lib/api';
+
+const API_BASE =
+  (import.meta.env.VITE_API_URL as string) ??
+  (import.meta.env.VITE_PYTHON_API_URL as string) ??
+  `${location.protocol}//${location.hostname}:5000`;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface RichData {
@@ -258,7 +262,7 @@ function IncidentCard({ incident, onClick }: { incident: Incident; onClick: () =
   return (
     <div onClick={onClick}
       className="bg-white rounded-xl border border-gray-200 hover:shadow-lg hover:border-blue-200 transition-all cursor-pointer group">
-      <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-gray-100">
+      <div className="flex items-center justify-between px-4 sm:px-5 pt-4 pb-3 border-b border-gray-100">
         <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${SEVERITY_STYLES[incident.severity] ?? SEVERITY_STYLES.medium}`}>
           {incident.severity.toUpperCase()}
         </span>
@@ -320,8 +324,8 @@ export default function IncidentReportsList() {
 
   const fetchIncidents = async () => {
     try {
-      const data = await incidentAPI.getAll();
-      setIncidents(Array.isArray(data) ? data : []);
+      const res = await fetch(`${API_BASE}/api/incidents`, { credentials: 'include' });
+      if (res.ok) setIncidents(await res.json());
     } catch (e) { console.error('Failed to fetch incidents:', e); }
     finally { setLoading(false); }
   };
@@ -336,13 +340,13 @@ export default function IncidentReportsList() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <div>
           <h1 style={T.pageTitle}>Incident Reports</h1>
           <p className="mt-1" style={{...T.body, color: C.inkMuted}}>{incidents.length} total report{incidents.length !== 1 ? 's' : ''}</p>
         </div>
         <button onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl transition text-sm font-medium shadow-sm">
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl transition text-sm font-medium shadow-sm w-full sm:w-auto justify-center sm:justify-start">
           <Plus className="w-4 h-4" /> Report Incident
         </button>
       </div>
@@ -435,7 +439,7 @@ function IncidentDetailModal({ incident, onClose, onRefresh }: {
   );
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
 
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
