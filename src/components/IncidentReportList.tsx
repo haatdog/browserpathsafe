@@ -2,10 +2,11 @@
 import { useState, useEffect } from 'react';
 import {
   AlertTriangle, Calendar, MapPin, MessageSquare, Plus, Filter,
-  Users, Eye, ChevronRight, Loader, X
+  Users, Eye, ChevronRight, Loader, X, FileText
 } from 'lucide-react';
 import CreateIncidentModal from './CreateIncidentModal';
 import { T, C } from '../design/DesignTokens';
+import { profileAPI } from '../lib/api';
 
 const API_BASE =
   (import.meta.env.VITE_API_URL as string) ??
@@ -319,8 +320,13 @@ export default function IncidentReportsList() {
   const [filter,           setFilter]           = useState('all');
   const [showCreateModal,  setShowCreateModal]  = useState(false);
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
+  const [userRole,         setUserRole]         = useState<'admin'|'coordinator'|'member'>('member');
 
-  useEffect(() => { fetchIncidents(); }, []);
+  useEffect(() => { fetchIncidents(); loadRole(); }, []);
+
+  const loadRole = async () => {
+    try { const p = await profileAPI.getMe(); setUserRole(p.role as any); } catch {}
+  };
 
   const fetchIncidents = async () => {
     try {
@@ -335,6 +341,36 @@ export default function IncidentReportsList() {
   if (loading) return (
     <div className="flex items-center justify-center h-64">
       <Loader className="w-8 h-8 animate-spin text-blue-600" />
+    </div>
+  );
+
+  // Members only see a submit button — not the full incident list
+  if (userRole === 'member') return (
+    <div className="space-y-6">
+      <div>
+        <h1 style={T.pageTitle}>Incident Reports</h1>
+        <p className="mt-1" style={{...T.body, color: C.inkMuted}}>Report a safety incident or hazard</p>
+      </div>
+      <div className="bg-white rounded-xl border border-gray-200 p-8 text-center space-y-4">
+        <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto">
+          <FileText className="w-8 h-8 text-blue-600" />
+        </div>
+        <div>
+          <h3 className="font-semibold text-gray-900 mb-1">Submit an Incident Report</h3>
+          <p className="text-sm text-gray-500 max-w-sm mx-auto">
+            Witnessed a safety hazard or incident on campus? Report it here so it can be reviewed and addressed promptly.
+          </p>
+        </div>
+        <button onClick={() => setShowCreateModal(true)}
+          className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl transition text-sm font-medium shadow-sm">
+          <Plus className="w-4 h-4" /> Report an Incident
+        </button>
+      </div>
+      {showCreateModal && (
+        <CreateIncidentModal
+          onClose={() => setShowCreateModal(false)}
+          onSuccess={() => { setShowCreateModal(false); }} />
+      )}
     </div>
   );
 

@@ -99,12 +99,17 @@ function SlideshowModal({ images, initialIndex = 0, title, onClose }: { images: 
 
   return (
     <div className="fixed inset-0 z-[60] bg-black/95 flex flex-col" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="flex items-center justify-between px-6 py-4 flex-shrink-0">
-        <div className="flex items-center gap-3"><Images className="w-5 h-5 text-white/60" />{title && <span className="text-white truncate max-w-xs" style={T.sectionHeader}>{title}</span>}</div>
-        <div className="flex items-center gap-4">
-          <span className="text-white/60 tabular-nums" style={T.body}>{current + 1} / {images.length}</span>
-          <button onClick={onClose} className="bg-white/20 hover:bg-white/40 text-white transition p-2.5 rounded-xl border border-white/30 backdrop-blur-sm"><X className="w-5 h-5" /></button>
+      {/* Fixed close button — always top-right regardless of content */}
+      <button onClick={onClose}
+        className="fixed top-4 right-4 z-[70] bg-white/20 hover:bg-white/40 text-white transition p-3 rounded-2xl border border-white/30 backdrop-blur-sm shadow-lg">
+        <X className="w-5 h-5" />
+      </button>
+      <div className="flex items-center justify-between px-4 pr-20 py-4 flex-shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <Images className="w-5 h-5 text-white/60 flex-shrink-0" />
+          {title && <span className="text-white truncate" style={T.sectionHeader}>{title}</span>}
         </div>
+        <span className="text-white/60 tabular-nums flex-shrink-0" style={T.body}>{current + 1} / {images.length}</span>
       </div>
       <div className="flex-1 flex items-center justify-center px-4 min-h-0 relative">
         {images.length > 1 && <button onClick={prev} className="absolute left-4 z-10 p-3 rounded-full bg-white/10 hover:bg-white/25 text-white transition backdrop-blur-sm"><ChevronLeft className="w-6 h-6" /></button>}
