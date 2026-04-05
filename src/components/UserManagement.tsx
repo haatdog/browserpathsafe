@@ -49,6 +49,12 @@ export default function UserManagement({
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creating,        setCreating]        = useState(false);
   const [newUser, setNewUser] = useState({ email: '', password: '', first_name: '', last_name: '', role: 'member' as UserProfile['role'] });
+  const [newUserGroups, setNewUserGroups] = useState<{ group_id: number; is_head: boolean }[]>([]);
+
+  // Role editing
+  const [editingRoleId,  setEditingRoleId]  = useState<string | null>(null);
+  const [editRoleValue,  setEditRoleValue]  = useState<UserProfile['role']>('member');
+  const [savingRole,     setSavingRole]     = useState(false);
 
   // Group assignment modal (multi-group)
   const [editingUserId,   setEditingUserId]   = useState<string | null>(null);
@@ -95,11 +101,50 @@ export default function UserManagement({
       };
       const res = await authFetch(`${API}/api/auth/register`, { method: 'POST', body: JSON.stringify(payload) });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed to create user'); }
+      const created = await res.json();
+      const newId = created.user?.id || created.id;
+
+      // Assign groups if any selected
+      const groupsToAssign = isUnitHead && !isAdmin
+        ? [{ group_id: currentUserGroupId!, is_head: false }]
+        : newUserGroups;
+
+      if (newId && groupsToAssign.length > 0) {
+        await authFetch(`${API}/api/users/${newId}/groups`, {
+          method: 'PUT',
+          body: JSON.stringify({ groups: groupsToAssign }),
+        });
+      }
+
       setShowCreateModal(false);
       setNewUser({ email: '', password: '', first_name: '', last_name: '', role: 'member' });
+      setNewUserGroups([]);
       await loadAll();
     } catch (err: any) { setError(err.message); }
     finally { setCreating(false); }
+  };
+
+  // ── Edit role ────────────────────────────────────────────────────────────────
+  const startEditingRole = (user: UserProfile) => {
+    setEditingRoleId(user.id);
+    setEditRoleValue(user.role);
+    // Close group editor if open
+    if (editingUserId === user.id) setEditingUserId(null);
+  };
+
+  const handleSaveRole = async (userId: string) => {
+    setSavingRole(true);
+    try {
+      const res = await authFetch(`${API}/api/users/${userId}/role`, {
+        method: 'PUT',
+        body: JSON.stringify({ role: editRoleValue }),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed'); }
+      setEditingRoleId(null);
+      await loadAll();
+      if (userId === currentUserId) window.location.reload();
+    } catch (err: any) { setError(err.message); }
+    finally { setSavingRole(false); }
   };
 
   // ── Delete user ──────────────────────────────────────────────────────────────
@@ -291,8 +336,16 @@ export default function UserManagement({
                 </div>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   {isAdmin && (
+                    <button onClick={() => startEditingRole(user)} title="Edit role"
+                      className={`p-1.5 rounded-lg transition ${editingRoleId === user.id ? 'text-green-600 bg-green-50' : 'text-gray-400 hover:text-green-600 hover:bg-green-50'}`}>
+                      <Shield className="w-4 h-4" />
+                    </button>
+                  )}
+                  {isAdmin && (
                     <button onClick={() => startEditing(user)} title="Edit groups"
-                      className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition"><Pencil className="w-4 h-4" /></button>
+                      className={`p-1.5 rounded-lg transition ${editingUserId === user.id ? 'text-blue-600 bg-blue-50' : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'}`}>
+                      <Pencil className="w-4 h-4" />
+                    </button>
                   )}
                   {isAdmin && (
                     <button onClick={() => handleDeleteUser(user.id)} title="Delete user"
@@ -300,6 +353,28 @@ export default function UserManagement({
                   )}
                 </div>
               </div>
+
+              {/* Inline role editor */}
+              {editingRoleId === user.id && (
+                <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
+                  <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">Change Role</p>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <select value={editRoleValue} onChange={e => setEditRoleValue(e.target.value as UserProfile['role'])}
+                      className="flex-1 min-w-[160px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                      <option value="member">Member</option>
+                      <option value="coordinator">Coordinator</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                    <div className="flex gap-2 ml-auto">
+                      <button onClick={() => setEditingRoleId(null)} className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition">Cancel</button>
+                      <button onClick={() => handleSaveRole(user.id)} disabled={savingRole}
+                        className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 flex items-center gap-1">
+                        {savingRole ? <><Loader className="w-4 h-4 animate-spin" />Saving…</> : <><Check className="w-4 h-4" />Save</>}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Multi-group editor inline */}
               {editingUserId === user.id && (
@@ -376,9 +451,43 @@ export default function UserManagement({
                   </select>
                 </div>
               )}
-              <p className="text-xs text-gray-400">You can assign groups after creating the user.</p>
+              {/* Group assignment during creation */}
+              {(isAdmin || isUnitHead) && (newUser.role === 'member' || !isAdmin) && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Groups <span className="text-gray-400 font-normal">(Optional)</span>
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+                    {(isUnitHead && !isAdmin
+                      ? groups.filter(g => g.id === currentUserGroupId)
+                      : groups
+                    ).map(g => {
+                      const inList = newUserGroups.find(ng => ng.group_id === g.id);
+                      return (
+                        <div key={g.id}
+                          className={`flex items-center justify-between px-3 py-2 rounded-lg border cursor-pointer transition ${inList ? 'border-green-400 bg-green-50' : 'border-gray-200 hover:border-gray-300'}`}
+                          onClick={() => setNewUserGroups(prev => inList ? prev.filter(ng => ng.group_id !== g.id) : [...prev, { group_id: g.id, is_head: false }])}>
+                          <div className="flex items-center gap-2">
+                            <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${inList ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
+                              {inList && <Check className="w-3 h-3 text-white" />}
+                            </div>
+                            <span className="text-sm text-gray-700">{g.name}</span>
+                          </div>
+                          {inList && (
+                            <button type="button"
+                              onClick={e => { e.stopPropagation(); setNewUserGroups(prev => prev.map(ng => ng.group_id === g.id ? { ...ng, is_head: !ng.is_head } : ng)); }}
+                              className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition ${inList.is_head ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-green-100 hover:text-green-700'}`}>
+                              <Star className="w-3 h-3" />{inList.is_head ? 'Head' : 'Set Head'}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               <div className="flex gap-3 pt-1">
-                <button type="button" onClick={() => setShowCreateModal(false)} className="flex-1 px-4 py-2.5 text-sm border border-gray-300 rounded-xl hover:bg-gray-50 transition">Cancel</button>
+                <button type="button" onClick={() => { setShowCreateModal(false); setNewUserGroups([]); }} className="flex-1 px-4 py-2.5 text-sm border border-gray-300 rounded-xl hover:bg-gray-50 transition">Cancel</button>
                 <button type="submit" disabled={creating} className="flex-1 px-4 py-2.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-xl transition disabled:opacity-50 flex items-center justify-center gap-2">
                   {creating ? <><Loader className="w-4 h-4 animate-spin" />Creating…</> : 'Create'}
                 </button>
