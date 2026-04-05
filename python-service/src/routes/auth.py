@@ -337,11 +337,24 @@ def get_current_user():
             WHERE u.id = %s
         ''', (user_id,))
         user = cursor.fetchone()
-        cursor.close(); conn.close()
 
         if not user:
+            cursor.close(); conn.close()
             session.clear()
             return jsonify({"error": "User not found"}), 404
+
+        # Fetch all group memberships
+        cursor.execute('''
+            SELECT ug.group_id, ug.is_head, g.name AS group_name
+            FROM user_groups ug
+            JOIN groups g ON g.id = ug.group_id
+            WHERE ug.user_id = %s ORDER BY g.name
+        ''', (user_id,))
+        memberships = cursor.fetchall()
+        cursor.close(); conn.close()
+
+        groups = [{'group_id': m['group_id'], 'group_name': m['group_name'], 'is_head': bool(m['is_head'])} for m in memberships]
+        any_head = any(g['is_head'] for g in groups)
 
         return jsonify({
             "id":         user['id'],
@@ -351,7 +364,8 @@ def get_current_user():
             "role":       user['role'],
             "group_id":   user['group_id'],
             "group_name": user['group_name'],
-            "is_head":    bool(user['is_head']) if user['is_head'] is not None else False,
+            "is_head":    any_head,
+            "groups":     groups,
             "created_at": user['created_at'].isoformat() if user['created_at'] else None,
             "updated_at": user['updated_at'].isoformat() if user['updated_at'] else None,
         })

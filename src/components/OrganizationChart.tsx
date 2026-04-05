@@ -2,7 +2,6 @@
 import { useState, useEffect } from 'react';
 import { Loader, Users, Star, Shield, Crown, User, ChevronDown, ChevronUp } from 'lucide-react';
 import { T, C } from '../design/DesignTokens';
-import { organizationAPI, UserProfile } from '../lib/api';
 
 interface Group {
   id: number;
@@ -10,6 +9,22 @@ interface Group {
   is_custom: boolean;
 }
 
+interface UserProfile {
+  id: string;
+  email: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  role: 'admin' | 'executive' | 'member';
+  group_id: number | null;
+  group_name: string | null;
+  is_head: boolean;
+  groups?: { group_id: number; group_name: string; is_head: boolean }[];
+}
+
+const API_BASE =
+  (import.meta.env.VITE_API_URL as string) ??
+  (import.meta.env.VITE_PYTHON_API_URL as string) ??
+  `${location.protocol}//${location.hostname}:5000`;
 
 // ── Group colour palette ───────────────────────────────────────────────────────
 const GROUP_COLORS = [
@@ -52,7 +67,7 @@ function Avatar({ email, firstName, lastName, size = 'md', highlight = false }: 
 // Role icon
 function RoleIcon({ role }: { role: string }) {
   if (role === 'admin')     return <Crown  className="w-3.5 h-3.5 text-amber-500" />;
-  if (role === 'coordinator') return <Shield className="w-3.5 h-3.5 text-blue-500"  />;
+  if (role === 'executive') return <Shield className="w-3.5 h-3.5 text-blue-500"  />;
   return <User className="w-3.5 h-3.5 text-gray-400" />;
 }
 
@@ -98,6 +113,7 @@ function GroupCard({ group, members, colorIdx }: { group: Group | null; members:
 
   const head    = members.find(m => m.is_head);
   const regular = members.filter(m => !m.is_head);
+  // Note: in multi-group mode, is_head is already set per-group by the groupMap builder
   const label   = group?.name ?? 'Unassigned';
   const isUnassigned = !group;
 
@@ -179,8 +195,8 @@ function GroupCard({ group, members, colorIdx }: { group: Group | null; members:
 // ── Leadership row ────────────────────────────────────────────────────────────
 function LeadershipRow({ users }: { users: UserProfile[] }) {
   const admins     = users.filter(u => u.role === 'admin');
-  const coordinators = users.filter(u => u.role === 'coordinator');
-  const all        = [...admins, ...coordinators];
+  const executives = users.filter(u => u.role === 'executive');
+  const all        = [...admins, ...executives];
   if (all.length === 0) return null;
 
   return (
@@ -207,7 +223,7 @@ function LeadershipRow({ users }: { users: UserProfile[] }) {
                   ? 'bg-amber-400/20 text-amber-300 border border-amber-500/30'
                   : 'bg-blue-400/20 text-blue-300 border border-blue-500/30'}`}>
                 {isAdmin ? <Crown className="w-3 h-3" /> : <Shield className="w-3 h-3" />}
-                {isAdmin ? 'Admin' : 'Coordinator'}
+                {isAdmin ? 'Admin' : 'Executive'}
               </span>
             </div>
           );
@@ -220,8 +236,8 @@ function LeadershipRow({ users }: { users: UserProfile[] }) {
 // ── Stats bar ─────────────────────────────────────────────────────────────────
 function StatsBar({ users, groups }: { users: UserProfile[]; groups: Group[] }) {
   const members    = users.filter(u => u.role === 'member');
-  const assigned   = members.filter(u => u.group_id !== null);
-  const heads      = members.filter(u => u.is_head);
+  const assigned   = members.filter(u => (u.groups && u.groups.length > 0) || u.group_id !== null);
+  const heads      = members.filter(u => u.is_head || (u.groups && u.groups.some(g => g.is_head)));
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
@@ -251,7 +267,9 @@ export default function OrganizationChart() {
   useEffect(() => {
     (async () => {
       try {
-        const data = await organizationAPI.get();
+        const res  = await fetch(`${API_BASE}/api/organization`, { credentials: 'include' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load organization');
         setUsers(Array.isArray(data.users)  ? data.users  : []);
         setGroups(Array.isArray(data.groups) ? data.groups : []);
       } catch (e: any) {

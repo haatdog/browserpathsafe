@@ -36,9 +36,15 @@ def get_announcements():
                 (SELECT role FROM user_profiles WHERE id = %(uid)s) IN ('coordinator', 'admin')
                 OR (a.target_group_id IS NULL AND a.target_heads_only = FALSE)
                 OR (a.target_group_id IS NOT NULL
-                    AND a.target_group_id = (SELECT group_id FROM user_profiles WHERE id = %(uid)s))
+                    AND EXISTS (
+                        SELECT 1 FROM user_groups
+                        WHERE user_id = %(uid)s AND group_id = a.target_group_id
+                    ))
                 OR (a.target_heads_only = TRUE
-                    AND (SELECT is_head FROM user_profiles WHERE id = %(uid)s) = TRUE)
+                    AND EXISTS (
+                        SELECT 1 FROM user_groups
+                        WHERE user_id = %(uid)s AND is_head = TRUE
+                    ))
             )
             ORDER BY a.is_pinned DESC, a.created_at DESC
         ''', {'uid': user_id})

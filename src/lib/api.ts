@@ -5,8 +5,14 @@ const PYTHON_API = import.meta.env.VITE_PYTHON_API_URL || 'https://browserpathsa
    SHARED TYPES
 ========================= */
 
-export type Role = 'admin' | 'coordinator' | 'member';
+export type Role = 'admin' | 'executive' | 'member';
 export type DisasterType = 'fire' | 'earthquake' | 'bomb';
+
+export interface UserGroup {
+  group_id: number;
+  group_name: string;
+  is_head: boolean;
+}
 
 export interface UserProfile {
   id: string;
@@ -17,6 +23,7 @@ export interface UserProfile {
   group_id?: number | null;
   group_name?: string | null;
   is_head?: boolean;
+  groups?: UserGroup[];   // multi-group memberships
   created_at: string;
   updated_at: string;
 }
@@ -190,10 +197,22 @@ export const profileAPI = {
     pythonRequest<void>(`/api/users/${userId}`, { method: 'DELETE' }),
 
   // ✅ ADDED
+  // Legacy single-group (kept for compatibility)
   updateGroup: (userId: string, groupId: number | null, isHead = false) =>
     pythonRequest(`/api/users/${userId}/group`, {
       method: 'PUT',
       body: JSON.stringify({ group_id: groupId, is_head: isHead }),
+    }),
+
+  // Multi-group: get all groups for a user
+  getUserGroups: (userId: string): Promise<UserGroup[]> =>
+    pythonRequest(`/api/users/${userId}/groups`, { method: 'GET' }),
+
+  // Multi-group: set all groups for a user (replaces existing)
+  setUserGroups: (userId: string, groups: { group_id: number; is_head: boolean }[]) =>
+    pythonRequest(`/api/users/${userId}/groups`, {
+      method: 'PUT',
+      body: JSON.stringify({ groups }),
     }),
 };
 

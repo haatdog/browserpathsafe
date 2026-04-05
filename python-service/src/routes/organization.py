@@ -1,4 +1,4 @@
-# src/routes/organization.py  — Groups + Org chart
+# src/routes/organization.py
 from flask import Blueprint, request, jsonify
 from psycopg2.extras import RealDictCursor
 from src.utils import get_user_id, get_db, require_auth
@@ -6,9 +6,9 @@ from src.utils import get_user_id, get_db, require_auth
 organization_bp = Blueprint('organization', __name__)
 
 
-@organization_bp.route("/api/groups", methods=["GET", "OPTIONS"])
+@organization_bp.route('/api/groups', methods=['GET', 'OPTIONS'])
 def get_groups():
-    if request.method == "OPTIONS":
+    if request.method == 'OPTIONS':
         return '', 200
     try:
         conn   = get_db()
@@ -18,12 +18,12 @@ def get_groups():
         cursor.close(); conn.close()
         return jsonify(groups)
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({'error': str(e)}), 500
 
 
-@organization_bp.route("/api/groups", methods=["POST", "OPTIONS"])
+@organization_bp.route('/api/groups', methods=['POST', 'OPTIONS'])
 def create_group():
-    if request.method == "OPTIONS":
+    if request.method == 'OPTIONS':
         return '', 200
     auth_err = require_auth()
     if auth_err:
@@ -31,23 +31,20 @@ def create_group():
     try:
         name = (request.json or {}).get('name', '').strip()
         if not name:
-            return jsonify({"error": "Name is required"}), 400
+            return jsonify({'error': 'Name is required'}), 400
         conn   = get_db()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
-        cursor.execute(
-            'INSERT INTO groups (name, is_custom) VALUES (%s, TRUE) RETURNING *',
-            (name,)
-        )
+        cursor.execute('INSERT INTO groups (name, is_custom) VALUES (%s, TRUE) RETURNING *', (name,))
         group = dict(cursor.fetchone())
         conn.commit(); cursor.close(); conn.close()
         return jsonify(group), 201
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({'error': str(e)}), 500
 
 
-@organization_bp.route("/api/groups/<int:group_id>", methods=["PATCH", "OPTIONS"])
+@organization_bp.route('/api/groups/<int:group_id>', methods=['PATCH', 'OPTIONS'])
 def rename_group(group_id):
-    if request.method == "OPTIONS":
+    if request.method == 'OPTIONS':
         return '', 200
     auth_err = require_auth()
     if auth_err:
@@ -55,49 +52,44 @@ def rename_group(group_id):
     try:
         new_name = ((request.json or {}).get('name') or '').strip()
         if not new_name:
-            return jsonify({"error": "Name is required"}), 400
+            return jsonify({'error': 'Name is required'}), 400
 
         user_id = get_user_id()
         conn    = get_db()
-        cursor  = conn.cursor()
+        cursor  = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Check caller's role — only admins or the Unit Head of this group can rename
-        cursor.execute(
-            "SELECT role, group_id, is_head FROM user_profiles WHERE id = %s",
-            (user_id,)
-        )
+        cursor.execute('SELECT role FROM user_profiles WHERE id = %s', (user_id,))
         profile = cursor.fetchone()
         if not profile:
             cursor.close(); conn.close()
-            return jsonify({"error": "Unauthorized"}), 403
+            return jsonify({'error': 'Unauthorized'}), 403
 
-        role, user_group_id, is_head = profile
-        is_admin             = (role == 'admin')
-        is_unit_head_of_group = (is_head and user_group_id == group_id)
+        is_admin = profile['role'] == 'admin'
+
+        # Check if user is head of this specific group
+        cursor.execute('SELECT is_head FROM user_groups WHERE user_id = %s AND group_id = %s', (user_id, group_id))
+        ug = cursor.fetchone()
+        is_unit_head_of_group = ug and bool(ug['is_head'])
 
         if not is_admin and not is_unit_head_of_group:
             cursor.close(); conn.close()
-            return jsonify({"error": "Only admins or the Unit Head of this group can rename it"}), 403
+            return jsonify({'error': 'Only admins or the head of this group can rename it'}), 403
 
-        cursor.execute(
-            "UPDATE groups SET name = %s WHERE id = %s RETURNING id, name",
-            (new_name, group_id)
-        )
+        cursor.execute('UPDATE groups SET name = %s WHERE id = %s RETURNING id, name', (new_name, group_id))
         updated = cursor.fetchone()
         conn.commit(); cursor.close(); conn.close()
 
         if not updated:
-            return jsonify({"error": "Group not found"}), 404
-
-        return jsonify({"id": updated[0], "name": updated[1]})
+            return jsonify({'error': 'Group not found'}), 404
+        return jsonify({'id': updated['id'], 'name': updated['name']})
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({'error': str(e)}), 500
 
 
-@organization_bp.route("/api/groups/<int:group_id>", methods=["DELETE", "OPTIONS"])
+@organization_bp.route('/api/groups/<int:group_id>', methods=['DELETE', 'OPTIONS'])
 def delete_group(group_id):
-    if request.method == "OPTIONS":
+    if request.method == 'OPTIONS':
         return '', 200
     auth_err = require_auth()
     if auth_err:
@@ -110,15 +102,15 @@ def delete_group(group_id):
         rows = cursor.rowcount
         cursor.close(); conn.close()
         if rows == 0:
-            return jsonify({"error": "Group not found"}), 404
-        return jsonify({"success": True})
+            return jsonify({'error': 'Group not found'}), 404
+        return jsonify({'success': True})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({'error': str(e)}), 500
 
 
-@organization_bp.route("/api/organization", methods=["GET", "OPTIONS"])
+@organization_bp.route('/api/organization', methods=['GET', 'OPTIONS'])
 def get_organization():
-    if request.method == "OPTIONS":
+    if request.method == 'OPTIONS':
         return '', 200
     auth_err = require_auth()
     if auth_err:
@@ -126,20 +118,54 @@ def get_organization():
     try:
         conn   = get_db()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Get all users
         cursor.execute('''
-            SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.group_id, u.is_head, g.name AS group_name
+            SELECT u.id, u.email, u.first_name, u.last_name, u.role,
+                   u.group_id, u.is_head, g.name AS group_name
             FROM user_profiles u
             LEFT JOIN groups g ON u.group_id = g.id
             ORDER BY u.role DESC, u.email ASC
         ''')
-        users = cursor.fetchall()
+        users_raw = cursor.fetchall()
+
+        # Get all group memberships
+        cursor.execute('''
+            SELECT ug.user_id, ug.group_id, ug.is_head, g.name AS group_name
+            FROM user_groups ug
+            JOIN groups g ON g.id = ug.group_id
+            ORDER BY g.name
+        ''')
+        memberships = cursor.fetchall()
+
+        # Get all groups
         cursor.execute('SELECT * FROM groups ORDER BY is_custom ASC, name ASC')
         groups = cursor.fetchall()
         cursor.close(); conn.close()
+
+        # Build groups map per user
+        groups_map: dict = {}
+        for m in memberships:
+            uid = m['user_id']
+            if uid not in groups_map:
+                groups_map[uid] = []
+            groups_map[uid].append({
+                'group_id':   m['group_id'],
+                'group_name': m['group_name'],
+                'is_head':    bool(m['is_head']),
+            })
+
+        users_out = []
+        for u in users_raw:
+            d = dict(u)
+            d['groups'] = groups_map.get(u['id'], [])
+            users_out.append(d)
+
         return jsonify({
-            "users":  [dict(u) for u in users],
-            "groups": [dict(g) for g in groups],
+            'users':  users_out,
+            'groups': [dict(g) for g in groups],
         })
+
     except Exception as e:
-        print(f"❌ Error getting organization: {e}")
-        return jsonify({"error": str(e)}), 500
+        import traceback; traceback.print_exc()
+        return jsonify({'error': str(e)}), 500

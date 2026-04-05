@@ -12,12 +12,12 @@ app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024   # 50 MB
 app.secret_key = os.getenv('SECRET_KEY')
 app.config['SESSION_COOKIE_PATH']     = '/'
-app.config['SESSION_COOKIE_SAMESITE'] = 'None'
-app.config['SESSION_COOKIE_SECURE']   = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'None'   # required for cross-domain cookies
+app.config['SESSION_COOKIE_SECURE']   = True      # required when SameSite=None
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 CORS(app,
      origins=["http://localhost:5173", "https://browserpathsafe.vercel.app"],
-     supports_credentials=True)
+     supports_credentials=True)                   # required for cookies to be sent
 
 @app.after_request
 def after_request(response):
@@ -115,6 +115,27 @@ def init_db():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )''',
         'CREATE INDEX IF NOT EXISTS idx_projects_updated ON projects(updated_at DESC)',
+
+        # ── user_groups junction table ─────────────────────────────────────────
+        # Replaces single group_id + is_head on user_profiles.
+        # A user can belong to multiple groups, and be a head in some but not others.
+        '''CREATE TABLE IF NOT EXISTS user_groups (
+            id         SERIAL PRIMARY KEY,
+            user_id    VARCHAR(255) NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE,
+            group_id   INTEGER      NOT NULL REFERENCES groups(id)        ON DELETE CASCADE,
+            is_head    BOOLEAN      DEFAULT FALSE,
+            created_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, group_id)
+        )''',
+        'CREATE INDEX IF NOT EXISTS idx_user_groups_user  ON user_groups(user_id)',
+        'CREATE INDEX IF NOT EXISTS idx_user_groups_group ON user_groups(group_id)',
+
+        # Migrate existing single-group assignments into user_groups
+        '''INSERT INTO user_groups (user_id, group_id, is_head)
+           SELECT id, group_id, COALESCE(is_head, FALSE)
+           FROM user_profiles
+           WHERE group_id IS NOT NULL
+           ON CONFLICT (user_id, group_id) DO NOTHING''',
         '''CREATE TABLE IF NOT EXISTS simulations (
             id SERIAL PRIMARY KEY,
             user_id VARCHAR(255),
@@ -259,7 +280,7 @@ def init_db():
                         '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TiGc8L4pNgq7Bxv3j5W2tZ8K9Lem');
 
                 INSERT INTO user_profiles (id, email, role, first_name, last_name)
-                VALUES (admin_id, 'admin@pathsafe.com', 'coordinator', 'Admin', 'PathSafe');
+                VALUES (admin_id, 'admin@pathsafe.com', 'executive', 'Admin', 'PathSafe');
             END IF;
         END $$;''',
     ]
@@ -305,15 +326,3 @@ if __name__ == "__main__":
     print("=" * 60)
 
     app.run(host="0.0.0.0", port=API_PORT, debug=True)
-
-@app.route("/reset-admin", methods=["GET"])
-def reset_admin():
-    from src.utils import get_db, hash_password
-    conn = get_db()
-    cursor = conn.cursor()
-    new_hash = hash_password("Admin@123")
-    cursor.execute("UPDATE auth_users SET password_hash = %s WHERE email = %s",
-                   (new_hash, 'admin@pathsafe.com'))
-    conn.commit()
-    cursor.close(); conn.close()
-    return jsonify({"status": "done"})
