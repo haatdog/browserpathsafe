@@ -231,21 +231,13 @@ function drawMapObject(ctx: CanvasRenderingContext2D, obj: any) {
 
   // ── Path walkable ─────────────────────────────────────────────────────────
   if (t === 'path_walkable') {
-    ctx.fillStyle = '#4ade80';
-    ctx.fillRect(obj.x, obj.y, obj.w, obj.h);
-    ctx.strokeStyle = '#16a34a';
-    ctx.lineWidth = 0.5;
-    ctx.strokeRect(obj.x, obj.y, obj.w, obj.h);
+    // Invisible in playback — only visible in the map editor
     return;
   }
-
-  // ── Path dangerous ─────────────────────────────────────────────────────────
   if (t === 'path_danger') {
-    ctx.fillStyle = '#f87171';
+    // Very subtle in playback
+    ctx.fillStyle = 'rgba(248,113,113,0.12)';
     ctx.fillRect(obj.x, obj.y, obj.w, obj.h);
-    ctx.strokeStyle = '#b91c1c';
-    ctx.lineWidth = 0.5;
-    ctx.strokeRect(obj.x, obj.y, obj.w, obj.h);
     return;
   }
 
