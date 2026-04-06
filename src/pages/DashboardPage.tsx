@@ -165,6 +165,7 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showProfile,      setShowProfile]      = useState(false);
   const [showCalendar,     setShowCalendar]     = useState(false);
+  const [editorProjectId,  setEditorProjectId]  = useState<number | null>(null);
 
   useEffect(() => { loadProfile(); }, []);
 
@@ -247,8 +248,10 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
             {currentPage === 'incidents'    && <IncidentReportsList />}
             {currentPage === 'events'       && (profile?.role === 'coordinator' || profile?.role === 'member' || profile?.role === 'admin' ? <EventManagement /> : <AccessDenied />)}
             {currentPage === 'simulations'  && (profile?.role === 'coordinator' || profile?.role === 'admin' ? <SimulationList />    : <AccessDenied />)}
-            {currentPage === 'create'       && (profile?.role === 'coordinator' || profile?.role === 'admin' ? <SimulationCreator /> : <AccessDenied />)}
-            {currentPage === 'projects'     && (profile?.role === 'coordinator' || profile?.role === 'admin' ? <ProjectList />       : <AccessDenied />)}
+            {currentPage === 'create'       && (profile?.role === 'coordinator' || profile?.role === 'admin' ? <SimulationCreator initialProjectId={editorProjectId} /> : <AccessDenied />)}
+            {currentPage === 'projects'     && (profile?.role === 'coordinator' || profile?.role === 'admin'
+              ? <ProjectList onOpenEditor={id => { setEditorProjectId(id > 0 ? id : null); navigate('create'); }} />
+              : <AccessDenied />)}
             {currentPage === 'users'        && (
               profile?.role === 'admin' || (profile?.is_head && profile?.group_id !== null)
                 ? <UserManagement currentUserRole={profile!.role} currentUserGroupId={profile!.group_id ?? null} currentUserIsHead={profile!.is_head ?? false} currentUserId={profile!.id} />

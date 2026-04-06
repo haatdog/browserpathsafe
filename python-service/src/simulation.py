@@ -416,7 +416,7 @@ class Simulation:
                 gy2 = min(self.grid_height - 1, int((obj.y + obj.h) // self.cell_size))
                 for gy in range(gy1, gy2 + 1):
                     for gx in range(gx1, gx2 + 1):
-                        cost_grid[gy][gx] = 4.0    # 5x more expensive — agents avoid
+                        cost_grid[gy][gx] = 100.0   # match DANGER_COST — agents avoid strongly
 
         # Halo removed — cost_grid no longer used in A* to avoid over-exploration
 

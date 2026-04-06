@@ -436,13 +436,16 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
       setGridHeight(project.grid_height);
       setCellSize(project.cell_size);
       const pd = project.project_data;
+      let loadedObjects: MapObject[] = [];
       if (pd.objects) {
-        setObjects(pd.objects);
+        loadedObjects = pd.objects;
       } else if (pd.buildings) {
-        const all: MapObject[] = [];
-        pd.buildings.forEach((b: any) => b.layers.forEach((l: MapObject[]) => all.push(...l)));
-        setObjects(all);
+        pd.buildings.forEach((b: any) => b.layers.forEach((l: MapObject[]) => loadedObjects.push(...l)));
       }
+      // Reset history to exactly the loaded state — undo can't go past this point
+      historyRef.current    = [loadedObjects];
+      historyIdxRef.current = 0;
+      setObjects(loadedObjects);
       setProjectName(project.name);
       setProjectDescription(project.description || '');
       setProjectId(project.id);
@@ -464,12 +467,15 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
           setCellSize(data.cell_size || 10);
           setGridWidth(data.width || 80);
           setGridHeight(data.height || 60);
-          if (data.objects) { setObjects(data.objects); }
+          let loadedObjects: MapObject[] = [];
+          if (data.objects) { loadedObjects = data.objects; }
           else if (data.buildings) {
-            const all: MapObject[] = [];
-            data.buildings.forEach((b: any) => b.layers.forEach((l: MapObject[]) => all.push(...l)));
-            setObjects(all);
+            data.buildings.forEach((b: any) => b.layers.forEach((l: MapObject[]) => loadedObjects.push(...l)));
           }
+          // Reset history so undo can't go past the loaded state
+          historyRef.current    = [loadedObjects];
+          historyIdxRef.current = 0;
+          setObjects(loadedObjects);
           setProjectId(null);
           setProjectName(file.name.replace(/\.(dsproj|json)$/, ''));
           setShowLoadMenu(false);

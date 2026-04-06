@@ -97,7 +97,7 @@ export default function CalendarSidebar({ userRole, mobileSheet = false }: Calen
   };
 
   const createEvent = async () => {
-    if (userRole !== 'coordinator' && userRole !== 'admin') { alert('Only executives can create events'); return; }
+    if (userRole !== 'coordinator' && userRole !== 'admin') { alert('Only coordinators can create events'); return; }
     if (!newEvent.title || !newEvent.start_time || !newEvent.end_time) {
       alert('Please fill in title, start time, and end time'); return;
     }

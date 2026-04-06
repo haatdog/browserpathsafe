@@ -14,7 +14,7 @@ interface UserProfile {
   email: string;
   first_name?: string | null;
   last_name?: string | null;
-  role: 'admin' | 'executive' | 'member';
+  role: 'admin' | 'coordinator' | 'member';
   group_id: number | null;
   group_name: string | null;
   is_head: boolean;
@@ -67,7 +67,7 @@ function Avatar({ email, firstName, lastName, size = 'md', highlight = false }: 
 // Role icon
 function RoleIcon({ role }: { role: string }) {
   if (role === 'admin')     return <Crown  className="w-3.5 h-3.5 text-amber-500" />;
-  if (role === 'executive') return <Shield className="w-3.5 h-3.5 text-blue-500"  />;
+  if (role === 'coordinator') return <Shield className="w-3.5 h-3.5 text-blue-500"  />;
   return <User className="w-3.5 h-3.5 text-gray-400" />;
 }
 
@@ -195,8 +195,8 @@ function GroupCard({ group, members, colorIdx }: { group: Group | null; members:
 // ── Leadership row ────────────────────────────────────────────────────────────
 function LeadershipRow({ users }: { users: UserProfile[] }) {
   const admins     = users.filter(u => u.role === 'admin');
-  const executives = users.filter(u => u.role === 'executive');
-  const all        = [...admins, ...executives];
+  const coordinators = users.filter(u => u.role === 'coordinator');
+  const all        = [...admins, ...coordinators];
   if (all.length === 0) return null;
 
   return (

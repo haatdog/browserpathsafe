@@ -19,11 +19,11 @@ FENCE         = 12
 
 # ── Tuneable parameters ────────────────────────────────────────────────────────
 BLOCKED     = {WALL, GATE_CLOSED, FENCE}   # cell values that are impassable
-PATH_BONUS  = -1      # cost modifier for PATH_WALKABLE cells (negative = cheaper)
-DANGER_COST =  6.0      # extra cost for PATH_DANGER cells
+PATH_BONUS  = -0.8      # cost modifier for PATH_WALKABLE cells (negative = cheaper)
+DANGER_COST =  100.0    # extra cost for PATH_DANGER cells — agents will always detour unless no other route exists
 MAX_NODES   = 200000    # A* node budget — increase for very large/complex maps
-CLEARANCE_RADIUS   = 8  # cells — how far from walls to apply soft penalty
-CLEARANCE_MAX_COST = 2 # extra cost per step right next to a wall
+CLEARANCE_RADIUS   = 2  # cells — how far from walls to apply soft penalty
+CLEARANCE_MAX_COST = 0.4 # extra cost per step right next to a wall
 
 
 # ── Grid helpers ───────────────────────────────────────────────────────────────
