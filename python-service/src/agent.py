@@ -88,6 +88,63 @@ class PersonAgent:
 
     # ── Target selection ───────────────────────────────────────────────────────
 
+    def _path_cost_to(self, target_obj):
+        """
+        Return the A* path cost from this agent's current grid cell to the
+        target object. Used to pick the cheapest exit, not just the nearest.
+        Returns float('inf') if no path found.
+        """
+        try:
+            from src.pathfinding import astar, nearest_free, build_clearance_costs
+            bidx = self.building_index
+            fidx = self.current_layer
+            model = self.model
+            if not hasattr(model, 'buildings_grids'):
+                return float('inf')
+            if bidx >= len(model.buildings_grids) or fidx >= len(model.buildings_grids[bidx]):
+                return float('inf')
+            grid = model.buildings_grids[bidx][fidx]
+            cs   = getattr(model, 'cell_size', 10)
+            sx   = int(self.pos[0] / cs)
+            sy   = int(self.pos[1] / cs)
+            gx   = int((target_obj.x + target_obj.w / 2) / cs)
+            gy   = int((target_obj.y + target_obj.h / 2) / cs)
+            start = nearest_free(grid, (sx, sy))
+            goal  = nearest_free(grid, (gx, gy))
+            ccosts = build_clearance_costs(grid)
+            path = astar(grid, start, goal, clearance_costs=ccosts)
+            if not path:
+                return float('inf')
+            # Sum actual move costs including DANGER_COST for path_danger cells
+            from src.pathfinding import PATH_WALKABLE, PATH_BONUS, PATH_DANGER, DANGER_COST, BLOCKED
+            import math as _m
+            total = 0.0
+            for i in range(1, len(path)):
+                ax, ay = path[i-1]
+                bx, by = path[i]
+                cell   = grid[by][bx] if 0 <= by < len(grid) and 0 <= bx < len(grid[0]) else 0
+                step   = _m.hypot(bx - ax, by - ay)
+                if cell == PATH_WALKABLE:
+                    step += PATH_BONUS
+                elif cell == PATH_DANGER:
+                    step += DANGER_COST
+                total += step
+            return total
+        except Exception:
+            # Fallback to Euclidean distance if A* fails
+            return math.hypot(
+                target_obj.x + target_obj.w / 2 - self.pos[0],
+                target_obj.y + target_obj.h / 2 - self.pos[1],
+            )
+
+    def _cheapest(self, candidates):
+        """Pick the candidate with the lowest A* path cost."""
+        if not candidates:
+            return None
+        costs = [(self._path_cost_to(c), c) for c in candidates]
+        costs.sort(key=lambda x: x[0])
+        return costs[0][1]
+
     def get_random_exit(self):
         layer_objects = self._get_layer_objects()
         if layer_objects is None:
@@ -96,7 +153,7 @@ class PersonAgent:
         if self.disaster_type == "earthquake":
             safe_zones = [o for o in layer_objects if o.type == "safezone"]
             if safe_zones:
-                best = self._nearest(safe_zones)
+                best = self._cheapest(safe_zones)
                 self.exit_target_point = (
                     random.uniform(best.x, best.x + best.w),
                     random.uniform(best.y, best.y + best.h)
@@ -104,19 +161,19 @@ class PersonAgent:
                 return best
             exits = [o for o in layer_objects if o.type == "exit"]
             if exits:
-                best = self._nearest(exits)
+                best = self._cheapest(exits)
                 self.set_random_exit_point(best)
                 return best
             stairs = [o for o in layer_objects if o.type in self._allowed_stairs]
-            return self._nearest(stairs) if stairs else None
+            return self._cheapest(stairs) if stairs else None
 
         exits = [o for o in layer_objects if o.type == "exit"]
         if exits:
-            best = self._nearest(exits)
+            best = self._cheapest(exits)
             self.set_random_exit_point(best)
             return best
         stairs = [o for o in layer_objects if o.type in self._allowed_stairs]
-        return self._nearest(stairs) if stairs else None
+        return self._cheapest(stairs) if stairs else None
 
     def set_random_exit_point(self, exit_obj):
         if exit_obj:
