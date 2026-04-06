@@ -108,13 +108,16 @@ function drawMapObject(ctx: CanvasRenderingContext2D, obj: any) {
     ctx.restore(); return;
   }
   if (t === 'path_walkable') {
-    ctx.save(); ctx.fillStyle='#4ade80'; ctx.fillRect(obj.x,obj.y,obj.w,obj.h);
-    ctx.strokeStyle='#16a34a'; ctx.lineWidth=0.5; ctx.strokeRect(obj.x,obj.y,obj.w,obj.h);
-    ctx.restore(); return;
+    // Subtle dark outline only — no fill, so it doesn't obscure paths drawn on top
+    ctx.save();
+    ctx.strokeStyle = 'rgba(30,30,30,0.25)';
+    ctx.lineWidth = 0.5;
+    ctx.strokeRect(obj.x, obj.y, obj.w, obj.h);
+    ctx.restore();
+    return;
   }
   if (t === 'path_danger') {
-    ctx.save(); ctx.fillStyle='#f87171'; ctx.fillRect(obj.x,obj.y,obj.w,obj.h);
-    ctx.strokeStyle='#b91c1c'; ctx.lineWidth=0.5; ctx.strokeRect(obj.x,obj.y,obj.w,obj.h);
+    ctx.save(); ctx.fillStyle='rgba(248,113,113,0.12)'; ctx.fillRect(obj.x,obj.y,obj.w,obj.h);
     ctx.restore(); return;
   }
 }
@@ -251,17 +254,6 @@ export default function PathVisualization({ projectData, simulationResults, onCl
 
     drawGrid(ctx);
     objects.forEach(obj => drawMapObject(ctx, obj));
-
-    // Draw path_walkable overlay with subtle highlight so safe corridor is visible
-    objects.filter((o:any) => o.type === 'path_walkable').forEach((o:any) => {
-      ctx.save();
-      ctx.fillStyle = 'rgba(74,222,128,0.35)';
-      ctx.fillRect(o.x, o.y, o.w, o.h);
-      ctx.strokeStyle = '#16a34a';
-      ctx.lineWidth = 0.5;
-      ctx.strokeRect(o.x, o.y, o.w, o.h);
-      ctx.restore();
-    });
 
     if (allPaths.length > 0) {
       allPaths.forEach((path, idx) => drawPath(ctx, path, idx));
