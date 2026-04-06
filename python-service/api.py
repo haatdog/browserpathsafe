@@ -139,7 +139,7 @@ def init_db():
         '''CREATE TABLE IF NOT EXISTS simulations (
             id SERIAL PRIMARY KEY,
             user_id VARCHAR(255),
-            project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
+            project_id INTEGER,          -- intentionally no FK — simulations are standalone
             disaster_type VARCHAR(20) DEFAULT 'fire',
             status VARCHAR(50) DEFAULT 'completed',
             config JSON,
@@ -258,6 +258,19 @@ def init_db():
         'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS last_name VARCHAR(100)',
         # simulations: project_data needed for playback and path visualization
         'ALTER TABLE simulations ADD COLUMN IF NOT EXISTS project_data JSON',
+        # simulations: store project name at run time so renaming/deleting project doesn't affect simulations
+        'ALTER TABLE simulations ADD COLUMN IF NOT EXISTS project_name VARCHAR(255)',
+        # Drop the FK constraint so deleting a project does NOT cascade-delete its simulations
+        '''DO $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM information_schema.table_constraints
+                WHERE constraint_name = 'simulations_project_id_fkey'
+                  AND table_name = 'simulations'
+            ) THEN
+                ALTER TABLE simulations DROP CONSTRAINT simulations_project_id_fkey;
+            END IF;
+        END $$;''',
 
         # ── Seed data ──────────────────────────────────────────────────────────
         '''INSERT INTO groups (name, is_custom) VALUES

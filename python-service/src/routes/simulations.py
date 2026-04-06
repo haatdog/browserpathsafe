@@ -3,7 +3,7 @@ import json
 import threading
 import uuid
 import time as _time
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, session
 from psycopg2.extras import RealDictCursor
 from src.utils import get_user_id, get_db, require_auth
 
@@ -24,7 +24,7 @@ def _cleanup_old_jobs():
 
 
 def _run_simulation_thread(job_id: str, project_data, disaster_type: str,
-                            max_steps: int, project_id: int, user_id):
+                            max_steps: int, project_id: int, user_id, project_name: str = ''):
     cancel_flag = {'cancel': False}
     with _jobs_lock:
         if job_id in _simulation_jobs:
@@ -66,13 +66,13 @@ def _run_simulation_thread(job_id: str, project_data, disaster_type: str,
             cursor = conn.cursor()
             cursor.execute('''
                 INSERT INTO simulations (
-                    user_id, project_id, disaster_type, status, config, results,
+                    user_id, project_id, project_name, disaster_type, status, config, results,
                     steps, elapsed_s, evacuation_time,
                     agents_spawned, agents_evacuated, agents_trapped
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             ''', (
-                user_id, project_id, disaster_type, 'completed',
+                user_id, project_id, project_name, disaster_type, 'completed',
                 json.dumps({'disaster_type': disaster_type, 'max_steps': max_steps}),
                 json.dumps(results),
                 results.get('steps', 0),
@@ -136,7 +136,7 @@ def run_simulation():
 
         conn   = get_db()
         cursor = conn.cursor()
-        cursor.execute('SELECT project_data FROM projects WHERE id = %s', (project_id,))
+        cursor.execute('SELECT project_data, name FROM projects WHERE id = %s', (project_id,))
         row = cursor.fetchone()
         cursor.close(); conn.close()
 
@@ -144,6 +144,7 @@ def run_simulation():
             return jsonify({"error": "Project not found"}), 404
 
         project_data = row[0]
+        fetched_project_name = row[1] or ''
         if isinstance(project_data, str):
             project_data = json.loads(project_data)
 
@@ -161,7 +162,7 @@ def run_simulation():
 
         t = threading.Thread(
             target=_run_simulation_thread,
-            args=(job_id, project_data, disaster_type, max_steps, project_id, user_id),
+            args=(job_id, project_data, disaster_type, max_steps, project_id, user_id, fetched_project_name),
             daemon=True,
         )
         t.start()
@@ -225,14 +226,14 @@ def get_simulations():
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         if project_id:
             cursor.execute('''
-                SELECT s.*, p.name as project_name
-                FROM simulations s LEFT JOIN projects p ON s.project_id = p.id
+                SELECT s.*
+                FROM simulations s
                 WHERE s.project_id = %s ORDER BY s.created_at DESC LIMIT %s
             ''', (project_id, limit))
         else:
             cursor.execute('''
-                SELECT s.*, p.name as project_name
-                FROM simulations s LEFT JOIN projects p ON s.project_id = p.id
+                SELECT s.*
+                FROM simulations s
                 ORDER BY s.created_at DESC LIMIT %s
             ''', (limit,))
 
@@ -270,8 +271,8 @@ def get_simulation(sim_id):
         conn   = get_db()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute('''
-            SELECT s.*, p.name as project_name, p.project_data
-            FROM simulations s LEFT JOIN projects p ON s.project_id = p.id
+            SELECT s.*
+            FROM simulations s
             WHERE s.id = %s
         ''', (sim_id,))
         simulation = cursor.fetchone()
