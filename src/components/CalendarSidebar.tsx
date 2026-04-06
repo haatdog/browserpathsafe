@@ -165,7 +165,7 @@ export default function CalendarSidebar({ userRole, mobileSheet = false }: Calen
           <div className="flex items-center justify-between mb-4">
             <h2 style={T.sectionHeader}>Calendar & Events</h2>
             <div className="flex items-center gap-1">
-              {userRole === 'coordinator' || userRole === 'admin' && (
+              {(userRole === 'coordinator' || userRole === 'admin') && (
                 <button onClick={() => setShowCreateModal(true)}
                   className="p-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition" title="Create Event">
                   <Plus className="w-4 h-4" />
