@@ -125,7 +125,7 @@ export default function EventManagement() {
           <Edit className="w-4 h-4" />
         </button>
       )}
-      {(userRole === 'admin' || (userRole === 'coordinator' && event.status === 'done')) && (
+      {(userRole === 'admin' || userRole === 'coordinator') && (
         <button onClick={() => setShowDeleteConfirm(event.id)}
           className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Delete">
           <Trash2 className="w-4 h-4" />

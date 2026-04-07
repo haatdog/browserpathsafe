@@ -290,15 +290,19 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
 </html>`;
 
     const w = window.open('', '_blank', 'width=850,height=950');
-    if (w) { w.document.write(html); w.document.close(); w.print(); }
+    if (w) { w.document.write(html); w.document.close(); setTimeout(() => { w.focus(); w.print(); }, 800); }
   };
 
   // ── Aggregate member report PDF ───────────────────────────────────────────
   const handleDownloadMemberReport = () => {
-    const eventDate = new Date(event.start_time).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
-    const totalMale   = evaluations.reduce((s, e) => s + e.male_count, 0);
-    const totalFemale = evaluations.reduce((s, e) => s + e.female_count, 0);
-    const rows = evaluations.map((ev, i) => `
+    // Only include member-role submissions, not coordinator's own evaluation
+    const memberEvals = evaluations.filter(ev =>
+      !myEval || ev.submitted_by !== myEval.submitted_by
+    );
+    const eventDate   = new Date(event.start_time).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+    const totalMale   = memberEvals.reduce((s, e) => s + e.male_count, 0);
+    const totalFemale = memberEvals.reduce((s, e) => s + e.female_count, 0);
+    const rows = memberEvals.map((ev, i) => `
       <tr>
         <td>${i+1}</td>
         <td>${ev.instructor_name}</td>
@@ -334,7 +338,7 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
     <hr/><hr style="border-top:1px solid #000;margin-top:2px"/>
     <div class="summary">
       <div><div class="lbl">Date</div><div style="font-size:11pt;font-weight:bold;margin-top:4px">${eventDate}</div></div>
-      <div><div class="lbl">Submissions</div><div class="val">${evaluations.length}</div></div>
+      <div><div class="lbl">Submissions</div><div class="val">${memberEvals.length}</div></div>
       <div><div class="lbl">Total</div><div class="val" style="color:#5b21b6">${totalMale+totalFemale}</div></div>
       <div><div class="lbl">Male</div><div class="val" style="color:#1d4ed8">${totalMale}</div></div>
       <div><div class="lbl">Female</div><div class="val" style="color:#be185d">${totalFemale}</div></div>
@@ -352,7 +356,7 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
     </body></html>`;
 
     const w = window.open('', '_blank', 'width=1000,height=700');
-    if (w) { w.document.write(html); w.document.close(); w.onload = () => { w.focus(); w.print(); }; }
+    if (w) { w.document.write(html); w.document.close(); setTimeout(() => { w.focus(); w.print(); }, 500); }
   };
 
   const stats = {
