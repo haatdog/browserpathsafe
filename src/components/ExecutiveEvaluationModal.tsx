@@ -290,19 +290,32 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
 </html>`;
 
     const w = window.open('', '_blank', 'width=850,height=950');
-    if (w) { w.document.write(html); w.document.close(); setTimeout(() => { w.focus(); w.print(); }, 800); }
+    if (w) {
+      w.document.write(html);
+      w.document.close();
+      // Wait for all images (base64) to fully render before printing
+      const waitAndPrint = () => {
+        const allImgs = Array.from(w.document.images);
+        if (allImgs.length === 0) { setTimeout(() => { w.focus(); w.print(); }, 300); return; }
+        let loaded = 0;
+        const check = () => { loaded++; if (loaded >= allImgs.length) { w.focus(); w.print(); } };
+        allImgs.forEach(img => {
+          if (img.complete) { check(); }
+          else { img.onload = check; img.onerror = check; }
+        });
+        // Fallback in case onload never fires
+        setTimeout(() => { w.focus(); w.print(); }, 2000);
+      };
+      setTimeout(waitAndPrint, 300);
+    }
   };
 
   // ── Aggregate member report PDF ───────────────────────────────────────────
   const handleDownloadMemberReport = () => {
-    // Only include member-role submissions, not coordinator's own evaluation
-    const memberEvals = evaluations.filter(ev =>
-      !myEval || ev.submitted_by !== myEval.submitted_by
-    );
     const eventDate   = new Date(event.start_time).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
-    const totalMale   = memberEvals.reduce((s, e) => s + e.male_count, 0);
-    const totalFemale = memberEvals.reduce((s, e) => s + e.female_count, 0);
-    const rows = memberEvals.map((ev, i) => `
+    const totalMale   = memberEvalList.reduce((s, e) => s + e.male_count, 0);
+    const totalFemale = memberEvalList.reduce((s, e) => s + e.female_count, 0);
+    const rows = memberEvalList.map((ev, i) => `
       <tr>
         <td>${i+1}</td>
         <td>${ev.instructor_name}</td>
@@ -338,7 +351,7 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
     <hr/><hr style="border-top:1px solid #000;margin-top:2px"/>
     <div class="summary">
       <div><div class="lbl">Date</div><div style="font-size:11pt;font-weight:bold;margin-top:4px">${eventDate}</div></div>
-      <div><div class="lbl">Submissions</div><div class="val">${memberEvals.length}</div></div>
+      <div><div class="lbl">Submissions</div><div class="val">${memberEvalList.length}</div></div>
       <div><div class="lbl">Total</div><div class="val" style="color:#5b21b6">${totalMale+totalFemale}</div></div>
       <div><div class="lbl">Male</div><div class="val" style="color:#1d4ed8">${totalMale}</div></div>
       <div><div class="lbl">Female</div><div class="val" style="color:#be185d">${totalFemale}</div></div>
@@ -356,12 +369,13 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
     </body></html>`;
 
     const w = window.open('', '_blank', 'width=1000,height=700');
-    if (w) { w.document.write(html); w.document.close(); setTimeout(() => { w.focus(); w.print(); }, 500); }
+    if (w) { w.document.write(html); w.document.close(); setTimeout(() => { w.focus(); w.print(); }, 400); }
   };
 
+  const memberEvalList = evaluations.filter(ev => !myEval || ev.submitted_by !== myEval.submitted_by);
   const stats = {
-    totalMale:   evaluations.reduce((s, e) => s + e.male_count, 0),
-    totalFemale: evaluations.reduce((s, e) => s + e.female_count, 0),
+    totalMale:   memberEvalList.reduce((s, e) => s + e.male_count, 0),
+    totalFemale: memberEvalList.reduce((s, e) => s + e.female_count, 0),
     get total()  { return this.totalMale + this.totalFemale; },
   };
 
@@ -384,7 +398,7 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
         <div className="bg-purple-50 border-b border-purple-200 px-6 py-3 flex-shrink-0">
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
             <div><p className="text-xs text-gray-500">Event Date</p><p className="font-semibold">{new Date(event.start_time).toLocaleDateString()}</p></div>
-            <div><p className="text-xs text-gray-500">Submissions</p><p className="font-semibold">{evaluations.length}</p></div>
+            <div><p className="text-xs text-gray-500">Submissions</p><p className="font-semibold">{memberEvalList.length}</p></div>
             <div><p className="text-xs text-gray-500">Total Participants</p><p className="font-bold text-purple-700">{stats.total}</p></div>
             <div><p className="text-xs text-gray-500">Total Males</p><p className="font-bold text-blue-600">{stats.totalMale}</p></div>
             <div><p className="text-xs text-gray-500">Total Females</p><p className="font-bold text-pink-600">{stats.totalFemale}</p></div>
@@ -629,7 +643,7 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
 
         {/* Footer */}
         <div className="bg-gray-50 px-6 py-3 flex items-center justify-between border-t border-gray-200 flex-shrink-0">
-          <p style={{...T.body, color: C.inkMuted}}>{evaluations.length} submission{evaluations.length !== 1 ? 's' : ''} · {stats.total} total ({stats.totalMale}M / {stats.totalFemale}F)</p>
+          <p style={{...T.body, color: C.inkMuted}}>{memberEvalList.length} member submission{memberEvalList.length !== 1 ? 's' : ''} · {stats.total} total ({stats.totalMale}M / {stats.totalFemale}F)</p>
           <div className="flex items-center gap-2">
             <button onClick={handleDownloadMemberReport} disabled={evaluations.length === 0}
               className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition text-sm font-medium">
