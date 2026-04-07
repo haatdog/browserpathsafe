@@ -105,13 +105,18 @@ export default function EventManagement() {
   // ── Action buttons (shared between table and cards) ────────────────────────
   const ActionButtons = ({ event }: { event: AppEventWithStatus }) => (
     <div className="flex items-center gap-1.5">
-      {isDrill(event.event_type) && event.status === 'done' && (
+      {isDrill(event.event_type) && event.status === 'done' && (userRole === 'coordinator' || userRole === 'admin' || !userEvaluations[event.id]) && (
         <button onClick={() => handleEvaluate(event)}
-          className={`inline-flex items-center gap-1 px-3 py-1.5 text-white text-xs font-medium rounded-lg transition ${
-            userRole === 'coordinator' || userRole === 'admin' ? 'bg-purple-600 hover:bg-purple-700' :
-            userEvaluations[event.id] ? 'bg-green-600 hover:bg-green-700' : 'bg-purple-600 hover:bg-purple-700'}`}>
+          className="inline-flex items-center gap-1 px-3 py-1.5 text-white text-xs font-medium rounded-lg transition bg-purple-600 hover:bg-purple-700">
           <FileText className="w-3.5 h-3.5" />
-          {userRole === 'coordinator' || userRole === 'admin' ? 'View' : userEvaluations[event.id] ? 'View Submission' : 'Evaluate'}
+          {userRole === 'coordinator' || userRole === 'admin' ? 'View' : 'Evaluate'}
+        </button>
+      )}
+      {isDrill(event.event_type) && event.status === 'done' && userRole === 'member' && userEvaluations[event.id] && (
+        <button onClick={() => handleEvaluate(event)}
+          className="inline-flex items-center gap-1 px-3 py-1.5 text-white text-xs font-medium rounded-lg transition bg-green-600 hover:bg-green-700">
+          <FileText className="w-3.5 h-3.5" />
+          View Submission
         </button>
       )}
       <button onClick={() => { setEditingEvent(event); setShowEditModal(true); }}
@@ -320,6 +325,7 @@ export default function EventManagement() {
         <MemberEvaluationModal
           event={evalEvent}
           userId={userId}
+          alreadySubmitted={!!userEvaluations[evalEvent.id]}
           onClose={() => { setShowMemberEvalModal(false); setEvalEvent(null); }}
           onSubmitted={() => { setShowMemberEvalModal(false); setEvalEvent(null); fetchEvaluations(); }} />
       )}

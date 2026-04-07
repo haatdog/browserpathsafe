@@ -21,8 +21,14 @@ interface Submission {
   male_count: number; female_count: number; comments: string; submitted_at: string;
 }
 
-export default function MemberEvaluationModal({ event, userId, onClose, onSubmitted }: MemberEvaluationModalProps) {
-  const [mode,          setMode]          = useState<'loading'|'form'|'view'>('loading');
+interface MemberEvaluationModalProps {
+  event: AppEvent; userId: string;
+  alreadySubmitted?: boolean;
+  onClose: () => void; onSubmitted: () => void;
+}
+
+export default function MemberEvaluationModal({ event, userId, alreadySubmitted = false, onClose, onSubmitted }: MemberEvaluationModalProps) {
+  const [mode,          setMode]          = useState<'loading'|'form'|'view'>(alreadySubmitted ? 'loading' : 'form');
   const [submission,    setSubmission]    = useState<Submission | null>(null);
   const [formData,      setFormData]      = useState({
     instructor_name: '', program_class: '', classroom_office: '',
@@ -31,8 +37,9 @@ export default function MemberEvaluationModal({ event, userId, onClose, onSubmit
   const [isSubmitting, setIsSubmitting]  = useState(false);
   const [errors,       setErrors]        = useState<Record<string, string>>({});
 
-  // On open: try to load existing submission
+  // On open: fetch existing submission only if we know one exists
   useEffect(() => {
+    if (!alreadySubmitted) return; // new submission — go straight to form
     const load = async () => {
       try {
         const res = await fetch(`${API}/api/evaluations/event/${event.id}`, {
@@ -40,7 +47,6 @@ export default function MemberEvaluationModal({ event, userId, onClose, onSubmit
         });
         if (res.ok) {
           const data = await res.json();
-          // Find this user's submission
           const mine = Array.isArray(data)
             ? data.find((e: any) => e.submitted_by === userId)
             : (data.submitted_by === userId ? data : null);

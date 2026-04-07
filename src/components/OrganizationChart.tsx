@@ -111,9 +111,8 @@ function GroupCard({ group, members, colorIdx }: { group: Group | null; members:
   const [collapsed, setCollapsed] = useState(false);
   const c = GROUP_COLORS[((colorIdx % GROUP_COLORS.length) + GROUP_COLORS.length) % GROUP_COLORS.length];
 
-  const head    = members.find(m => m.is_head);
+  const heads   = members.filter(m => m.is_head);
   const regular = members.filter(m => !m.is_head);
-  // Note: in multi-group mode, is_head is already set per-group by the groupMap builder
   const label   = group?.name ?? 'Unassigned';
   const isUnassigned = !group;
 
@@ -147,8 +146,8 @@ function GroupCard({ group, members, colorIdx }: { group: Group | null; members:
         </button>
       </div>
 
-      {/* Connector line to head */}
-      {!collapsed && head && (
+      {/* Connector line to heads */}
+      {!collapsed && heads.length > 0 && (
         <div className="flex flex-col items-center pt-4 pb-0">
           <div className={`w-0.5 h-4 ${isUnassigned ? 'bg-gray-300' : c.accent} opacity-40`} />
         </div>
@@ -157,17 +156,19 @@ function GroupCard({ group, members, colorIdx }: { group: Group | null; members:
       {/* Members grid */}
       {!collapsed && (
         <div className="px-5 pb-5 pt-2 space-y-4">
-          {/* Head */}
-          {head && (
-            <div className="flex justify-center">
-              <div className="w-36">
-                <MemberCard user={head} isHead colorIdx={colorIdx} />
-              </div>
+          {/* Heads */}
+          {heads.length > 0 && (
+            <div className={`flex flex-wrap gap-3 justify-center ${heads.length > 1 ? '' : ''}`}>
+              {heads.map(h => (
+                <div key={h.id} className="w-36">
+                  <MemberCard user={h} isHead colorIdx={colorIdx} />
+                </div>
+              ))}
             </div>
           )}
 
-          {/* Connector line from head to members */}
-          {head && regular.length > 0 && (
+          {/* Connector line from heads to members */}
+          {heads.length > 0 && regular.length > 0 && (
             <div className="flex flex-col items-center">
               <div className={`w-0.5 h-3 ${isUnassigned ? 'bg-gray-300' : c.accent} opacity-40`} />
               <div className={`w-3/4 h-0.5 ${isUnassigned ? 'bg-gray-300' : c.accent} opacity-20`} />
@@ -294,19 +295,33 @@ export default function OrganizationChart() {
 
   const members = users.filter(u => u.role === 'member');
 
-  // Build group → members map
+  // Build group → members map using multi-group membership
   const groupMap: Map<number | null, UserProfile[]> = new Map();
   groupMap.set(null, []);
   groups.forEach(g => groupMap.set(g.id, []));
+
   members.forEach(u => {
-    const key = u.group_id ?? null;
-    if (!groupMap.has(key)) groupMap.set(key, []);
-    groupMap.get(key)!.push(u);
+    if (u.groups && u.groups.length > 0) {
+      // Multi-group: add user under each group they belong to,
+      // with is_head set to their head status FOR THAT SPECIFIC GROUP
+      u.groups.forEach(ug => {
+        if (!groupMap.has(ug.group_id)) groupMap.set(ug.group_id, []);
+        groupMap.get(ug.group_id)!.push({ ...u, is_head: ug.is_head });
+      });
+    } else {
+      // Legacy fallback: single group_id
+      const key = u.group_id ?? null;
+      if (!groupMap.has(key)) groupMap.set(key, []);
+      groupMap.get(key)!.push(u);
+    }
   });
 
-  // Groups that actually have members (or all groups to show empty ones)
+  // Groups that actually have members
   const activeGroups = groups.filter(g => (groupMap.get(g.id)?.length ?? 0) > 0);
-  const unassigned   = groupMap.get(null) ?? [];
+  // Unassigned = members with no groups array and no legacy group_id
+  const unassigned = members.filter(u =>
+    (!u.groups || u.groups.length === 0) && !u.group_id
+  );
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
