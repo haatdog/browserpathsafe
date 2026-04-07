@@ -119,7 +119,7 @@ export default function EventManagement() {
           View Submission
         </button>
       )}
-      {(userRole === 'coordinator' || userRole === 'admin') && (
+      {(userRole === 'coordinator' || userRole === 'admin') && event.status !== 'done' && (
         <button onClick={() => { setEditingEvent(event); setShowEditModal(true); }}
           className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition" title="Edit">
           <Edit className="w-4 h-4" />
