@@ -2,13 +2,7 @@
 import { useState, useEffect } from 'react';
 import { X, Save, User, Users, MapPin, MessageSquare, GraduationCap, Printer, CheckCircle } from 'lucide-react';
 import { T, C } from '../design/DesignTokens';
-
-const API = import.meta.env.VITE_PYTHON_API_URL || 'https://browserpathsafe.onrender.com';
-
-const authHeaders = () => {
-  const token = localStorage.getItem('pathsafe_token');
-  return { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) };
-};
+import { evaluationAPI } from '../lib/api';
 
 interface AppEvent { id: number; title: string; event_type: string; start_time: string; }
 interface MemberEvaluationModalProps {
@@ -42,21 +36,16 @@ export default function MemberEvaluationModal({ event, userId, alreadySubmitted 
   useEffect(() => {
     const load = async () => {
       try {
-        // /mine is accessible to all roles — returns current user's own evaluations
-        const res = await fetch(`${API}/api/evaluations/mine`, {
-          headers: authHeaders(), credentials: 'include',
-        });
-        if (res.ok) {
-          const data = await res.json();
-          // Find the submission for this specific event
-          const mine = Array.isArray(data)
-            ? data.find((e: any) => Number(e.event_id) === Number(event.id))
-            : null;
-          if (mine) {
-            setSubmission(mine);
-            setMode('view');
-            return;
-          }
+        const data = await evaluationAPI.mine();
+        // Match by event_id — use == to handle string/number mismatch
+        const mine = Array.isArray(data)
+          // eslint-disable-next-line eqeqeq
+          ? data.find((e: any) => e.event_id == event.id)
+          : null;
+        if (mine) {
+          setSubmission(mine);
+          setMode('view');
+          return;
         }
       } catch {}
       setMode('form');
@@ -93,11 +82,15 @@ export default function MemberEvaluationModal({ event, userId, alreadySubmitted 
         female_count:     parseInt(formData.female_count),
         comments:         formData.comments.trim(),
       };
-      const res = await fetch(`${API}/api/evaluations`, {
-        method: 'POST', headers: authHeaders(), credentials: 'include',
-        body: JSON.stringify(payload),
+      await evaluationAPI.submit({
+        event_id:         payload.event_id,
+        instructor_name:  payload.instructor_name,
+        program_class:    payload.program_class,
+        classroom_office: payload.classroom_office,
+        male_count:       payload.male_count,
+        female_count:     payload.female_count,
+        comments:         payload.comments,
       });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed to submit'); }
       onSubmitted();
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to submit. Please try again.');
