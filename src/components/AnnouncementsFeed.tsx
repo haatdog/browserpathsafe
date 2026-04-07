@@ -15,7 +15,7 @@ interface Announcement {
   target_group_id?: number | null; target_group_name?: string | null; target_heads_only?: boolean;
   created_at: string; updated_at: string;
 }
-interface Comment { id: number; announcement_id: number; user_id: string; author_email: string; content: string; created_at: string; }
+interface Comment { id: number; announcement_id: number; user_id: string; author_email?: string; user_email?: string; content: string; created_at: string; }
 interface Group { id: number; name: string; }
 interface AnnouncementsFeedProps { userRole: 'admin' | 'coordinator' | 'member'; userId: string; }
 
@@ -316,7 +316,7 @@ function PostCard({ post, canManage, onTogglePin, onToggleLike, onDelete, onTogg
     <div className={`bg-white rounded-xl shadow-sm border ${post.is_pinned ? 'border-green-300' : 'border-gray-200'} overflow-hidden`}>
       <div className="p-4 flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white font-bold">{post.author_email[0].toUpperCase()}</div>
+          <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white font-bold">{(post.author_email || '?')[0].toUpperCase()}</div>
           <div>
             <p className="text-sm font-semibold text-gray-900">{post.author_email}</p>
             <div className="flex items-center gap-2 text-xs text-gray-500">
@@ -372,9 +372,11 @@ function PostCard({ post, canManage, onTogglePin, onToggleLike, onDelete, onTogg
           <div className="p-4 space-y-3">
             {comments.map((comment: Comment) => (
               <div key={comment.id} className="flex gap-3">
-                <div className="w-8 h-8 bg-gradient-to-br from-gray-400 to-gray-600 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">{comment.author_email[0].toUpperCase()}</div>
+                <div className="w-8 h-8 bg-gradient-to-br from-gray-400 to-gray-600 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                  {((comment.author_email || comment.user_email) || '?')[0].toUpperCase()}
+                </div>
                 <div className="flex-1 bg-white rounded-lg p-3">
-                  <p className="text-xs font-semibold text-gray-700">{comment.author_email}</p>
+                  <p className="text-xs font-semibold text-gray-700">{comment.author_email || comment.user_email || 'Unknown'}</p>
                   <p className="text-gray-600 mt-1" style={T.body}>{comment.content}</p>
                   <p className="text-gray-400 mt-1" style={T.meta}>{formatTimeAgo(comment.created_at)}</p>
                 </div>

@@ -111,7 +111,7 @@ export default function EventManagement() {
             userRole === 'coordinator' || userRole === 'admin' ? 'bg-purple-600 hover:bg-purple-700' :
             userEvaluations[event.id] ? 'bg-green-600 hover:bg-green-700' : 'bg-purple-600 hover:bg-purple-700'}`}>
           <FileText className="w-3.5 h-3.5" />
-          {userRole === 'coordinator' || userRole === 'admin' ? 'View' : userEvaluations[event.id] ? 'Edit' : 'Evaluate'}
+          {userRole === 'coordinator' || userRole === 'admin' ? 'View' : userEvaluations[event.id] ? 'View Submission' : 'Evaluate'}
         </button>
       )}
       <button onClick={() => { setEditingEvent(event); setShowEditModal(true); }}
