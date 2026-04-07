@@ -42,14 +42,16 @@ export default function MemberEvaluationModal({ event, userId, alreadySubmitted 
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch(`${API}/api/evaluations/event/${event.id}`, {
+        // /mine is accessible to all roles — returns current user's own evaluations
+        const res = await fetch(`${API}/api/evaluations/mine`, {
           headers: authHeaders(), credentials: 'include',
         });
         if (res.ok) {
           const data = await res.json();
+          // Find the submission for this specific event
           const mine = Array.isArray(data)
-            ? data.find((e: any) => e.submitted_by === userId || e.user_id === userId)
-            : (data.submitted_by === userId || data.user_id === userId ? data : null);
+            ? data.find((e: any) => Number(e.event_id) === Number(event.id))
+            : null;
           if (mine) {
             setSubmission(mine);
             setMode('view');
@@ -60,7 +62,7 @@ export default function MemberEvaluationModal({ event, userId, alreadySubmitted 
       setMode('form');
     };
     load();
-  }, [event.id, userId]);
+  }, [event.id]);
 
   const validateForm = () => {
     const e: Record<string, string> = {};
