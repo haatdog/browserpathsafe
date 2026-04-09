@@ -46,7 +46,7 @@ const SimulationResultsModal: React.FC<SimulationResultsModalProps> = ({ simulat
 
   if (showPlayback) {
     return (
-      <div className="fixed inset-0 z-50 bg-black">
+      <div className="fixed inset-0 z-[70] bg-black">
         <SimulationPlayback simulation={simulation} projectData={simulation.project_data}
           onClose={() => setShowPlayback(false)} />
       </div>
@@ -55,7 +55,7 @@ const SimulationResultsModal: React.FC<SimulationResultsModalProps> = ({ simulat
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[70]"
         onClick={onClose}>
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-auto"
           onClick={e => e.stopPropagation()}>
