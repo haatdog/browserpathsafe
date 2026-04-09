@@ -113,8 +113,21 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
   const [selectedStairs, setSelectedStairs]   = useState<MapObject | null>(null);
   const [selectedGate, setSelectedGate]       = useState<MapObject | null>(null);
   const [selectedNPCCount, setSelectedNPCCount] = useState<MapObject | null>(null);
-  const [npcCountRaw,      setNpcCountRaw]      = useState<string>('');
-  const [npcIntervalRaw,   setNpcIntervalRaw]   = useState<string>('');
+  const [npcCountRaw,      setNpcCountRaw]      = useState<string>('10');
+  const [npcIntervalRaw,   setNpcIntervalRaw]   = useState<string>('30');
+
+  // Sync raw strings only when a DIFFERENT queue object is selected
+  const prevNpcId = useRef<string | number | null>(null);
+  useEffect(() => {
+    if (selectedNPCCount && selectedNPCCount.id !== prevNpcId.current) {
+      prevNpcId.current = selectedNPCCount.id ?? null;
+      setNpcCountRaw(String(selectedNPCCount.agent_count ?? 10));
+      setNpcIntervalRaw(String(selectedNPCCount.spawn_interval ?? 30));
+    }
+    if (!selectedNPCCount) {
+      prevNpcId.current = null;
+    }
+  }, [selectedNPCCount]);
 
   // ── View state ──────────────────────────────────────────────────────────────
   const [cellSize, setCellSize]     = useState(10);
@@ -729,7 +742,7 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
       if (wx >= obj.x && wx <= obj.x + obj.w && wy >= obj.y && wy <= obj.y + obj.h) {
         setSelectedIndex(i);
         if (obj.type === 'npc') { setSelectedNPC(obj); setSelectedStairs(null); setSelectedGate(null); setSelectedNPCCount(null); }
-        else if (obj.type === 'npc_count') { setSelectedNPCCount(obj); setSelectedNPC(null); setSelectedStairs(null); setSelectedGate(null); setNpcCountRaw(String(obj.agent_count ?? 10)); setNpcIntervalRaw(String(obj.spawn_interval ?? 30)); }
+        else if (obj.type === 'npc_count') { setSelectedNPCCount(obj); setSelectedNPC(null); setSelectedStairs(null); setSelectedGate(null); }
         else if (obj.type === 'concrete_stairs' || obj.type === 'fire_ladder') { setSelectedStairs(obj); setSelectedNPC(null); setSelectedGate(null); setSelectedNPCCount(null); }
         else if (obj.type === 'gate') { setSelectedGate(obj); setSelectedNPC(null); setSelectedStairs(null); setSelectedNPCCount(null); }
         else { setSelectedNPC(null); setSelectedStairs(null); setSelectedGate(null); setSelectedNPCCount(null); }
