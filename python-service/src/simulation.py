@@ -705,16 +705,26 @@ class Simulation:
 
             goal = None
             if unified:
-                # Scan unified grid for cells matching target type
-                # Pick the one closest to agent start position
-                best_dist = float('inf')
-                for gy2, row in enumerate(unified):
-                    for gx2, val in enumerate(row):
-                        if val == TARGET_VALUE:
-                            d = math.hypot(gx2 - sx, gy2 - sy)
-                            if d < best_dist:
-                                best_dist = d
-                                goal = (gx2, gy2)
+                if agent.target.type == 'safezone':
+                    # For safe zones, target the CENTER cell so agents walk fully inside
+                    gcx = int((agent.target.x + agent.target.w / 2) // cs)
+                    gcy = int((agent.target.y + agent.target.h / 2) // cs)
+                    from src.pathfinding import nearest_free, BLOCKED
+                    goal = nearest_free(unified if False else
+                                        [[0 if v not in BLOCKED else 1 for v in row] for row in unified],
+                                        (gcx, gcy))
+                    if not goal:
+                        goal = (gcx, gcy)
+                else:
+                    # For exits/stairs: pick closest matching cell
+                    best_dist = float('inf')
+                    for gy2, row in enumerate(unified):
+                        for gx2, val in enumerate(row):
+                            if val == TARGET_VALUE:
+                                d = math.hypot(gx2 - sx, gy2 - sy)
+                                if d < best_dist:
+                                    best_dist = d
+                                    goal = (gx2, gy2)
 
             if goal is None:
                 # Fallback: convert pixel coords

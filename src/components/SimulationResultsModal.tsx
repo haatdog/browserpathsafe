@@ -1,6 +1,6 @@
 // SimulationResultsModal
 import React, { useState, useEffect } from 'react';
-import { X, Play, Clock, Users, CheckCircle, TrendingUp, Map as MapIcon, AlertCircle } from 'lucide-react';
+import { X, Play, Clock, TrendingUp, Map as MapIcon, AlertCircle, CheckCircle } from 'lucide-react';
 import SimulationPlayback from './SimulationPlayback';
 import PathVisualization from './PathVisualization';
 import { T, C } from '../design/DesignTokens';
@@ -19,11 +19,8 @@ const SimulationResultsModal: React.FC<SimulationResultsModalProps> = ({ simulat
   }, [simulation]);
 
   const stats = [
-    { label: 'Simulation Time',        value: `${simulation.evacuation_time || '0'}s`, icon: Clock,       color: 'text-blue-600',   bg: 'bg-blue-50'   },
-    { label: 'Agents Spawned',         value: simulation.agents_spawned    || 0,        icon: Users,       color: 'text-purple-600', bg: 'bg-purple-50' },
-    { label: 'Successfully Evacuated', value: simulation.agents_evacuated  || 0,        icon: CheckCircle, color: 'text-green-600',  bg: 'bg-green-50'  },
-    {
-      label: 'Evacuation Rate',
+    { label: 'Evacuation Time',   value: `${simulation.evacuation_time || '0'}s`, icon: Clock,       color: 'text-blue-600',   bg: 'bg-blue-50'   },
+    { label: 'Evacuation Rate',
       value: simulation.agents_spawned
         ? `${Math.round((simulation.agents_evacuated / simulation.agents_spawned) * 100)}%`
         : '0%',
@@ -130,7 +127,7 @@ const SimulationResultsModal: React.FC<SimulationResultsModalProps> = ({ simulat
                 <div>
                   <span style={T.meta}>Completion Status</span>
                   <p className="text-sm font-semibold text-gray-900 mt-0.5">
-                    {simulation.agents_evacuated >= simulation.agents_spawned ? '✅ All Evacuated' : `✅ ${simulation.agents_evacuated} of ${simulation.agents_spawned} Evacuated`}
+                    {simulation.agents_evacuated >= simulation.agents_spawned ? '✅ Fully Evacuated' : '✅ Evacuation Completed'}
                   </p>
                 </div>
                 <div>
