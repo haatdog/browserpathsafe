@@ -40,9 +40,9 @@ export default function Sidebar({ profile, currentPage, onNavigate, isOpen, onCl
 
   return (
     <>
-      {isOpen && <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={onClose} />}
+      {isOpen && <div className="fixed inset-0 bg-black/50 z-[59] md:hidden" onClick={onClose} />}
       <aside className={`
-        fixed md:static inset-y-0 left-0 z-50
+        fixed md:static inset-y-0 left-0 z-[60]
         bg-white border-r border-gray-200 flex flex-col
         transition-all duration-200 ease-in-out
         ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
