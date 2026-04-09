@@ -1,6 +1,6 @@
 // SimulationResultsModal
 import React, { useState, useEffect } from 'react';
-import { X, Play, Clock, Users, CheckCircle, XCircle, TrendingUp, Map as MapIcon, AlertCircle } from 'lucide-react';
+import { X, Play, Clock, Users, CheckCircle, TrendingUp, Map as MapIcon, AlertCircle } from 'lucide-react';
 import SimulationPlayback from './SimulationPlayback';
 import PathVisualization from './PathVisualization';
 import { T, C } from '../design/DesignTokens';
@@ -22,7 +22,6 @@ const SimulationResultsModal: React.FC<SimulationResultsModalProps> = ({ simulat
     { label: 'Simulation Time',        value: `${simulation.evacuation_time || '0'}s`, icon: Clock,       color: 'text-blue-600',   bg: 'bg-blue-50'   },
     { label: 'Agents Spawned',         value: simulation.agents_spawned    || 0,        icon: Users,       color: 'text-purple-600', bg: 'bg-purple-50' },
     { label: 'Successfully Evacuated', value: simulation.agents_evacuated  || 0,        icon: CheckCircle, color: 'text-green-600',  bg: 'bg-green-50'  },
-    { label: 'Trapped',                value: simulation.agents_trapped    || 0,        icon: XCircle,     color: 'text-red-600',    bg: 'bg-red-50'    },
     {
       label: 'Evacuation Rate',
       value: simulation.agents_spawned
@@ -131,7 +130,7 @@ const SimulationResultsModal: React.FC<SimulationResultsModalProps> = ({ simulat
                 <div>
                   <span style={T.meta}>Completion Status</span>
                   <p className="text-sm font-semibold text-gray-900 mt-0.5">
-                    {(simulation.agents_trapped || 0) === 0 ? '✅ All Evacuated' : '⚠️ Some Trapped'}
+                    {simulation.agents_evacuated >= simulation.agents_spawned ? '✅ All Evacuated' : `✅ ${simulation.agents_evacuated} of ${simulation.agents_spawned} Evacuated`}
                   </p>
                 </div>
                 <div>

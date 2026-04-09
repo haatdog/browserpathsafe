@@ -860,7 +860,9 @@ class Simulation:
                     agent.target = agent.get_random_exit()
                     if not agent.target:
                         continue
-                    spawn_pos = (px, py)
+                    # Use zone centre as canonical spawn_pos so path cache hits correctly
+                    # and all queue agents share the same green-path route as density agents
+                    spawn_pos = (nco.x + nco.w / 2, nco.y + nco.h / 2)
                     path = get_zone_path(agent, spawn_pos)
                     agent.path = path
                     self.record_agent_path(

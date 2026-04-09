@@ -1437,6 +1437,13 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
                       <input type="number" min={1} max={2000} step={1}
                         value={selectedNPCCount.agent_count ?? 10}
                         onChange={e => {
+                          const raw = e.target.value;
+                          if (raw === '' || raw === '-') return; // allow clearing while typing
+                          const val = Math.max(1, Math.min(2000, parseInt(raw) || 1));
+                          setObjects(prev => prev.map((o, i) => i === selectedIndex ? { ...o, agent_count: val } : o));
+                          setSelectedNPCCount(prev => prev ? { ...prev, agent_count: val } : prev);
+                        }}
+                        onBlur={e => {
                           const val = Math.max(1, Math.min(2000, parseInt(e.target.value) || 1));
                           setObjects(prev => prev.map((o, i) => i === selectedIndex ? { ...o, agent_count: val } : o));
                           setSelectedNPCCount(prev => prev ? { ...prev, agent_count: val } : prev);
@@ -1473,6 +1480,13 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
                       <input type="number" min={1} max={300} step={1}
                         value={selectedNPCCount.spawn_interval ?? 30}
                         onChange={e => {
+                          const raw = e.target.value;
+                          if (raw === '' || raw === '-') return; // allow clearing while typing
+                          const val = Math.max(1, Math.min(300, parseInt(raw) || 30));
+                          setObjects(prev => prev.map((o, i) => i === selectedIndex ? { ...o, spawn_interval: val } : o));
+                          setSelectedNPCCount(prev => prev ? { ...prev, spawn_interval: val } : prev);
+                        }}
+                        onBlur={e => {
                           const val = Math.max(1, Math.min(300, parseInt(e.target.value) || 30));
                           setObjects(prev => prev.map((o, i) => i === selectedIndex ? { ...o, spawn_interval: val } : o));
                           setSelectedNPCCount(prev => prev ? { ...prev, spawn_interval: val } : prev);
