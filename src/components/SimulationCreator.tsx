@@ -1452,6 +1452,16 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
                       <input type="number" min={1} max={2000} step={1}
                         value={npcCountRaw}
                         onChange={e => setNpcCountRaw(e.target.value)}
+                        onKeyDown={e => {
+                          e.stopPropagation();
+                          if (e.key === 'Enter') {
+                            const val = Math.max(1, Math.min(2000, parseInt(npcCountRaw) || 1));
+                            setNpcCountRaw(String(val));
+                            setObjects(prev => prev.map((o, i) => i === selectedIndex ? { ...o, agent_count: val } : o));
+                            setSelectedNPCCount(prev => prev ? { ...prev, agent_count: val } : prev);
+                            (e.target as HTMLInputElement).blur();
+                          }
+                        }}
                         onBlur={() => {
                           const val = Math.max(1, Math.min(2000, parseInt(npcCountRaw) || 1));
                           setNpcCountRaw(String(val));
@@ -1490,6 +1500,16 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
                       <input type="number" min={1} max={300} step={1}
                         value={npcIntervalRaw}
                         onChange={e => setNpcIntervalRaw(e.target.value)}
+                        onKeyDown={e => {
+                          e.stopPropagation();
+                          if (e.key === 'Enter') {
+                            const val = Math.max(1, Math.min(300, parseInt(npcIntervalRaw) || 30));
+                            setNpcIntervalRaw(String(val));
+                            setObjects(prev => prev.map((o, i) => i === selectedIndex ? { ...o, spawn_interval: val } : o));
+                            setSelectedNPCCount(prev => prev ? { ...prev, spawn_interval: val } : prev);
+                            (e.target as HTMLInputElement).blur();
+                          }
+                        }}
                         onBlur={() => {
                           const val = Math.max(1, Math.min(300, parseInt(npcIntervalRaw) || 30));
                           setNpcIntervalRaw(String(val));
