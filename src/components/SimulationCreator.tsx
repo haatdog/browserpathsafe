@@ -113,6 +113,8 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
   const [selectedStairs, setSelectedStairs]   = useState<MapObject | null>(null);
   const [selectedGate, setSelectedGate]       = useState<MapObject | null>(null);
   const [selectedNPCCount, setSelectedNPCCount] = useState<MapObject | null>(null);
+  const [npcCountRaw,      setNpcCountRaw]      = useState<string>('');
+  const [npcIntervalRaw,   setNpcIntervalRaw]   = useState<string>('');
 
   // ── View state ──────────────────────────────────────────────────────────────
   const [cellSize, setCellSize]     = useState(10);
@@ -727,7 +729,7 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
       if (wx >= obj.x && wx <= obj.x + obj.w && wy >= obj.y && wy <= obj.y + obj.h) {
         setSelectedIndex(i);
         if (obj.type === 'npc') { setSelectedNPC(obj); setSelectedStairs(null); setSelectedGate(null); setSelectedNPCCount(null); }
-        else if (obj.type === 'npc_count') { setSelectedNPCCount(obj); setSelectedNPC(null); setSelectedStairs(null); setSelectedGate(null); }
+        else if (obj.type === 'npc_count') { setSelectedNPCCount(obj); setSelectedNPC(null); setSelectedStairs(null); setSelectedGate(null); setNpcCountRaw(String(obj.agent_count ?? 10)); setNpcIntervalRaw(String(obj.spawn_interval ?? 30)); }
         else if (obj.type === 'concrete_stairs' || obj.type === 'fire_ladder') { setSelectedStairs(obj); setSelectedNPC(null); setSelectedGate(null); setSelectedNPCCount(null); }
         else if (obj.type === 'gate') { setSelectedGate(obj); setSelectedNPC(null); setSelectedStairs(null); setSelectedNPCCount(null); }
         else { setSelectedNPC(null); setSelectedStairs(null); setSelectedGate(null); setSelectedNPCCount(null); }
@@ -1435,16 +1437,11 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
                     <label className="text-xs text-slate-400 mb-1 block">Number of Agents</label>
                     <div className="flex items-center gap-2">
                       <input type="number" min={1} max={2000} step={1}
-                        value={selectedNPCCount.agent_count ?? 10}
-                        onChange={e => {
-                          const raw = e.target.value;
-                          if (raw === '' || raw === '-') return; // allow clearing while typing
-                          const val = Math.max(1, Math.min(2000, parseInt(raw) || 1));
-                          setObjects(prev => prev.map((o, i) => i === selectedIndex ? { ...o, agent_count: val } : o));
-                          setSelectedNPCCount(prev => prev ? { ...prev, agent_count: val } : prev);
-                        }}
-                        onBlur={e => {
-                          const val = Math.max(1, Math.min(2000, parseInt(e.target.value) || 1));
+                        value={npcCountRaw}
+                        onChange={e => setNpcCountRaw(e.target.value)}
+                        onBlur={() => {
+                          const val = Math.max(1, Math.min(2000, parseInt(npcCountRaw) || 1));
+                          setNpcCountRaw(String(val));
                           setObjects(prev => prev.map((o, i) => i === selectedIndex ? { ...o, agent_count: val } : o));
                           setSelectedNPCCount(prev => prev ? { ...prev, agent_count: val } : prev);
                         }}
@@ -1478,16 +1475,11 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
                     <label className="text-xs text-slate-400 mb-1 block">Spawn interval (steps between each)</label>
                     <div className="flex items-center gap-2">
                       <input type="number" min={1} max={300} step={1}
-                        value={selectedNPCCount.spawn_interval ?? 30}
-                        onChange={e => {
-                          const raw = e.target.value;
-                          if (raw === '' || raw === '-') return; // allow clearing while typing
-                          const val = Math.max(1, Math.min(300, parseInt(raw) || 30));
-                          setObjects(prev => prev.map((o, i) => i === selectedIndex ? { ...o, spawn_interval: val } : o));
-                          setSelectedNPCCount(prev => prev ? { ...prev, spawn_interval: val } : prev);
-                        }}
-                        onBlur={e => {
-                          const val = Math.max(1, Math.min(300, parseInt(e.target.value) || 30));
+                        value={npcIntervalRaw}
+                        onChange={e => setNpcIntervalRaw(e.target.value)}
+                        onBlur={() => {
+                          const val = Math.max(1, Math.min(300, parseInt(npcIntervalRaw) || 30));
+                          setNpcIntervalRaw(String(val));
                           setObjects(prev => prev.map((o, i) => i === selectedIndex ? { ...o, spawn_interval: val } : o));
                           setSelectedNPCCount(prev => prev ? { ...prev, spawn_interval: val } : prev);
                         }}
@@ -1705,9 +1697,11 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
             </div>
             <div className="space-y-3 mb-5">
               <input type="text" value={projectName} onChange={e => setProjectName(e.target.value)}
+                onKeyDown={e => e.stopPropagation()}
                 placeholder="Project name"
                 className="w-full px-4 py-2 bg-slate-800 text-white rounded-lg border border-slate-700 focus:border-blue-500 focus:outline-none text-sm" />
               <textarea value={projectDescription} onChange={e => setProjectDescription(e.target.value)}
+                onKeyDown={e => e.stopPropagation()}
                 placeholder="Description (optional)"
                 className="w-full px-4 py-2 bg-slate-800 text-white rounded-lg border border-slate-700 focus:border-blue-500 focus:outline-none resize-none text-sm"
                 rows={2} />
