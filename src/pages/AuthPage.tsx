@@ -22,12 +22,12 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
             <img
               src="/Pathsafe1.png"
               alt="PathSafe logo"
-              className="w-20 h-20 object-contain"
+              className="w-50 h-50 object-contain"
             />
-            <h1 className="text-3xl font-bold text-gray-900">PathSafe</h1>
+            {/* <h1 className="text-3xl font-bold text-gray-900">PathSafe</h1>
             <p className="text-center text-gray-500 text-xs font-medium tracking-wide uppercase">
               Web-Based Disaster Risk Reduction and Management System
-            </p>
+            </p> */}
           </div>
 
           {error && (
@@ -38,7 +38,7 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
 
           {isLogin
             ? <LoginForm  onError={setError} onSuccess={onLogin} />
-            : <SignupForm onError={setError} onSuccess={onLogin} />}
+            : <SignupForm onSuccess={onLogin} />}
 
           <div className="mt-6 text-center">
             <p className="text-gray-600 text-sm">

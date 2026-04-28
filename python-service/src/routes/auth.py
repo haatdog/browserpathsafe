@@ -4,7 +4,7 @@ import jwt as pyjwt
 import os
 from datetime import datetime, timedelta, timezone
 from psycopg2.extras import RealDictCursor
-from src.utils import get_db, hash_password, check_password, generate_user_id
+from src.utils import get_db, hash_password, check_password, generate_user_id, get_user_id
 
 def generate_token(user_id: str, email: str, role: str) -> str:
     payload = {
