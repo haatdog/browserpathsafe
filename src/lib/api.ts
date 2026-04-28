@@ -142,12 +142,12 @@ export const authService = {
     return response.user;
   },
 
-  signup: async (email: string, password: string, role: Role = 'member') => {
-    const response = await pythonRequest<{ success: boolean; user: UserProfile }>('/api/auth/register', {
+  signup: async (email: string, password: string, role: Role = 'member', names?: { first_name?: string | null; middle_name?: string | null; last_name?: string | null }) => {
+    const response = await pythonRequest<{ success: boolean; status: string; user: UserProfile }>('/api/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, password, role }),
+      body: JSON.stringify({ email, password, role, ...(names || {}) }),
     });
-    return response.user;
+    return response;
   },
 
   logout: async () => {
@@ -517,9 +517,10 @@ export const organizationAPI = {
 ========================= */
 
 export const authAPI = {
-  login: authService.login,
-  signup: authService.signup,
-  logout: authService.logout,
+  login:    authService.login,
+  signup:   authService.signup,
+  register: authService.signup,  // alias used by SignupForm
+  logout:   authService.logout,
 };
 
 export const pythonSimulationAPI = simulationAPI;

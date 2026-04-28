@@ -165,7 +165,14 @@ export default function LoginForm({ onError, onSuccess }: LoginFormProps) {
       await authService.login(email, password);
       onSuccess();
     } catch (err: any) {
-      onError(err.message);
+      const msg = err.message || '';
+      if (msg === 'pending') {
+        onError('⏳ Your account is pending approval by the administrator. Please wait.');
+      } else if (msg === 'rejected') {
+        onError('❌ Your account application has been rejected. Please contact the administrator.');
+      } else {
+        onError(msg);
+      }
     } finally {
       setLoading(false);
     }

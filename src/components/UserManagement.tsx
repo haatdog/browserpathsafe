@@ -70,7 +70,10 @@ export default function UserManagement({
   const [renamingGroupSaving, setRenamingGroupSaving] = useState(false);
 
   // Member picker (unit head flow)
-  const [showPickerModal, setShowPickerModal] = useState(false);
+  const [showPickerModal,  setShowPickerModal]  = useState(false);
+  const [pendingUsers,     setPendingUsers]     = useState<UserProfile[]>([]);
+  const [activeTab,        setActiveTab]        = useState<'members'|'pending'>('members');
+  const [approvingId,      setApprovingId]      = useState<string|null>(null);
   const [pickerSelected,  setPickerSelected]  = useState<string[]>([]);
   const [pickerSaving,    setPickerSaving]    = useState(false);
 
@@ -79,10 +82,12 @@ export default function UserManagement({
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [ud, gd] = await Promise.all([
+      const [ud, gd, pd] = await Promise.all([
         authFetch(`${API}/api/users`).then(r => r.json()),
         authFetch(`${API}/api/groups`).then(r => r.json()),
+        authFetch(`${API}/api/users/pending`).then(r => r.json()).catch(() => []),
       ]);
+      setPendingUsers(Array.isArray(pd) ? pd : []);
       setUsers( Array.isArray(ud) ? ud.map((u: any) => ({ ...u, groups: u.groups || [] })) : []);
       setGroups(Array.isArray(gd) ? gd : []);
     } catch (err: any) { setError(err.message); }
@@ -184,6 +189,25 @@ export default function UserManagement({
       if (userId === currentUserId) window.location.reload();
     } catch (err: any) { setError(err.message); }
     finally { setSavingAssign(false); }
+  };
+
+  const handleApprove = async (uid: string) => {
+    setApprovingId(uid);
+    try {
+      await authFetch(`${API}/api/users/${uid}/approve`, { method: 'POST' });
+      await loadAll();
+    } catch (err: any) { setError(err.message); }
+    finally { setApprovingId(null); }
+  };
+
+  const handleReject = async (uid: string) => {
+    if (!confirm('Reject this account application? The user will be notified they cannot log in.')) return;
+    setApprovingId(uid);
+    try {
+      await authFetch(`${API}/api/users/${uid}/reject`, { method: 'POST' });
+      await loadAll();
+    } catch (err: any) { setError(err.message); }
+    finally { setApprovingId(null); }
   };
 
   const handleKickFromGroup = async (userId: string, groupId: number, userName: string, groupName: string) => {
@@ -295,7 +319,15 @@ export default function UserManagement({
       {/* User list */}
       <div className="bg-white rounded-xl shadow-lg p-6">
         <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3"><Users className="w-5 h-5 text-green-600" /><h2 style={T.pageTitle}>User Management</h2></div>
+          <div className="flex items-center gap-3">
+            <Users className="w-5 h-5 text-green-600" />
+            <h2 style={T.pageTitle}>User Management</h2>
+            {pendingUsers.length > 0 && (
+              <span className="px-2 py-0.5 bg-amber-100 text-amber-700 border border-amber-200 rounded-full text-xs font-semibold">
+                {pendingUsers.length} pending
+              </span>
+            )}
+          </div>
           {(isAdmin || isUnitHead) && (
             <button onClick={() => isUnitHead && !isAdmin ? setShowPickerModal(true) : setShowCreateModal(true)}
               className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition flex items-center gap-2 text-sm">
@@ -303,7 +335,55 @@ export default function UserManagement({
             </button>
           )}
         </div>
+
+        {/* Tabs */}
+        {isAdmin && (
+          <div className="flex border-b border-gray-200 mb-4">
+            {[
+              { key: 'members', label: 'All Members' },
+              { key: 'pending', label: `Pending Approvals${pendingUsers.length > 0 ? ` (${pendingUsers.length})` : ''}` },
+            ].map(t => (
+              <button key={t.key} onClick={() => setActiveTab(t.key as any)}
+                className={`px-4 py-2.5 text-sm font-medium border-b-2 transition ${activeTab === t.key ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Pending approvals list */}
+        {activeTab === 'pending' && isAdmin && (
+          <div className="space-y-3">
+            {pendingUsers.length === 0 ? (
+              <div className="text-center py-10 text-gray-400">
+                <Users className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">No pending applications</p>
+              </div>
+            ) : pendingUsers.map(u => (
+              <div key={u.id} className="border border-amber-200 bg-amber-50 rounded-xl p-4 flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-semibold text-gray-900 text-sm">
+                    {[u.first_name, (u as any).middle_name, u.last_name].filter(Boolean).join(' ')}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">{u.email}</p>
+                  <p className="text-xs text-amber-600 mt-1">⏳ Awaiting verification</p>
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <button onClick={() => handleApprove(u.id)} disabled={approvingId === u.id}
+                    className="px-3 py-1.5 text-xs bg-green-600 hover:bg-green-700 text-white rounded-lg transition disabled:opacity-50">
+                    ✓ Approve
+                  </button>
+                  <button onClick={() => handleReject(u.id)} disabled={approvingId === u.id}
+                    className="px-3 py-1.5 text-xs bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg transition disabled:opacity-50">
+                    ✗ Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
         {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">{error}</div>}
+        {(activeTab === 'members' || !isAdmin) && (
         <div className="space-y-2">
           {visibleUsers.map(user => (
             <div key={user.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-sm transition">
@@ -415,6 +495,7 @@ export default function UserManagement({
           ))}
           {visibleUsers.length === 0 && <p className="text-gray-500 text-center py-8 text-sm">No users found.</p>}
         </div>
+        )}
       </div>
 
       {/* Create User Modal */}

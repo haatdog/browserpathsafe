@@ -260,6 +260,13 @@ def init_db():
         'ALTER TABLE simulations ADD COLUMN IF NOT EXISTS project_data JSON',
         # simulations: store project name at run time so renaming/deleting project doesn't affect simulations
         'ALTER TABLE simulations ADD COLUMN IF NOT EXISTS project_name VARCHAR(255)',
+        # user verification: pending/approved/rejected
+        """ALTER TABLE user_profiles
+           ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'approved'""",
+        # set existing users to approved so they are not locked out
+        "UPDATE user_profiles SET status = 'approved' WHERE status IS NULL",
+        # middle name field
+        'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS middle_name VARCHAR(255)',
         # Drop the FK constraint so deleting a project does NOT cascade-delete its simulations
         '''DO $$
         BEGIN

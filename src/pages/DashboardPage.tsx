@@ -190,6 +190,48 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
     </div>
   );
 
+  // Pending or rejected — show locked view
+  if (profile && (profile as any).status === 'pending') return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl border border-amber-200 max-w-md w-full p-8 text-center space-y-4">
+        <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto">
+          <span className="text-4xl">⏳</span>
+        </div>
+        <h2 className="text-xl font-bold text-gray-900">Account Not Yet Verified</h2>
+        <p className="text-gray-600 text-sm leading-relaxed">
+          Your account is currently <strong>pending approval</strong> by the administrator.
+          You will receive access once your account has been verified.
+        </p>
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
+          Please wait for the administrator to review your application.
+        </div>
+        <button onClick={async () => { localStorage.removeItem('pathsafe_token'); window.location.href = '/'; }}
+          className="w-full py-2.5 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition text-sm">
+          Sign Out
+        </button>
+      </div>
+    </div>
+  );
+
+  if (profile && (profile as any).status === 'rejected') return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl border border-red-200 max-w-md w-full p-8 text-center space-y-4">
+        <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto">
+          <span className="text-4xl">❌</span>
+        </div>
+        <h2 className="text-xl font-bold text-gray-900">Account Application Rejected</h2>
+        <p className="text-gray-600 text-sm leading-relaxed">
+          Your account application has been <strong>rejected</strong>.
+          Please contact the administrator for more information.
+        </p>
+        <button onClick={async () => { localStorage.removeItem('pathsafe_token'); window.location.href = '/'; }}
+          className="w-full py-2.5 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition text-sm">
+          Sign Out
+        </button>
+      </div>
+    </div>
+  );
+
   const navigate = (page: Page) => { setCurrentPage(page); setSidebarOpen(false); };
 
   const initials = profile?.first_name && profile?.last_name

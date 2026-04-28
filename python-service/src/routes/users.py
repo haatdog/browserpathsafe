@@ -315,3 +315,92 @@ def update_user_group_legacy(uid):
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+# ── Pending approvals ─────────────────────────────────────────────────────────
+
+@users_bp.route('/api/users/pending', methods=['GET', 'OPTIONS'])
+def get_pending_users():
+    """Return all users with status = pending. Admin only."""
+    if request.method == 'OPTIONS':
+        return '', 200
+    caller_id = get_user_id()
+    if not caller_id:
+        return jsonify({'error': 'Not authenticated'}), 401
+    try:
+        conn   = get_db()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute('SELECT role FROM user_profiles WHERE id = %s', (caller_id,))
+        me = cursor.fetchone()
+        if not me or me['role'] not in ('admin', 'coordinator'):
+            cursor.close(); conn.close()
+            return jsonify({'error': 'Access denied'}), 403
+
+        cursor.execute('''
+            SELECT id, email, first_name, middle_name, last_name, role, status, created_at
+            FROM user_profiles
+            WHERE status = 'pending'
+            ORDER BY created_at ASC
+        ''')
+        rows = cursor.fetchall()
+        cursor.close(); conn.close()
+        result = []
+        for r in rows:
+            d = dict(r)
+            if d.get('created_at'): d['created_at'] = d['created_at'].isoformat()
+            result.append(d)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@users_bp.route('/api/users/<string:uid>/approve', methods=['POST', 'OPTIONS'])
+def approve_user(uid):
+    if request.method == 'OPTIONS':
+        return '', 200
+    caller_id = get_user_id()
+    if not caller_id:
+        return jsonify({'error': 'Not authenticated'}), 401
+    try:
+        conn   = get_db()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute('SELECT role FROM user_profiles WHERE id = %s', (caller_id,))
+        me = cursor.fetchone()
+        if not me or me['role'] not in ('admin', 'coordinator'):
+            cursor.close(); conn.close()
+            return jsonify({'error': 'Access denied'}), 403
+
+        cursor.execute(
+            "UPDATE user_profiles SET status = 'approved' WHERE id = %s",
+            (uid,)
+        )
+        conn.commit(); cursor.close(); conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@users_bp.route('/api/users/<string:uid>/reject', methods=['POST', 'OPTIONS'])
+def reject_user(uid):
+    if request.method == 'OPTIONS':
+        return '', 200
+    caller_id = get_user_id()
+    if not caller_id:
+        return jsonify({'error': 'Not authenticated'}), 401
+    try:
+        conn   = get_db()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute('SELECT role FROM user_profiles WHERE id = %s', (caller_id,))
+        me = cursor.fetchone()
+        if not me or me['role'] not in ('admin', 'coordinator'):
+            cursor.close(); conn.close()
+            return jsonify({'error': 'Access denied'}), 403
+
+        cursor.execute(
+            "UPDATE user_profiles SET status = 'rejected' WHERE id = %s",
+            (uid,)
+        )
+        conn.commit(); cursor.close(); conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

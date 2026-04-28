@@ -54,22 +54,34 @@ def register():
             'INSERT INTO auth_users (id, email, password_hash) VALUES (%s, %s, %s)',
             (user_id, email, password_hash)
         )
-        first_name = data.get('first_name', '').strip() or None
-        last_name  = data.get('last_name', '').strip() or None
-        group_id   = data.get('group_id') or None
-        is_head    = bool(data.get('is_head', False))
+        first_name  = data.get('first_name',  '').strip() or None
+        middle_name = data.get('middle_name', '').strip() or None
+        last_name   = data.get('last_name',   '').strip() or None
+        group_id    = data.get('group_id') or None
+        is_head     = bool(data.get('is_head', False))
+
+        # Users created by admin/coordinator are auto-approved.
+        # Self-signups are pending admin approval.
+        caller_id = get_user_id()
+        if caller_id:
+            status = 'approved'
+        else:
+            status = 'pending'
+            role   = 'member'
 
         cursor.execute(
-            '''INSERT INTO user_profiles (id, email, role, first_name, last_name, group_id, is_head)
-               VALUES (%s, %s, %s, %s, %s, %s, %s)''',
-            (user_id, email, role, first_name, last_name, group_id, is_head)
+            '''INSERT INTO user_profiles
+               (id, email, role, first_name, middle_name, last_name, group_id, is_head, status)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)''',
+            (user_id, email, role, first_name, middle_name, last_name, group_id, is_head, status)
         )
         conn.commit(); cursor.close(); conn.close()
 
-        print(f"✅ User registered: {email} ({role})")
+        print(f"✅ User registered: {email} ({role}) status={status}")
         return jsonify({
             "success": True,
-            "message": "Registration successful",
+            "message": "pending" if status == "pending" else "Registration successful",
+            "status":  status,
             "user": {"id": user_id, "email": email, "role": role}
         }), 201
 
@@ -93,7 +105,7 @@ def login():
         conn   = get_db()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute('''
-            SELECT au.id, au.email, au.password_hash, up.role
+            SELECT au.id, au.email, au.password_hash, up.role, up.status
             FROM auth_users au
             JOIN user_profiles up ON au.id = up.id
             WHERE au.email = %s
@@ -103,6 +115,12 @@ def login():
 
         if not user or not check_password(password, user['password_hash']):
             return jsonify({"error": "Invalid email or password"}), 401
+
+        status = user.get('status', 'approved')
+        if status == 'pending':
+            return jsonify({"error": "pending", "message": "Your account is pending approval by the administrator."}), 403
+        if status == 'rejected':
+            return jsonify({"error": "rejected", "message": "Your account application has been rejected. Please contact the administrator."}), 403
 
         session['user_id'] = user['id']
         session['email']   = user['email']
@@ -330,7 +348,8 @@ def get_current_user():
         conn   = get_db()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute('''
-            SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.group_id, u.is_head,
+            SELECT u.id, u.email, u.first_name, u.middle_name, u.last_name, u.role,
+                   u.group_id, u.is_head, u.status,
                    g.name AS group_name, u.created_at, u.updated_at
             FROM user_profiles u
             LEFT JOIN groups g ON u.group_id = g.id
@@ -362,6 +381,7 @@ def get_current_user():
             "first_name": user['first_name'],
             "last_name":  user['last_name'],
             "role":       user['role'],
+            "status":     user.get('status', 'approved'),
             "group_id":   user['group_id'],
             "group_name": user['group_name'],
             "is_head":    any_head,
