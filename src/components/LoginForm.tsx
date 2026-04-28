@@ -1,7 +1,7 @@
 // LoginForm.tsx
 import { useState } from 'react';
 import { authService } from '../lib/api';
-import { Mail, Lock, Loader, KeyRound, X, CheckCircle, Copy, Check } from 'lucide-react';
+import { Mail, Lock, Loader, KeyRound, X, CheckCircle, Copy, Check, Eye, EyeOff } from 'lucide-react';
 import { T } from '../design/DesignTokens';
 
 interface LoginFormProps {
@@ -156,6 +156,7 @@ export default function LoginForm({ onError, onSuccess }: LoginFormProps) {
   const [password,        setPassword]        = useState('');
   const [loading,         setLoading]         = useState(false);
   const [showForgot,      setShowForgot]      = useState(false);
+  const [showPassword,    setShowPassword]    = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -204,10 +205,14 @@ export default function LoginForm({ onError, onSuccess }: LoginFormProps) {
           </div>
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input id="password" type="password" value={password}
+            <input id="password" type={showPassword ? 'text' : 'password'} value={password}
               onChange={e => setPassword(e.target.value)}
               required placeholder="••••••••"
-              className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition" />
+              className="w-full pl-9 pr-10 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition" />
+            <button type="button" onClick={() => setShowPassword(p => !p)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition">
+              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
           </div>
         </div>
 

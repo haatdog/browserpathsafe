@@ -50,7 +50,7 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
             </p>
           </div>
 
-          <div className="mt-8 pt-6 border-t border-gray-200">
+          {/* <div className="mt-8 pt-6 border-t border-gray-200">
             <h3 className="text-sm font-semibold text-gray-700 mb-3">Demo Credentials</h3>
             <div className="space-y-2 text-xs text-gray-600">
               <div>
@@ -66,7 +66,7 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
                 <p>member@example.com / password</p>
               </div>
             </div>
-          </div>
+          </div> */}
 
         </div>
       </div>
