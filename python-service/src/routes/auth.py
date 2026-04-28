@@ -69,12 +69,25 @@ def register():
             status = 'pending'
             role   = 'member'
 
-        cursor.execute(
-            '''INSERT INTO user_profiles
-               (id, email, role, first_name, middle_name, last_name, group_id, is_head, status)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)''',
-            (user_id, email, role, first_name, middle_name, last_name, group_id, is_head, status)
-        )
+        # Try full insert with new columns; fall back if columns don't exist yet
+        try:
+            cursor.execute("SAVEPOINT register_insert")
+            cursor.execute(
+                '''INSERT INTO user_profiles
+                   (id, email, role, first_name, middle_name, last_name, group_id, is_head, status)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)''',
+                (user_id, email, role, first_name, middle_name, last_name, group_id, is_head, status)
+            )
+            cursor.execute("RELEASE SAVEPOINT register_insert")
+        except Exception as col_err:
+            print(f"⚠️ Full insert failed ({col_err}), falling back to legacy schema")
+            cursor.execute("ROLLBACK TO SAVEPOINT register_insert")
+            cursor.execute(
+                '''INSERT INTO user_profiles
+                   (id, email, role, first_name, last_name, group_id, is_head)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s)''',
+                (user_id, email, role, first_name, last_name, group_id, is_head)
+            )
         conn.commit(); cursor.close(); conn.close()
 
         print(f"✅ User registered: {email} ({role}) status={status}")

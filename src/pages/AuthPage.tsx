@@ -20,7 +20,7 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
           {/* Logo + Title */}
           <div className="flex flex-col items-center gap-3 mb-6">
             <img
-              src="/PathSafe(200x200).png"
+              src="/PathSafe1.png"
               alt="PathSafe logo"
               className="w-20 h-20 object-contain"
             />
