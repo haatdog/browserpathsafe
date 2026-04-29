@@ -15,7 +15,18 @@ export type ObjectType =
   | 'fence'
   | 'npc_count'
   | 'path_walkable'   // brush-painted walkable path
-  | 'path_danger';    // brush-painted dangerous/hazard path
+  | 'path_danger'     // brush-painted dangerous/hazard path
+  // ── Safety markers (decorative, no pathfinding effect) ─────────────────
+  | 'marker_fire_extinguisher'
+  | 'marker_fire_exit'
+  | 'marker_assembly_point'
+  | 'marker_first_aid'
+  | 'marker_fire_alarm'
+  | 'marker_emergency_phone'
+  | 'marker_no_entry'
+  | 'marker_you_are_here'
+  | 'marker_fire_hose'
+  | 'marker_aed';
 
 // ToolType = everything the user can select in the toolbar
 export type ToolType = ObjectType | 'room' | 'eraser';
@@ -61,6 +72,10 @@ export interface MapObject {
 
   // Gate
   is_open?: boolean;
+
+  // Safety marker
+  markerSize?: number;  // display size in world-px (default 40)
+  svgOverride?: string; // optional custom SVG override
 
 }
 

@@ -12,6 +12,36 @@ interface PathVisualizationProps {
 // ── Shared object renderer ────────────────────────────────────────────────────
 function drawMapObject(ctx: CanvasRenderingContext2D, obj: any) {
   const t = obj.type;
+  // ── Safety markers ───────────────────────────────────────────────────────
+  if (t && t.startsWith('marker_')) {
+    const colors: Record<string,{bg:string;border:string;text:string;vb:string;s:string}> = {
+      marker_fire_extinguisher:{bg:'#fee2e2',border:'#dc2626',text:'#dc2626',vb:'0 0 24 24',s:`<rect x="9" y="8" width="6" height="12" rx="3" fill="#dc2626"/><rect x="10" y="4" width="4" height="4" rx="1" fill="#dc2626"/><line x1="14" y1="5" x2="18" y2="3" stroke="#dc2626" stroke-width="1.5" stroke-linecap="round"/><path d="M18 3 Q21 3 21 6" stroke="#dc2626" stroke-width="1.5" fill="none" stroke-linecap="round"/>`},
+      marker_fire_exit:{bg:'#dcfce7',border:'#16a34a',text:'#15803d',vb:'0 0 24 24',s:`<rect x="2" y="2" width="20" height="20" rx="2" fill="#16a34a"/><circle cx="15" cy="7" r="1.5" fill="white"/><path d="M15 9 L13 14 L10 17" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/><rect x="6" y="4" width="2" height="16" rx="0.5" fill="white"/>`},
+      marker_assembly_point:{bg:'#dbeafe',border:'#2563eb',text:'#1d4ed8',vb:'0 0 24 24',s:`<rect x="2" y="2" width="20" height="20" rx="2" fill="#2563eb"/><circle cx="8" cy="8" r="1.5" fill="white"/><circle cx="12" cy="8" r="1.5" fill="white"/><circle cx="16" cy="8" r="1.5" fill="white"/><path d="M6 11 Q8 10 8 13 L8 17" stroke="white" stroke-width="1.5" fill="none"/><path d="M10 11 Q12 10 12 13 L12 17" stroke="white" stroke-width="1.5" fill="none"/><path d="M14 11 Q16 10 16 13 L16 17" stroke="white" stroke-width="1.5" fill="none"/>`},
+      marker_first_aid:{bg:'#dcfce7',border:'#16a34a',text:'#15803d',vb:'0 0 24 24',s:`<rect x="2" y="2" width="20" height="20" rx="3" fill="#16a34a"/><rect x="10" y="6" width="4" height="12" rx="1" fill="white"/><rect x="6" y="10" width="12" height="4" rx="1" fill="white"/>`},
+      marker_fire_alarm:{bg:'#fee2e2',border:'#dc2626',text:'#dc2626',vb:'0 0 24 24',s:`<path d="M12 3 C8 3 6 6 6 9 L6 15 L4 17 L20 17 L18 15 L18 9 C18 6 16 3 12 3 Z" fill="#dc2626"/><rect x="10" y="17" width="4" height="2" rx="1" fill="#dc2626"/><circle cx="12" cy="19.5" r="1.5" fill="#dc2626"/>`},
+      marker_emergency_phone:{bg:'#dbeafe',border:'#2563eb',text:'#1d4ed8',vb:'0 0 24 24',s:`<rect x="2" y="2" width="20" height="20" rx="2" fill="#2563eb"/><path d="M8 6 C7 6 6 7 6 8 L6 9 C6 15 9 18 15 18 L16 18 C17 18 18 17 18 16 L18 14 C18 13.5 17.5 13 17 13 L15 13 C14.5 13 14 13.5 14 14 L14 14.5 C12.5 14 10 11.5 9.5 10 L10 10 C10.5 10 11 9.5 11 9 L11 7 C11 6.5 10.5 6 10 6 Z" fill="white"/>`},
+      marker_no_entry:{bg:'#fee2e2',border:'#dc2626',text:'#dc2626',vb:'0 0 24 24',s:`<circle cx="12" cy="12" r="10" fill="#dc2626"/><rect x="6" y="10.5" width="12" height="3" rx="1.5" fill="white"/>`},
+      marker_you_are_here:{bg:'#fef9c3',border:'#ca8a04',text:'#92400e',vb:'0 0 24 24',s:`<path d="M12 2 C8.5 2 6 4.5 6 8 C6 13 12 22 12 22 C12 22 18 13 18 8 C18 4.5 15.5 2 12 2 Z" fill="#ca8a04"/><circle cx="12" cy="8" r="3" fill="white"/><circle cx="12" cy="8" r="1.5" fill="#ca8a04"/>`},
+      marker_fire_hose:{bg:'#fee2e2',border:'#dc2626',text:'#dc2626',vb:'0 0 24 24',s:`<rect x="2" y="2" width="20" height="20" rx="2" fill="#dc2626"/><circle cx="12" cy="12" r="7" stroke="white" stroke-width="2.5" fill="none"/><circle cx="12" cy="12" r="3.5" stroke="white" stroke-width="2" fill="none"/>`},
+      marker_aed:{bg:'#fef3c7',border:'#d97706',text:'#92400e',vb:'0 0 24 24',s:`<rect x="2" y="2" width="20" height="20" rx="3" fill="#d97706"/><path d="M12 18 C12 18 5 13 5 8.5 C5 6.5 6.5 5 8.5 5 C9.8 5 11 5.8 12 7 C13 5.8 14.2 5 15.5 5 C17.5 5 19 6.5 19 8.5 C19 13 12 18 12 18 Z" fill="white"/><path d="M11 9 L10 13 L12.5 11 L12 15 L14 10 L11.5 12 Z" fill="#d97706"/>`},
+    };
+    const def = colors[t]; if (!def) return;
+    const sz = obj.markerSize ?? 40; const pad = 3;
+    ctx.save();
+    ctx.fillStyle=def.bg; ctx.strokeStyle=def.border; ctx.lineWidth=1.5;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(obj.x,obj.y,sz+pad*2,sz+pad*2+12,4);
+    else ctx.rect(obj.x,obj.y,sz+pad*2,sz+pad*2+12);
+    ctx.fill(); ctx.stroke();
+    const img = new Image();
+    img.src = 'data:image/svg+xml;base64,' + btoa(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${def.vb}" width="${sz}" height="${sz}">${def.s}</svg>`);
+    ctx.drawImage(img,obj.x+pad,obj.y+pad,sz,sz);
+    const label = t.replace('marker_','').replace(/_/g,' ').replace(/\b\w/g,(c:string)=>c.toUpperCase());
+    ctx.fillStyle=def.text; ctx.font=`bold 8px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='top';
+    ctx.fillText(label,obj.x+(sz+pad*2)/2,obj.y+sz+pad+2,sz+pad*2);
+    ctx.restore(); return;
+  }
   if (t === 'line') {
     const x1=obj.x1??0, y1=obj.y1??0, x2=obj.x2??0, y2=obj.y2??0;
     const isRoom = obj.is_room_wall===true;

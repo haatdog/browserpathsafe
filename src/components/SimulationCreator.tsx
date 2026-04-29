@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 
 import type { Point, MapObject, ObjectType, ToolType, MapEditorProps } from './MapEditorTypes';
+import { SAFETY_MARKERS, isSafetyMarker, getMarkerDef } from './SafetyMarkers';
 import { T, C } from '../design/DesignTokens'; // available for any future light-mode panels
 import type { MapProjectSummary } from '../lib/api';
 import {
@@ -669,7 +670,39 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
 
     // Draw objects
     objects.forEach((obj, i) => {
-      drawObject(ctx, obj, zoom, offsetX, offsetY);
+      // Safety markers: draw using inline SVG via Image
+      if (isSafetyMarker(obj.type)) {
+        const def = getMarkerDef(obj.type);
+        if (def) {
+          const sp  = worldpxToScreen(obj.x, obj.y, zoom, offsetX, offsetY);
+          const sz  = (obj.markerSize ?? 40) * zoom;
+          const pad = 3 * zoom;
+          // Background box
+          ctx.save();
+          ctx.fillStyle   = def.color;
+          ctx.strokeStyle = def.borderColor;
+          ctx.lineWidth   = 1.5;
+          ctx.beginPath();
+          ctx.roundRect(sp.x, sp.y, sz + pad * 2, sz + pad * 2 + 12 * zoom, 4 * zoom);
+          ctx.fill(); ctx.stroke();
+          // Render SVG as image
+          const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${def.viewBox}" width="${sz}" height="${sz}">${def.svg}</svg>`;
+          const img = new Image();
+          img.src = 'data:image/svg+xml;base64,' + btoa(svgStr);
+          ctx.drawImage(img, sp.x + pad, sp.y + pad, sz, sz);
+          // Label
+          ctx.fillStyle  = def.textColor;
+          ctx.font       = `bold ${Math.max(8, 9 * zoom)}px sans-serif`;
+          ctx.textAlign  = 'center';
+          ctx.textBaseline = 'top';
+          const maxW = sz + pad * 2;
+          const label = def.label.length > 14 ? def.label.slice(0, 13) + '…' : def.label;
+          ctx.fillText(label, sp.x + (sz + pad * 2) / 2, sp.y + sz + pad + 2 * zoom, maxW);
+          ctx.restore();
+        }
+      } else {
+        drawObject(ctx, obj, zoom, offsetX, offsetY);
+      }
 
       // Selection highlight
       const isSelected = i === selectedIndex || obj === selectedNPC || obj === selectedStairs || obj === selectedGate;
@@ -876,18 +909,38 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
           });
         }
       } else if (isObjectTool(currentTool)) {
-        const newObj = createMapObject(currentTool, objRect, { x1: startPos.x, y1: startPos.y, x2: wx, y2: wy }, cellSize);
-        setObjects(prev => {
-          const next = [...prev, newObj];
-          historyRef.current = historyRef.current.slice(0, historyIdxRef.current + 1);
-          historyRef.current.push(next);
-          historyIdxRef.current = historyRef.current.length - 1;
-          return next;
-        });
-        if (newObj.type === 'npc') setSelectedNPC(newObj);
-        if (newObj.type === 'npc_count') setSelectedNPCCount(newObj);
-        if (newObj.type === 'concrete_stairs' || newObj.type === 'fire_ladder') setSelectedStairs(newObj);
-        if (newObj.type === 'gate') setSelectedGate(newObj);
+        // Safety markers: place on single click at fixed size
+        if (isSafetyMarker(currentTool)) {
+          const markerSize = 40;
+          const newObj: MapObject = {
+            type:       currentTool as any,
+            x:          Math.round(wx / cellSize) * cellSize - markerSize / 2,
+            y:          Math.round(wy / cellSize) * cellSize - markerSize / 2,
+            w:          markerSize,
+            h:          markerSize + 14,
+            markerSize: markerSize,
+          };
+          setObjects(prev => {
+            const next = [...prev, newObj];
+            historyRef.current = historyRef.current.slice(0, historyIdxRef.current + 1);
+            historyRef.current.push(next);
+            historyIdxRef.current = historyRef.current.length - 1;
+            return next;
+          });
+        } else {
+          const newObj = createMapObject(currentTool, objRect, { x1: startPos.x, y1: startPos.y, x2: wx, y2: wy }, cellSize);
+          setObjects(prev => {
+            const next = [...prev, newObj];
+            historyRef.current = historyRef.current.slice(0, historyIdxRef.current + 1);
+            historyRef.current.push(next);
+            historyIdxRef.current = historyRef.current.length - 1;
+            return next;
+          });
+          if (newObj.type === 'npc') setSelectedNPC(newObj);
+          if (newObj.type === 'npc_count') setSelectedNPCCount(newObj);
+          if (newObj.type === 'concrete_stairs' || newObj.type === 'fire_ladder') setSelectedStairs(newObj);
+          if (newObj.type === 'gate') setSelectedGate(newObj);
+        }
       }
       setDragging(false);
     }
@@ -1061,17 +1114,35 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
             });
           }
         } else if (isObjectTool(currentTool)) {
-          const newObj = createMapObject(currentTool, objRect, { x1: startPos.x, y1: startPos.y, x2: wx, y2: wy }, cellSize);
-          setObjects(prev => {
-            const next = [...prev, newObj];
-            historyRef.current = historyRef.current.slice(0, historyIdxRef.current + 1);
-            historyRef.current.push(next); historyIdxRef.current++;
-            return next;
-          });
-          if (newObj.type === 'npc') setSelectedNPC(newObj);
-          if (newObj.type === 'npc_count') setSelectedNPCCount(newObj);
-          if (newObj.type === 'concrete_stairs' || newObj.type === 'fire_ladder') setSelectedStairs(newObj);
-          if (newObj.type === 'gate') setSelectedGate(newObj);
+          if (isSafetyMarker(currentTool)) {
+            const markerSize = 40;
+            const newObj: MapObject = {
+              type:       currentTool as any,
+              x:          Math.round(wx / cellSize) * cellSize - markerSize / 2,
+              y:          Math.round(wy / cellSize) * cellSize - markerSize / 2,
+              w:          markerSize,
+              h:          markerSize + 14,
+              markerSize: markerSize,
+            };
+            setObjects(prev => {
+              const next = [...prev, newObj];
+              historyRef.current = historyRef.current.slice(0, historyIdxRef.current + 1);
+              historyRef.current.push(next); historyIdxRef.current++;
+              return next;
+            });
+          } else {
+            const newObj = createMapObject(currentTool, objRect, { x1: startPos.x, y1: startPos.y, x2: wx, y2: wy }, cellSize);
+            setObjects(prev => {
+              const next = [...prev, newObj];
+              historyRef.current = historyRef.current.slice(0, historyIdxRef.current + 1);
+              historyRef.current.push(next); historyIdxRef.current++;
+              return next;
+            });
+            if (newObj.type === 'npc') setSelectedNPC(newObj);
+            if (newObj.type === 'npc_count') setSelectedNPCCount(newObj);
+            if (newObj.type === 'concrete_stairs' || newObj.type === 'fire_ladder') setSelectedStairs(newObj);
+            if (newObj.type === 'gate') setSelectedGate(newObj);
+          }
         }
         setDragging(false);
       }
@@ -1200,6 +1271,17 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
     fence:            { title: 'Fence / Barrier', desc: 'A solid impassable barrier. Agents cannot cross fences — they must go around.', usage: 'Draw along perimeter walls or barriers that agents cannot climb.', tip: 'Fences are thinner than walls but fully block agent movement.' },
     path_walkable:    { title: 'Walkable Path', desc: 'Paints cells as preferred walkable areas. Agents are guided toward these paths during evacuation.', usage: 'Paint over hallways and corridors to guide agent flow. Use brush size to cover larger areas.', tip: 'Paint main evacuation routes to create more realistic agent behavior.' },
     path_danger:      { title: 'Hazard Zone', desc: 'Marks cells as dangerous areas (fire spread, debris). Agents actively avoid these zones.', usage: 'Paint over fire hazard zones, collapsed areas, or obstacles agents should avoid.', tip: 'Combine with walkable paths to create realistic escape route alternatives.' },
+    // Safety markers
+    marker_fire_extinguisher: { title: 'Fire Extinguisher',  desc: 'Marks the location of a fire extinguisher on the map.', usage: 'Click to place. Decorative only — no effect on simulation.' },
+    marker_fire_exit:         { title: 'Fire Exit',           desc: 'Marks a designated fire exit door or route.', usage: 'Click to place. Decorative only.' },
+    marker_assembly_point:    { title: 'Assembly Point',      desc: 'Designates the assembly/muster point for evacuees.', usage: 'Click to place. Decorative only.' },
+    marker_first_aid:         { title: 'First Aid Kit',       desc: 'Marks the location of a first aid kit or station.', usage: 'Click to place. Decorative only.' },
+    marker_fire_alarm:        { title: 'Fire Alarm',          desc: 'Marks the location of a fire alarm call point.', usage: 'Click to place. Decorative only.' },
+    marker_emergency_phone:   { title: 'Emergency Phone',     desc: 'Marks the location of an emergency telephone.', usage: 'Click to place. Decorative only.' },
+    marker_no_entry:          { title: 'No Entry',            desc: 'Marks a restricted or no-entry area.', usage: 'Click to place. Decorative only.' },
+    marker_you_are_here:      { title: 'You Are Here',        desc: 'Marks the current viewer position on the map.', usage: 'Click to place. Decorative only.' },
+    marker_fire_hose:         { title: 'Fire Hose',           desc: 'Marks the location of a fire hose reel or cabinet.', usage: 'Click to place. Decorative only.' },
+    marker_aed:               { title: 'AED Defibrillator',   desc: 'Marks the location of an Automated External Defibrillator.', usage: 'Click to place. Decorative only.' },
     eraser:           { title: 'Eraser', desc: 'Removes wall segments, path tiles, and other objects. Wall segments are split at the eraser boundary — great for creating doorways.', usage: 'Click and drag over any object to erase it. Use [ and ] keys or the size buttons to change eraser size.', tip: 'Erase the middle of a wall segment to create a doorway without redrawing.' },
   };
 
@@ -1313,6 +1395,32 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
               </div>
             </div>
           )}
+
+          {/* Safety Markers */}
+          <div className="border-t border-slate-800 pt-2 mt-1">
+            <div className="text-[9px] text-slate-600 uppercase tracking-widest mb-1.5 px-1">Safety Markers</div>
+            <div className="grid grid-cols-2 gap-1">
+              {SAFETY_MARKERS.map(m => (
+                <button
+                  key={m.type}
+                  onClick={() => setCurrentTool(m.type as any)}
+                  title={m.label}
+                  className={`flex flex-col items-center gap-1 px-1 py-2 rounded-lg text-[9px] font-medium transition leading-tight
+                    ${currentTool === m.type
+                      ? 'bg-amber-600 text-white ring-1 ring-amber-400'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'}`}>
+                  {/* Mini icon preview */}
+                  <div
+                    className="w-6 h-6 rounded flex-shrink-0"
+                    style={{ background: m.color, border: `1.5px solid ${m.borderColor}`, padding: '2px' }}
+                    dangerouslySetInnerHTML={{ __html:
+                      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${m.viewBox}" width="100%" height="100%">${m.svg}</svg>`
+                    }} />
+                  <span className="text-center line-clamp-2 leading-tight" style={{ fontSize: '8px' }}>{m.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
 
                     {/* Eraser */}
           <div className="border-t border-slate-800 pt-2 mt-1">
