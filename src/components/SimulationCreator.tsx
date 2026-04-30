@@ -564,6 +564,43 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
       return;
     }
 
+    // Safety marker preview — follows cursor, snapped to grid, 1×1 cell
+    if (isSafetyMarker(currentTool)) {
+      const def = getMarkerDef(currentTool);
+      if (!def) return;
+      const { x: rawEx, y: rawEy } = screenToWorldpx(currentMousePos.x, currentMousePos.y, zoom, offsetX, offsetY);
+      const cellX = Math.floor(rawEx / cellSize);
+      const cellY = Math.floor(rawEy / cellSize);
+      const sp    = worldpxToScreen(cellX * cellSize, cellY * cellSize, zoom, offsetX, offsetY);
+      const sz    = cellSize * zoom;
+      ctx.save();
+      ctx.globalAlpha = 0.75;
+      // Background
+      ctx.fillStyle   = def.color;
+      ctx.strokeStyle = def.borderColor;
+      ctx.lineWidth   = 1.5;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(sp.x, sp.y, sz, sz, 3);
+      else ctx.rect(sp.x, sp.y, sz, sz);
+      ctx.fill(); ctx.stroke();
+      // SVG icon
+      const pad = sz * 0.1;
+      const iconSz = sz - pad * 2;
+      const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${def.viewBox}" width="${iconSz}" height="${iconSz}">${def.svg}</svg>`;
+      const img = new Image();
+      img.src = 'data:image/svg+xml;base64,' + btoa(svgStr);
+      ctx.drawImage(img, sp.x + pad, sp.y + pad, iconSz, iconSz);
+      // Cursor crosshair hint
+      ctx.strokeStyle = def.borderColor;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 2]);
+      ctx.strokeRect(sp.x, sp.y, sz, sz);
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+      ctx.restore();
+      return;
+    }
+
     if (!dragging || !startPos) return;
     const { x: rawWx, y: rawWy } = screenToWorldpx(currentMousePos.x, currentMousePos.y, zoom, offsetX, offsetY);
     // Snap preview to grid so the ghost outline matches where the object will land
@@ -675,29 +712,23 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
         const def = getMarkerDef(obj.type);
         if (def) {
           const sp  = worldpxToScreen(obj.x, obj.y, zoom, offsetX, offsetY);
-          const sz  = (obj.markerSize ?? 40) * zoom;
-          const pad = 3 * zoom;
-          // Background box
+          const sz  = cellSize * zoom;   // exactly 1 cell
+          const pad = sz * 0.08;
+          // Background
           ctx.save();
           ctx.fillStyle   = def.color;
           ctx.strokeStyle = def.borderColor;
-          ctx.lineWidth   = 1.5;
+          ctx.lineWidth   = 1;
           ctx.beginPath();
-          ctx.roundRect(sp.x, sp.y, sz + pad * 2, sz + pad * 2 + 12 * zoom, 4 * zoom);
+          if (ctx.roundRect) ctx.roundRect(sp.x, sp.y, sz, sz, 2);
+          else ctx.rect(sp.x, sp.y, sz, sz);
           ctx.fill(); ctx.stroke();
-          // Render SVG as image
-          const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${def.viewBox}" width="${sz}" height="${sz}">${def.svg}</svg>`;
+          // Icon
+          const iconSz = sz - pad * 2;
+          const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${def.viewBox}" width="${iconSz}" height="${iconSz}">${def.svg}</svg>`;
           const img = new Image();
           img.src = 'data:image/svg+xml;base64,' + btoa(svgStr);
-          ctx.drawImage(img, sp.x + pad, sp.y + pad, sz, sz);
-          // Label
-          ctx.fillStyle  = def.textColor;
-          ctx.font       = `bold ${Math.max(8, 9 * zoom)}px sans-serif`;
-          ctx.textAlign  = 'center';
-          ctx.textBaseline = 'top';
-          const maxW = sz + pad * 2;
-          const label = def.label.length > 14 ? def.label.slice(0, 13) + '…' : def.label;
-          ctx.fillText(label, sp.x + (sz + pad * 2) / 2, sp.y + sz + pad + 2 * zoom, maxW);
+          ctx.drawImage(img, sp.x + pad, sp.y + pad, iconSz, iconSz);
           ctx.restore();
         }
       } else {
@@ -764,6 +795,28 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
       setIsErasing(true); // reuse isErasing flag to track drag-paint
       const { x: wx, y: wy } = screenToWorldpx(mx, my, zoom, offsetX, offsetY);
       paintAt(wx, wy, currentTool as 'path_walkable' | 'path_danger');
+      return;
+    }
+
+    // Safety marker — single click, snapped to cell, exactly cellSize × cellSize
+    if (isSafetyMarker(currentTool)) {
+      const cellX = Math.floor(wx / cellSize);
+      const cellY = Math.floor(wy / cellSize);
+      const newObj: MapObject = {
+        type:       currentTool as any,
+        x:          cellX * cellSize,
+        y:          cellY * cellSize,
+        w:          cellSize,
+        h:          cellSize,
+        markerSize: cellSize,
+      };
+      setObjects(prev => {
+        const next = [...prev, newObj];
+        historyRef.current = historyRef.current.slice(0, historyIdxRef.current + 1);
+        historyRef.current.push(next);
+        historyIdxRef.current = historyRef.current.length - 1;
+        return next;
+      });
       return;
     }
 
@@ -909,38 +962,18 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
           });
         }
       } else if (isObjectTool(currentTool)) {
-        // Safety markers: place on single click at fixed size
-        if (isSafetyMarker(currentTool)) {
-          const markerSize = 40;
-          const newObj: MapObject = {
-            type:       currentTool as any,
-            x:          Math.round(wx / cellSize) * cellSize - markerSize / 2,
-            y:          Math.round(wy / cellSize) * cellSize - markerSize / 2,
-            w:          markerSize,
-            h:          markerSize + 14,
-            markerSize: markerSize,
-          };
-          setObjects(prev => {
-            const next = [...prev, newObj];
-            historyRef.current = historyRef.current.slice(0, historyIdxRef.current + 1);
-            historyRef.current.push(next);
-            historyIdxRef.current = historyRef.current.length - 1;
-            return next;
-          });
-        } else {
-          const newObj = createMapObject(currentTool, objRect, { x1: startPos.x, y1: startPos.y, x2: wx, y2: wy }, cellSize);
-          setObjects(prev => {
-            const next = [...prev, newObj];
-            historyRef.current = historyRef.current.slice(0, historyIdxRef.current + 1);
-            historyRef.current.push(next);
-            historyIdxRef.current = historyRef.current.length - 1;
-            return next;
-          });
-          if (newObj.type === 'npc') setSelectedNPC(newObj);
-          if (newObj.type === 'npc_count') setSelectedNPCCount(newObj);
-          if (newObj.type === 'concrete_stairs' || newObj.type === 'fire_ladder') setSelectedStairs(newObj);
-          if (newObj.type === 'gate') setSelectedGate(newObj);
-        }
+        const newObj = createMapObject(currentTool, objRect, { x1: startPos.x, y1: startPos.y, x2: wx, y2: wy }, cellSize);
+        setObjects(prev => {
+          const next = [...prev, newObj];
+          historyRef.current = historyRef.current.slice(0, historyIdxRef.current + 1);
+          historyRef.current.push(next);
+          historyIdxRef.current = historyRef.current.length - 1;
+          return next;
+        });
+        if (newObj.type === 'npc') setSelectedNPC(newObj);
+        if (newObj.type === 'npc_count') setSelectedNPCCount(newObj);
+        if (newObj.type === 'concrete_stairs' || newObj.type === 'fire_ladder') setSelectedStairs(newObj);
+        if (newObj.type === 'gate') setSelectedGate(newObj);
       }
       setDragging(false);
     }
@@ -1114,35 +1147,17 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
             });
           }
         } else if (isObjectTool(currentTool)) {
-          if (isSafetyMarker(currentTool)) {
-            const markerSize = 40;
-            const newObj: MapObject = {
-              type:       currentTool as any,
-              x:          Math.round(wx / cellSize) * cellSize - markerSize / 2,
-              y:          Math.round(wy / cellSize) * cellSize - markerSize / 2,
-              w:          markerSize,
-              h:          markerSize + 14,
-              markerSize: markerSize,
-            };
-            setObjects(prev => {
-              const next = [...prev, newObj];
-              historyRef.current = historyRef.current.slice(0, historyIdxRef.current + 1);
-              historyRef.current.push(next); historyIdxRef.current++;
-              return next;
-            });
-          } else {
-            const newObj = createMapObject(currentTool, objRect, { x1: startPos.x, y1: startPos.y, x2: wx, y2: wy }, cellSize);
-            setObjects(prev => {
-              const next = [...prev, newObj];
-              historyRef.current = historyRef.current.slice(0, historyIdxRef.current + 1);
-              historyRef.current.push(next); historyIdxRef.current++;
-              return next;
-            });
-            if (newObj.type === 'npc') setSelectedNPC(newObj);
-            if (newObj.type === 'npc_count') setSelectedNPCCount(newObj);
-            if (newObj.type === 'concrete_stairs' || newObj.type === 'fire_ladder') setSelectedStairs(newObj);
-            if (newObj.type === 'gate') setSelectedGate(newObj);
-          }
+          const newObj = createMapObject(currentTool, objRect, { x1: startPos.x, y1: startPos.y, x2: wx, y2: wy }, cellSize);
+          setObjects(prev => {
+            const next = [...prev, newObj];
+            historyRef.current = historyRef.current.slice(0, historyIdxRef.current + 1);
+            historyRef.current.push(next); historyIdxRef.current++;
+            return next;
+          });
+          if (newObj.type === 'npc') setSelectedNPC(newObj);
+          if (newObj.type === 'npc_count') setSelectedNPCCount(newObj);
+          if (newObj.type === 'concrete_stairs' || newObj.type === 'fire_ladder') setSelectedStairs(newObj);
+          if (newObj.type === 'gate') setSelectedGate(newObj);
         }
         setDragging(false);
       }
