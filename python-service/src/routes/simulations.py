@@ -68,8 +68,9 @@ def _run_simulation_thread(job_id: str, project_data, disaster_type: str,
                 INSERT INTO simulations (
                     user_id, project_id, project_name, disaster_type, status, config, results,
                     steps, elapsed_s, evacuation_time,
-                    agents_spawned, agents_evacuated, agents_trapped
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    agents_spawned, agents_evacuated, agents_trapped,
+                    project_data
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             ''', (
                 user_id, project_id, project_name, disaster_type, 'completed',
@@ -81,6 +82,7 @@ def _run_simulation_thread(job_id: str, project_data, disaster_type: str,
                 results.get('agents_spawned', 0),
                 results.get('agents_evacuated', 0),
                 results.get('agents_trapped', 0),
+                json.dumps(project_data),  # snapshot of map at time of simulation
             ))
             sim_id = cursor.fetchone()[0]
             conn.commit(); cursor.close(); conn.close()

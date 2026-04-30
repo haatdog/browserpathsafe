@@ -268,7 +268,11 @@ export default function OrganizationChart() {
   useEffect(() => {
     (async () => {
       try {
-        const res  = await fetch(`${API_BASE}/api/organization`, { credentials: 'include' });
+        const token = localStorage.getItem('pathsafe_token');
+        const res  = await fetch(`${API_BASE}/api/organization`, {
+          credentials: 'include',
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to load organization');
         setUsers(Array.isArray(data.users)  ? data.users  : []);

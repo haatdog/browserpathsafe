@@ -7,6 +7,12 @@ import PathVisualization from './PathVisualization';
 import { Clock, CheckCircle, XCircle, Loader, Eye, Trash2, Route } from 'lucide-react';
 import { T, C } from '../design/DesignTokens';
 
+const API_BASE =
+  (import.meta.env.VITE_API_URL as string) ??
+  (import.meta.env.VITE_PYTHON_API_URL as string) ??
+  `${location.protocol}//${location.hostname}:5000`;
+
+
 
 const disasterEmoji: Record<string, string> = { fire: '🔥', earthquake: '🌍', bomb: '💣' };
 
@@ -45,11 +51,17 @@ export default function SimulationList() {
 
   // ── Load project + open playback ─────────────────────────────────────────
   const handlePlayback = async (sim: Simulation) => {
-    if (!sim.project_id) { alert('No project linked to this simulation.'); return; }
     setLoadingPlayback(sim.id + '_play');
     try {
-      const proj = await projectAPI.getOne(sim.project_id);
-      // Merge top-level results fields if nested
+      // Use the map snapshot saved at simulation time — fall back to current project only if missing
+      let projectData = sim.project_data;
+      let projectName = sim.project_name;
+      if (!projectData && sim.project_id) {
+        const proj = await projectAPI.getOne(sim.project_id);
+        projectData = proj.project_data;
+        projectName = projectName || proj.name;
+      }
+      if (!projectData) { alert('Project data is missing for this simulation.'); return; }
       const merged = {
         ...sim,
         results: {
@@ -57,22 +69,27 @@ export default function SimulationList() {
           paths: sim.results?.paths || {},
           disaster_type: sim.config?.disaster_type || sim.results?.disaster_type || 'fire',
         },
-        project_name: sim.project_name || proj.name,
+        project_data: projectData,
+        project_name: projectName,
       };
       setPlaybackSim(merged);
-      setPlaybackProject(proj.project_data);
+      setPlaybackProject(projectData);
     } catch { alert('Failed to load project data.'); }
     finally { setLoadingPlayback(null); }
   };
 
   // ── Load project + open path visualization ───────────────────────────────
   const handleViewPaths = async (sim: Simulation) => {
-    if (!sim.project_id) { alert('No project linked to this simulation.'); return; }
     setLoadingPlayback(sim.id + '_path');
     try {
-      const proj = await projectAPI.getOne(sim.project_id);
+      let projectData = sim.project_data;
+      if (!projectData && sim.project_id) {
+        const proj = await projectAPI.getOne(sim.project_id);
+        projectData = proj.project_data;
+      }
+      if (!projectData) { alert('Project data is missing for this simulation.'); return; }
       setPathSim(sim.results || sim);
-      setPathProject(proj.project_data);
+      setPathProject(projectData);
     } catch { alert('Failed to load project data.'); }
     finally { setLoadingPlayback(null); }
   };
@@ -82,9 +99,12 @@ export default function SimulationList() {
     if (!confirm(`Delete simulation from ${new Date(sim.created_at).toLocaleString()}?\nThis cannot be undone.`)) return;
     setDeletingId(sim.id);
     try {
-      await simulationAPI.delete(sim.id);
-      setSimulations(prev => prev.filter(s => s.id !== sim.id));
-    } catch { alert('Failed to delete simulation.'); }
+      const res = await fetch(`${API_BASE}/api/simulations/${sim.id}`, {
+        method: 'DELETE', credentials: 'include',
+      });
+      if (res.ok) setSimulations(prev => prev.filter(s => s.id !== sim.id));
+      else alert('Failed to delete simulation.');
+    } catch { alert('Network error.'); }
     finally { setDeletingId(null); }
   };
 
@@ -110,7 +130,7 @@ export default function SimulationList() {
 
   if (loading) return (
     <div className="flex items-center justify-center p-12">
-      <Loader className="w-8 h-8 animate-spin text-green-600"/>
+      <Loader className="w-8 h-8 animate-spin text-blue-600"/>
     </div>
   );
 
