@@ -5,7 +5,7 @@ import {
   Save, Download, Loader, Move, ZoomIn, ZoomOut, Grid3x3, Upload,
   Database, FolderOpen, X, Users, DoorOpen, Shield, DoorClosed,
   Fence as FenceIcon, Square, Minus as LineIcon, ArrowUp as StairsIcon,
-  Eraser, Flame, Undo2, Redo2, Maximize, Minimize, UserRoundPlus, Route,
+  Eraser, Flame, Undo2, Redo2, Maximize, Minimize, UserRoundPlus, Route, Trash2,
 } from 'lucide-react';
 
 import type { Point, MapObject, ObjectType, ToolType, MapEditorProps } from './MapEditorTypes';
@@ -712,23 +712,25 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
         const def = getMarkerDef(obj.type);
         if (def) {
           const sp  = worldpxToScreen(obj.x, obj.y, zoom, offsetX, offsetY);
-          const sz  = cellSize * zoom;   // exactly 1 cell
+          // Enforce minimum 16px so markers stay visible when zoomed out
+          const sz  = Math.max(16, cellSize * zoom);
           const pad = sz * 0.08;
-          // Background
           ctx.save();
           ctx.fillStyle   = def.color;
           ctx.strokeStyle = def.borderColor;
-          ctx.lineWidth   = 1;
+          ctx.lineWidth   = Math.max(1, zoom);
           ctx.beginPath();
-          if (ctx.roundRect) ctx.roundRect(sp.x, sp.y, sz, sz, 2);
+          if (ctx.roundRect) ctx.roundRect(sp.x, sp.y, sz, sz, Math.max(2, 3 * zoom));
           else ctx.rect(sp.x, sp.y, sz, sz);
           ctx.fill(); ctx.stroke();
           // Icon
           const iconSz = sz - pad * 2;
-          const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${def.viewBox}" width="${iconSz}" height="${iconSz}">${def.svg}</svg>`;
-          const img = new Image();
-          img.src = 'data:image/svg+xml;base64,' + btoa(svgStr);
-          ctx.drawImage(img, sp.x + pad, sp.y + pad, iconSz, iconSz);
+          if (iconSz > 4) {
+            const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${def.viewBox}" width="${iconSz}" height="${iconSz}">${def.svg}</svg>`;
+            const img = new Image();
+            img.src = 'data:image/svg+xml;base64,' + btoa(svgStr);
+            ctx.drawImage(img, sp.x + pad, sp.y + pad, iconSz, iconSz);
+          }
           ctx.restore();
         }
       } else {
@@ -739,13 +741,22 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
       const isSelected = i === selectedIndex || obj === selectedNPC || obj === selectedStairs || obj === selectedGate;
       if (isSelected) {
         const sp = worldpxToScreen(obj.x, obj.y, zoom, offsetX, offsetY);
-        const sw = Math.max(1, obj.w * zoom);
-        const sh = Math.max(1, obj.h * zoom);
+        // For markers, match the min-size rendering
+        const sw = isSafetyMarker(obj.type) ? Math.max(16, obj.w * zoom) : Math.max(1, obj.w * zoom);
+        const sh = isSafetyMarker(obj.type) ? Math.max(16, obj.h * zoom) : Math.max(1, obj.h * zoom);
         ctx.strokeStyle = 'rgba(251,146,60,0.9)';
         ctx.lineWidth = 2;
         ctx.setLineDash([6, 3]);
         ctx.strokeRect(sp.x - 4, sp.y - 4, sw + 8, sh + 8);
         ctx.setLineDash([]);
+        // Show delete hint for markers
+        if (isSafetyMarker(obj.type)) {
+          ctx.fillStyle = 'rgba(251,146,60,0.9)';
+          ctx.font = `bold ${Math.max(9, 10 * zoom)}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText('Del to remove', sp.x + sw / 2, sp.y - 6);
+        }
       }
     });
 
@@ -799,7 +810,21 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
     }
 
     // Safety marker — single click, snapped to cell, exactly cellSize × cellSize
+    // But first check if we're clicking an existing object (to select/delete it)
     if (isSafetyMarker(currentTool)) {
+      // Check if clicking an existing object first
+      for (let i = objects.length - 1; i >= 0; i--) {
+        const obj = objects[i];
+        if (obj.type === 'line') continue;
+        if (wx >= obj.x && wx <= obj.x + obj.w && wy >= obj.y && wy <= obj.y + obj.h) {
+          setSelectedIndex(i);
+          if (isSafetyMarker(obj.type)) {
+            setSelectedNPC(null); setSelectedStairs(null); setSelectedGate(null); setSelectedNPCCount(null);
+          }
+          return;
+        }
+      }
+      // No existing object hit — place new marker
       const cellX = Math.floor(wx / cellSize);
       const cellY = Math.floor(wy / cellSize);
       const newObj: MapObject = {
@@ -817,6 +842,7 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
         historyIdxRef.current = historyRef.current.length - 1;
         return next;
       });
+      setSelectedIndex(null);
       return;
     }
 
@@ -1258,13 +1284,16 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
   }, []);
 
   useEffect(() => {
+    const selectedObj = selectedIndex !== null ? objects[selectedIndex] : null;
+    const isMarkerSelected = selectedObj && isSafetyMarker(selectedObj.type);
     setSidebarVisible(
       currentTool === 'npc' || selectedNPC !== null ||
       currentTool === 'npc_count' || selectedNPCCount !== null ||
       currentTool === 'concrete_stairs' || currentTool === 'fire_ladder' || selectedStairs !== null ||
-      currentTool === 'gate' || selectedGate !== null
+      currentTool === 'gate' || selectedGate !== null ||
+      isSafetyMarker(currentTool) || !!isMarkerSelected
     );
-  }, [currentTool, selectedNPC, selectedStairs, selectedGate]);
+  }, [currentTool, selectedNPC, selectedStairs, selectedGate, selectedNPCCount, selectedIndex, objects]);
 
   useEffect(() => { if (showLoadMenu) fetchSavedProjects(); }, [showLoadMenu]);
 
@@ -1741,6 +1770,49 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
                 <PropsBox obj={selectedGate} cellSize={cellSize} />
               </div>
             )}
+
+            {/* ── Safety Marker panel ────────────────────────────────────── */}
+            {selectedIndex !== null && objects[selectedIndex] && isSafetyMarker(objects[selectedIndex].type) && (() => {
+              const markerObj = objects[selectedIndex];
+              const def = getMarkerDef(markerObj.type);
+              if (!def) return null;
+              return (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 pb-3 border-b border-slate-800">
+                    <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                      style={{ background: def.color, border: `1.5px solid ${def.borderColor}` }}
+                      dangerouslySetInnerHTML={{ __html: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${def.viewBox}" width="20" height="20">${def.svg}</svg>` }} />
+                    <div>
+                      <p className="text-white font-bold text-sm">{def.label}</p>
+                      <p className="text-slate-500 text-xs">Safety Marker · decorative</p>
+                    </div>
+                  </div>
+                  <div className="bg-slate-800/50 rounded-lg p-3 text-xs text-slate-400 leading-relaxed">
+                    This marker is <span className="text-slate-300 font-medium">purely visual</span> — it does not affect agent pathfinding or simulation results. It appears in playback and path visualization.
+                  </div>
+                  <div className="text-xs text-slate-500 flex items-center gap-1.5">
+                    <span className="px-1.5 py-0.5 bg-slate-800 rounded font-mono">Del</span>
+                    <span>or</span>
+                    <span className="px-1.5 py-0.5 bg-slate-800 rounded font-mono">Backspace</span>
+                    <span>to delete</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setObjects(prev => {
+                        const next = prev.filter((_, i) => i !== selectedIndex);
+                        historyRef.current = historyRef.current.slice(0, historyIdxRef.current + 1);
+                        historyRef.current.push(next);
+                        historyIdxRef.current = historyRef.current.length - 1;
+                        return next;
+                      });
+                      setSelectedIndex(null);
+                    }}
+                    className="w-full py-2 bg-red-900/40 hover:bg-red-800/60 text-red-400 rounded-lg text-sm transition flex items-center justify-center gap-2 border border-red-800/40">
+                    <Trash2 size={14} /> Delete Marker
+                  </button>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}

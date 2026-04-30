@@ -27,7 +27,7 @@ function drawMapObject(ctx: CanvasRenderingContext2D, obj: any) {
       marker_aed:{bg:'#fef3c7',border:'#d97706',text:'#92400e',vb:'0 0 24 24',s:`<rect x="2" y="2" width="20" height="20" rx="3" fill="#d97706"/><path d="M12 18 C12 18 5 13 5 8.5 C5 6.5 6.5 5 8.5 5 C9.8 5 11 5.8 12 7 C13 5.8 14.2 5 15.5 5 C17.5 5 19 6.5 19 8.5 C19 13 12 18 12 18 Z" fill="white"/><path d="M11 9 L10 13 L12.5 11 L12 15 L14 10 L11.5 12 Z" fill="#d97706"/>`},
     };
     const def = colors[t]; if (!def) return;
-    const sz = obj.markerSize ?? 10; const pad = sz * 0.08;
+    const sz = Math.max(16, obj.markerSize ?? 10); const pad = sz * 0.08;
     ctx.save();
     ctx.fillStyle=def.bg; ctx.strokeStyle=def.border; ctx.lineWidth=1.5;
     ctx.beginPath();
