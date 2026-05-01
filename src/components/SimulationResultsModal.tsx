@@ -143,8 +143,10 @@ const SimulationResultsModal: React.FC<SimulationResultsModalProps> = ({ simulat
       </div>
 
       {showPathViz && hasProjectData && hasPaths && (
-        <PathVisualization projectData={simulation.project_data} simulationResults={simulation.results}
-          onClose={() => setShowPathViz(false)} />
+        <div className="fixed inset-0 z-[80]">
+          <PathVisualization projectData={simulation.project_data} simulationResults={simulation.results}
+            onClose={() => setShowPathViz(false)} />
+        </div>
       )}
     </>
   );

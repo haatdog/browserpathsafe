@@ -824,9 +824,16 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
           return;
         }
       }
-      // No existing object hit — place new marker
+      // No existing object hit — place new marker, but only if cell is empty
       const cellX = Math.floor(wx / cellSize);
       const cellY = Math.floor(wy / cellSize);
+      // Check if any marker already occupies this cell
+      const cellOccupied = objects.some(obj =>
+        isSafetyMarker(obj.type) &&
+        Math.floor(obj.x / cellSize) === cellX &&
+        Math.floor(obj.y / cellSize) === cellY
+      );
+      if (cellOccupied) return; // don't stack markers
       const newObj: MapObject = {
         type:       currentTool as any,
         x:          cellX * cellSize,
@@ -885,6 +892,15 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
         if (obj.type === 'path_walkable' || obj.type === 'path_danger') {
           if (eraserTouchesObject(obj, wx, wy, hs)) {
             changed = true; // skip — remove tile
+          } else {
+            next.push(obj);
+          }
+          continue;
+        }
+        // Safety markers — erase if overlapped
+        if (isSafetyMarker(obj.type)) {
+          if (eraserTouchesObject(obj, wx, wy, hs)) {
+            changed = true; // skip — remove marker
           } else {
             next.push(obj);
           }
