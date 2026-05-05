@@ -217,6 +217,11 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
   const [savedProjects, setSavedProjects]   = useState<MapProjectSummary[]>([]);
   const [isSaving, setIsSaving]             = useState(false);
   const [isLoading, setIsLoading]           = useState(false);
+  const [toast,     setToast]               = useState<{msg: string; type: 'success'|'error'} | null>(null);
+  const showToast = (msg: string, type: 'success'|'error' = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3500);
+  };
 
   // ── Fullscreen ───────────────────────────────────────────────────────────────
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -428,8 +433,8 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
         ? await projectAPI.update(projectId, payload)
         : await projectAPI.create(payload);
       if (!projectId) setProjectId(result.id);
-      alert('Project saved!');
-    } catch { alert('Failed to save.'); }
+      showToast('Project saved successfully!', 'success');
+    } catch { showToast('Failed to save project.', 'error'); }
     finally { setIsSaving(false); setShowSaveMenu(false); }
   };
 
@@ -441,7 +446,7 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
       a.href = url; a.download = `${projectName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.dsproj`;
       a.click(); URL.revokeObjectURL(url);
       setShowSaveMenu(false);
-    } catch { alert('Failed to save file.'); }
+    } catch { showToast('Failed to save file.', 'error'); }
   };
 
   const loadFromDatabase = async (id: number) => {
@@ -466,7 +471,7 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
       setProjectDescription(project.description || '');
       setProjectId(project.id);
       setShowLoadMenu(false);
-    } catch { alert('Failed to load.'); }
+    } catch { showToast('Failed to load project.', 'error'); }
     finally { setIsLoading(false); }
   };
 
@@ -495,7 +500,7 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
           setProjectId(null);
           setProjectName(file.name.replace(/\.(dsproj|json)$/, ''));
           setShowLoadMenu(false);
-        } catch { alert('Invalid file format.'); }
+        } catch { showToast('Invalid file format.', 'error'); }
       };
       reader.readAsText(file);
     };
@@ -510,7 +515,7 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
   const deleteProject = async (id: number) => {
     if (!confirm('Delete this project?')) return;
     try { await projectAPI.delete(id); setSavedProjects((p: typeof savedProjects) => p.filter((x: typeof savedProjects[0]) => x.id !== id)); }
-    catch { alert('Failed to delete.'); }
+    catch { showToast('Failed to delete project.', 'error'); }
   };
 
   const handleSetupComplete = () => {
@@ -2050,6 +2055,17 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
           </div>
         );
       })()}
+
+      {/* Toast notification */}
+      {toast && (
+        <div
+          className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] px-5 py-3 rounded-xl shadow-2xl text-sm font-medium flex items-center gap-2 transition-all ${
+            toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+          }`}
+        >
+          {toast.type === 'success' ? '✓' : '✕'} {toast.msg}
+        </div>
+      )}
     </div>
   );
 }

@@ -31,6 +31,7 @@ export default function MemberEvaluationModal({ event, userId, alreadySubmitted 
   });
   const [isSubmitting, setIsSubmitting]  = useState(false);
   const [errors,       setErrors]        = useState<Record<string, string>>({});
+  const [submitError,  setSubmitError]   = useState('');
 
   // Always check backend on open — if a submission exists go to view, else show form
   useEffect(() => {
@@ -92,9 +93,8 @@ export default function MemberEvaluationModal({ event, userId, alreadySubmitted 
         comments:         payload.comments,
       });
       onSubmitted();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to submit. Please try again.');
-    } finally {
+    } catch (err: any) {
+      setSubmitError(err instanceof Error ? err.message : 'Failed to submit. Please try again.');
       setIsSubmitting(false);
     }
   };
@@ -334,7 +334,11 @@ export default function MemberEvaluationModal({ event, userId, alreadySubmitted 
           </div>
         </form>
 
-        <div className="px-6 py-4 border-t border-gray-200 flex gap-3 bg-gray-50">
+        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 space-y-3">
+          {submitError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">{submitError}</div>
+          )}
+          <div className="flex gap-3">
           <button type="button" onClick={onClose} disabled={isSubmitting}
             className="flex-1 px-4 py-2.5 text-sm text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition">
             Cancel
@@ -345,6 +349,7 @@ export default function MemberEvaluationModal({ event, userId, alreadySubmitted 
               ? <><div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" /> Submitting…</>
               : <><Save className="w-4 h-4" /> Submit Evaluation</>}
           </button>
+          </div>
         </div>
       </div>
     </div>

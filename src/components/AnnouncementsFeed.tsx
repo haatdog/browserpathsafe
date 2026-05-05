@@ -159,6 +159,7 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [postError, setPostError] = useState('');
   const [newPost, setNewPost] = useState({ title: '', content: '', target_group_id: '' as number | '', target_heads_only: false });
   const [newImages, setNewImages] = useState<string[]>([]);
   const [comments, setComments] = useState<Record<number, Comment[]>>({});
@@ -180,11 +181,13 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
     finally { setLoading(false); }
   };
   const createAnnouncement = async () => {
-    if (!newPost.title.trim() || !newPost.content.trim()) { alert('Please fill in title and content'); return; }
+    setPostError('');
+    if (!newPost.title.trim()) { setPostError('Title is required.'); return; }
+    if (!newPost.content.trim()) { setPostError('Content is required.'); return; }
     try {
       await announcementAPI.create({ title: newPost.title, content: newPost.content, image_url: newImages[0] || '', image_urls: newImages, target_group_id: newPost.target_group_id || null, target_heads_only: newPost.target_heads_only });
       setNewPost({ title: '', content: '', target_group_id: '', target_heads_only: false }); setNewImages([]); setShowCreateModal(false); loadAnnouncements();
-    } catch { alert('Failed to create announcement'); }
+    } catch (err: any) { setPostError(err.message || 'Failed to create announcement.'); }
   };
   const togglePin      = async (id: number, currentlyPinned: boolean) => { try { await announcementAPI.togglePin(id, !currentlyPinned); loadAnnouncements(); } catch {} };
   const toggleLike     = async (id: number) => { try { await announcementAPI.toggleLike(id); loadAnnouncements(); } catch {} };
@@ -202,7 +205,7 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
   });
   const pinnedPosts  = filteredAnnouncements.filter(a => a.is_pinned);
   const regularPosts = filteredAnnouncements.filter(a => !a.is_pinned);
-  const resetModal   = () => { setShowCreateModal(false); setNewPost({ title: '', content: '', target_group_id: '', target_heads_only: false }); setNewImages([]); };
+  const resetModal   = () => { setShowCreateModal(false); setPostError(''); setNewPost({ title: '', content: '', target_group_id: '', target_heads_only: false }); setNewImages([]); };
 
   return (
     <>

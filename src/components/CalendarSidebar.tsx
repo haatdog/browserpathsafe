@@ -30,6 +30,7 @@ export default function CalendarSidebar({ userRole, mobileSheet = false }: Calen
   const [selectedDate,    setSelectedDate]    = useState(new Date());
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [collapsed,       setCollapsed]       = useState(false);
+  const [formError,       setFormError]       = useState('');
   const [tooltipInfo,     setTooltipInfo]     = useState<{ x: number; y: number; events: Event[] } | null>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
 
@@ -97,9 +98,10 @@ export default function CalendarSidebar({ userRole, mobileSheet = false }: Calen
   };
 
   const createEvent = async () => {
-    if (userRole !== 'coordinator' && userRole !== 'admin') { alert('Only coordinators can create events'); return; }
+    setFormError('');
+    if (userRole !== 'coordinator' && userRole !== 'admin') { setFormError('Only coordinators can create events.'); return; }
     if (!newEvent.title || !newEvent.start_time || !newEvent.end_time) {
-      alert('Please fill in title, start time, and end time'); return;
+      setFormError('Please fill in title, start time, and end time.'); return;
     }
     try {
       await eventAPI.create(newEvent);
@@ -107,7 +109,7 @@ export default function CalendarSidebar({ userRole, mobileSheet = false }: Calen
                     location: '', is_virtual: false, meeting_link: '', max_participants: undefined });
       setShowCreateModal(false);
       loadEvents();
-    } catch { alert('Failed to create event'); }
+    } catch (err: any) { setFormError(err.message || 'Failed to create event.'); }
   };
 
   const getDaysInMonth = (date: Date) => ({

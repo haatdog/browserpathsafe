@@ -12,6 +12,7 @@ export interface SimulationResultsModalProps {
 
 const SimulationResultsModal: React.FC<SimulationResultsModalProps> = ({ simulation, onClose }) => {
   const [showPlayback, setShowPlayback] = useState(false);
+  const [modalError,  setModalError]   = useState('');
   const [showPathViz,  setShowPathViz]  = useState(false);
 
   useEffect(() => {
@@ -33,14 +34,16 @@ const SimulationResultsModal: React.FC<SimulationResultsModalProps> = ({ simulat
   const hasPaths       = !!simulation?.results?.paths;
 
   const handleShowPlayback = () => {
-    if (!hasProjectData) { alert('Error: Project data is missing.'); return; }
-    if (!hasResults)      { alert('Error: Simulation results are missing.'); return; }
+    setModalError('');
+    if (!hasProjectData) { setModalError('Project data is missing for this simulation.'); return; }
+    if (!hasResults)      { setModalError('Simulation results are missing.'); return; }
     setShowPlayback(true);
   };
 
   const handleShowPaths = () => {
-    if (!hasProjectData)      { alert('Error: Project data is missing.'); return; }
-    if (!hasResults || !hasPaths) { alert('Error: Path data is missing.'); return; }
+    setModalError('');
+    if (!hasProjectData)      { setModalError('Project data is missing for this simulation.'); return; }
+    if (!hasResults || !hasPaths) { setModalError('Path data is missing or not available.'); return; }
     setShowPathViz(true);
   };
 
@@ -110,6 +113,9 @@ const SimulationResultsModal: React.FC<SimulationResultsModalProps> = ({ simulat
 
             {/* Actions */}
             <div className="flex gap-4">
+              {modalError && (
+                <div className="col-span-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">{modalError}</div>
+              )}
               <button onClick={handleShowPlayback} disabled={!hasProjectData || !hasResults}
                 className="flex-1 px-5 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                 <Play className="w-4 h-4" /> Watch Playback

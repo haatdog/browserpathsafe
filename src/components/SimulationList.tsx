@@ -22,6 +22,7 @@ export default function SimulationList() {
   const [error,             setError]             = useState<string | null>(null);
   const [deletingId,        setDeletingId]        = useState<number | null>(null);
   const [loadingPlayback,   setLoadingPlayback]   = useState<string | null>(null); // sim id
+  const [listError,         setListError]         = useState('');
 
   // Playback
   const [playbackSim,       setPlaybackSim]       = useState<any | null>(null);
@@ -61,7 +62,7 @@ export default function SimulationList() {
         projectData = proj.project_data;
         projectName = projectName || proj.name;
       }
-      if (!projectData) { alert('Project data is missing for this simulation.'); return; }
+      if (!projectData) { setListError('Project data is missing for this simulation.'); return; }
       const merged = {
         ...sim,
         results: {
@@ -74,7 +75,7 @@ export default function SimulationList() {
       };
       setPlaybackSim(merged);
       setPlaybackProject(projectData);
-    } catch { alert('Failed to load project data.'); }
+    } catch (err: any) { setListError(err.message || 'Failed to load project data.'); }
     finally { setLoadingPlayback(null); }
   };
 
@@ -87,10 +88,10 @@ export default function SimulationList() {
         const proj = await projectAPI.getOne(sim.project_id);
         projectData = proj.project_data;
       }
-      if (!projectData) { alert('Project data is missing for this simulation.'); return; }
+      if (!projectData) { setListError('Project data is missing for this simulation.'); return; }
       setPathSim(sim.results || sim);
       setPathProject(projectData);
-    } catch { alert('Failed to load project data.'); }
+    } catch (err: any) { setListError(err.message || 'Failed to load project data.'); }
     finally { setLoadingPlayback(null); }
   };
 
@@ -103,8 +104,8 @@ export default function SimulationList() {
         method: 'DELETE', credentials: 'include',
       });
       if (res.ok) setSimulations(prev => prev.filter(s => s.id !== sim.id));
-      else alert('Failed to delete simulation.');
-    } catch { alert('Network error.'); }
+      else setListError('Failed to delete simulation.');
+    } catch (err: any) { setListError(err.message || 'Network error. Please try again.'); }
     finally { setDeletingId(null); }
   };
 

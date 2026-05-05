@@ -210,6 +210,7 @@ export default function ProjectList({ onOpenEditor, onRunSimulation }: ProjectLi
   const [projects, setProjects]             = useState<MapProject[]>([]);
   const [loading, setLoading]               = useState(true);
   const [error, setError]                   = useState<string | null>(null);
+  const [actionError, setActionError]       = useState<string | null>(null);
   const [selectedProject, setSelectedProject] = useState<MapProject | null>(null);
   const onCompletedHandlerRef = useRef<((r: any) => void) | null>(null);
   const [runningSimulation, setRunningSimulation] = useState<{ id: number; name: string; disaster: string; jobId: string } | null>(null);
@@ -245,7 +246,7 @@ export default function ProjectList({ onOpenEditor, onRunSimulation }: ProjectLi
       await projectAPI.delete(id);
       setProjects(p => p.filter(x => x.id !== id));
     } catch (err: any) {
-      alert(`Failed to delete: ${err.message}`);
+      setActionError(`Failed to delete: ${err.message}`);
     }
   };
 
@@ -299,7 +300,7 @@ export default function ProjectList({ onOpenEditor, onRunSimulation }: ProjectLi
 
     } catch (err: any) {
       setRunningSimulation(null);
-      alert(`Failed to start simulation: ${err.message}`);
+      setActionError(`Failed to start simulation: ${err.message}`);
     }
   };
 
@@ -387,6 +388,12 @@ export default function ProjectList({ onOpenEditor, onRunSimulation }: ProjectLi
             {error}
           </div>
         )}
+        {actionError && (
+          <div className="mx-8 mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center justify-between">
+            <span>{actionError}</span>
+            <button onClick={() => setActionError(null)} className="text-red-400 hover:text-red-600 ml-3">✕</button>
+          </div>
+        )}
 
         <div className="p-8">
           {projects.length === 0 ? (
@@ -430,13 +437,13 @@ export default function ProjectList({ onOpenEditor, onRunSimulation }: ProjectLi
                     <div className="p-3 bg-orange-50 rounded-xl border border-orange-200">
                       <div className="flex items-center gap-2 mb-2">
                         <AlertTriangle className="w-3.5 h-3.5 text-orange-500" />
-                        <span className="text-[10px] uppercase tracking-widest" style={T.pageTitle}>Evacuation Type</span>
+                        <span className="text-[10px] uppercase tracking-widest" style={T.pageTitle}>Disaster Type</span>
                       </div>
                       <div className="grid grid-cols-3 gap-1.5">
                         {([
                           { key: 'fire',       emoji: '🔥', label: 'Fire'   },
-                          { key: 'earthquake', emoji: '🌍', label: 'Earthquake'  },
-                          { key: 'bomb',       emoji: '💣', label: 'Bomb Threat'   },
+                          { key: 'earthquake', emoji: '🌍', label: 'Quake'  },
+                          { key: 'bomb',       emoji: '💣', label: 'Bomb'   },
                         ] as const).map(({ key, emoji, label }) => (
                           <button
                             key={key}
