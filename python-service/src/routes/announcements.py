@@ -22,6 +22,7 @@ def get_announcements():
             SELECT
                 a.*,
                 u.email as author_email, u.role as author_role,
+                u.first_name as author_first_name, u.last_name as author_last_name,
                 u.group_id as author_group_id, u.is_head as author_is_head,
                 g.name as author_group_name, tg.name as target_group_name,
                 (SELECT COUNT(*) FROM announcement_likes WHERE announcement_id = a.id) as likes_count,
@@ -81,7 +82,7 @@ def create_announcement():
 
         conn   = get_db()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
-        cursor.execute('SELECT role, email FROM user_profiles WHERE id = %s', (user_id,))
+        cursor.execute('SELECT role, email, first_name, last_name FROM user_profiles WHERE id = %s', (user_id,))
         user = cursor.fetchone()
 
         if not user or user['role'] != 'coordinator':
@@ -102,6 +103,7 @@ def create_announcement():
 
         d = dict(announcement)
         d.update({'author_email': user['email'], 'author_role': user['role'],
+                  'author_first_name': user.get('first_name'), 'author_last_name': user.get('last_name'),
                   'likes_count': 0, 'comments_count': 0, 'user_liked': False})
         if d.get('created_at'): d['created_at'] = d['created_at'].isoformat()
         if d.get('updated_at'): d['updated_at'] = d['updated_at'].isoformat()
@@ -263,7 +265,8 @@ def get_comments(announcement_id):
         conn   = get_db()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute('''
-            SELECT c.*, u.email as user_email, u.role as user_role
+            SELECT c.*, u.email as user_email, u.role as user_role,
+                   u.first_name as user_first_name, u.last_name as user_last_name
             FROM announcement_comments c
             LEFT JOIN user_profiles u ON c.user_id = u.id
             WHERE c.announcement_id = %s ORDER BY c.created_at ASC
@@ -299,13 +302,15 @@ def add_comment(announcement_id):
         comment = cursor.fetchone()
         conn.commit()
 
-        cursor.execute('SELECT email, role FROM user_profiles WHERE id = %s', (user_id,))
+        cursor.execute('SELECT email, role, first_name, last_name FROM user_profiles WHERE id = %s', (user_id,))
         user = cursor.fetchone()
         cursor.close(); conn.close()
 
         d = dict(comment)
         d['user_email'] = user['email'] if user else None
         d['user_role']  = user['role']  if user else None
+        d['user_first_name'] = user['first_name'] if user else None
+        d['user_last_name'] = user['last_name'] if user else None
         if d.get('created_at'): d['created_at'] = d['created_at'].isoformat()
         return jsonify(d), 201
     except Exception as e:

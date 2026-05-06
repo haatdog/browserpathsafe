@@ -1,5 +1,5 @@
 // AnnouncementsFeed.tsx
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { T, C } from '../design/DesignTokens';
 import {
   MessageSquare, Heart, Pin, Trash2, Send, FileText, Edit,
@@ -9,13 +9,18 @@ import { announcementAPI, organizationAPI } from '../lib/api';
 
 interface Announcement {
   id: number; user_id: string; author_email: string; author_role: string;
+  author_first_name?: string | null; author_last_name?: string | null;
   title: string; content: string; image_url?: string; image_urls?: string[] | string;
   is_pinned: boolean; likes_count: number; comments_count: number;
   author_group_id?: number | null; author_group_name?: string | null; author_is_head?: boolean;
   target_group_id?: number | null; target_group_name?: string | null; target_heads_only?: boolean;
   created_at: string; updated_at: string;
 }
-interface Comment { id: number; announcement_id: number; user_id: string; author_email?: string; user_email?: string; content: string; created_at: string; }
+interface Comment {
+  id: number; announcement_id: number; user_id: string; author_email?: string; user_email?: string;
+  user_first_name?: string | null; user_last_name?: string | null;
+  content: string; created_at: string;
+}
 interface Group { id: number; name: string; }
 interface AnnouncementsFeedProps { userRole: 'admin' | 'coordinator' | 'member'; userId: string; }
 
@@ -154,6 +159,11 @@ function getImages(post: Announcement): string[] {
   return [];
 }
 
+function fullName(first?: string | null, last?: string | null, fallback?: string): string {
+  const value = `${first || ''} ${last || ''}`.trim();
+  return value || fallback || 'Unknown';
+}
+
 export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFeedProps) {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -169,17 +179,40 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
   const [editingPostId, setEditingPostId] = useState<number | null>(null);
   const [editPost, setEditPost] = useState({ title: '', content: '', target_group_id: '' as number | '', target_heads_only: false });
   const [editImages, setEditImages] = useState<string[]>([]);
+  const [newPostNotice, setNewPostNotice] = useState<{ count: number; latestTitle: string } | null>(null);
   const [groups, setGroups] = useState<Group[]>([]);
   const [filterGroupId, setFilterGroupId] = useState<number | 'heads' | ''>('');
+  const knownAnnouncementIdsRef = useRef<Set<number>>(new Set());
 
   useEffect(() => { loadAnnouncements(); loadGroups(); }, []);
+  useEffect(() => {
+    const pollId = window.setInterval(() => {
+      loadAnnouncements(true);
+    }, 30000);
+    return () => window.clearInterval(pollId);
+  }, []);
 
   const loadGroups = async () => { try { const data = await organizationAPI.listGroups(); setGroups(Array.isArray(data) ? data : []); } catch {} };
-  const loadAnnouncements = async () => {
+  const loadAnnouncements = async (withNotification = false) => {
     try {
       setAuthError(false);
       const data = await announcementAPI.getAll();
-      setAnnouncements(Array.isArray(data) ? data : []);
+      const nextAnnouncements = Array.isArray(data) ? data : [];
+      const nextIds = new Set<number>(nextAnnouncements.map((a: Announcement) => a.id));
+      const firstLoad = knownAnnouncementIdsRef.current.size === 0;
+      if (withNotification && !firstLoad) {
+        const newVisiblePosts = nextAnnouncements.filter((a: Announcement) =>
+          !knownAnnouncementIdsRef.current.has(a.id) && a.user_id !== userId
+        );
+        if (newVisiblePosts.length > 0) {
+          setNewPostNotice({
+            count: newVisiblePosts.length,
+            latestTitle: newVisiblePosts[0].title,
+          });
+        }
+      }
+      knownAnnouncementIdsRef.current = nextIds;
+      setAnnouncements(nextAnnouncements);
     } catch (e: any) { if (e.message?.includes('401')) setAuthError(true); setAnnouncements([]); }
     finally { setLoading(false); }
   };
@@ -250,6 +283,24 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
           <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
             <div><h3 className="text-red-900" style={T.sectionHeader}>Authentication Required</h3><p className="text-red-700 mt-1" style={T.body}>Your session has expired. Please refresh and log in again.</p></div>
+          </div>
+        )}
+        {newPostNotice && (
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-green-900" style={T.sectionHeader}>New announcement available</h3>
+              <p className="text-green-700 mt-1" style={T.body}>
+                {newPostNotice.count > 1
+                  ? `${newPostNotice.count} new posts you can view were published.`
+                  : `New post: "${newPostNotice.latestTitle}".`}
+              </p>
+            </div>
+            <button
+              onClick={() => setNewPostNotice(null)}
+              className="text-green-700 hover:text-green-900 text-sm font-medium"
+            >
+              Dismiss
+            </button>
           </div>
         )}
 
@@ -410,9 +461,11 @@ function PostCard({ post, canManage, canEdit, onEdit, onTogglePin, onToggleLike,
     <div className={`bg-white rounded-xl shadow-sm border ${post.is_pinned ? 'border-green-300' : 'border-gray-200'} overflow-hidden`}>
       <div className="p-4 flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white font-bold">{(post.user_id || '?')[0].toUpperCase()}</div>
+          <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white font-bold">
+            {fullName(post.author_first_name, post.author_last_name, post.user_id)[0].toUpperCase()}
+          </div>
           <div>
-            <p className="text-sm font-semibold text-gray-900">{post.user_id}</p>
+            <p className="text-sm font-semibold text-gray-900">{fullName(post.author_first_name, post.author_last_name, post.user_id)}</p>
             <div className="flex items-center gap-2 text-xs text-gray-500">
               <span className="capitalize px-2 py-0.5 bg-green-100 text-green-700 rounded">{post.author_role}</span>
               <span>•</span><span>{formatTimeAgo(post.created_at)}</span>
@@ -472,10 +525,10 @@ function PostCard({ post, canManage, canEdit, onEdit, onTogglePin, onToggleLike,
             {comments.map((comment: Comment) => (
               <div key={comment.id} className="flex gap-3">
                 <div className="w-8 h-8 bg-gradient-to-br from-gray-400 to-gray-600 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                  {(comment.user_id || '?')[0].toUpperCase()}
+                  {fullName(comment.user_first_name, comment.user_last_name, comment.user_id)[0].toUpperCase()}
                 </div>
                 <div className="flex-1 bg-white rounded-lg p-3">
-                  <p className="text-xs font-semibold text-gray-700">{comment.user_id || 'Unknown'}</p>
+                  <p className="text-xs font-semibold text-gray-700">{fullName(comment.user_first_name, comment.user_last_name, comment.user_id)}</p>
                   <p className="text-gray-600 mt-1" style={T.body}>{comment.content}</p>
                   <p className="text-gray-400 mt-1" style={T.meta}>{formatTimeAgo(comment.created_at)}</p>
                 </div>
