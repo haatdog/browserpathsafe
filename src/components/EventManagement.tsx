@@ -49,7 +49,10 @@ export default function EventManagement() {
   const fetchEvents = async () => {
     try {
       const data = await eventAPI.getAll();
-      setEvents(data.map((e: any) => ({ ...e, status: calcStatus(e.start_time, e.end_time) })));
+      const normalized = (Array.isArray(data) ? data : [])
+        .filter((e: any) => e && typeof e.id === 'number' && e.start_time && e.end_time)
+        .map((e: any) => ({ ...e, status: calcStatus(e.start_time, e.end_time) as AppEventWithStatus['status'] }));
+      setEvents(normalized);
     } catch {} finally { setLoading(false); }
   };
 
@@ -315,7 +318,7 @@ export default function EventManagement() {
             </div>
             {deleteError && <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm mb-3">{deleteError}</div>}
             <div className="flex gap-3">
-              <button onClick={() => { setShowDeleteConfirm(null); setDeleteError(''); }}}
+              <button onClick={() => { setShowDeleteConfirm(null); setDeleteError(''); }}
                 className="flex-1 px-4 py-2 border border-gray-300 text-sm text-gray-700 rounded-lg hover:bg-gray-50 transition">Cancel</button>
               <button onClick={() => handleDelete(showDeleteConfirm)}
                 className="flex-1 px-4 py-2 bg-red-600 text-sm text-white rounded-lg hover:bg-red-700 transition">Delete</button>
