@@ -1,6 +1,6 @@
 // CalendarSidebar.tsx
 import { useState, useEffect, useRef } from 'react';
-import { Calendar as CalendarIcon, Clock, MapPin, Users, Plus, X, ChevronLeft, ChevronRight, Video, FileText, PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, MapPin, Users, Plus, X, ChevronLeft, ChevronRight, Video, FileText, PanelRightClose, PanelRightOpen, AlertTriangle } from 'lucide-react';
 import { T, C } from '../design/DesignTokens';
 import { eventAPI } from '../lib/api';
 
@@ -100,13 +100,17 @@ export default function CalendarSidebar({ userRole, mobileSheet = false }: Calen
   const createEvent = async () => {
     setFormError('');
     if (userRole !== 'coordinator' && userRole !== 'admin') { setFormError('Only coordinators can create events.'); return; }
-    if (!newEvent.title || !newEvent.start_time || !newEvent.end_time) {
-      setFormError('Please fill in title, start time, and end time.'); return;
+    if (!newEvent.title.trim())      { setFormError('Event title is required.'); return; }
+    if (!newEvent.start_time)        { setFormError('Start date and time is required.'); return; }
+    if (!newEvent.end_time)          { setFormError('End date and time is required.'); return; }
+    if (new Date(newEvent.start_time) >= new Date(newEvent.end_time)) {
+      setFormError('End time must be after start time.'); return;
     }
     try {
       await eventAPI.create(newEvent);
       setNewEvent({ title: '', description: '', event_type: 'meeting', start_time: '', end_time: '',
                     location: '', is_virtual: false, meeting_link: '', max_participants: undefined });
+      setFormError('');
       setShowCreateModal(false);
       loadEvents();
     } catch (err: any) { setFormError(err.message || 'Failed to create event.'); }
@@ -282,62 +286,104 @@ export default function CalendarSidebar({ userRole, mobileSheet = false }: Calen
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-auto">
-            <div className="p-5 border-b border-gray-200 flex items-center justify-between">
-              <h2 style={T.pageTitle}>Schedule Event</h2>
-              <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
-            </div>
-            <div className="p-5 space-y-4">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <div>
-                <label className="block mb-1" style={T.bodyMedium}>Event Type</label>
+                <h2 style={T.pageTitle}>Schedule Event</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Fields marked with <span className="text-red-500 font-bold">*</span> are required</p>
+              </div>
+              <button onClick={() => { setShowCreateModal(false); setFormError(''); }}
+                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-5">
+              {formError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0" />{formError}
+                </div>
+              )}
+
+              {/* Event Type */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  Event Type <span className="text-red-500">*</span>
+                </label>
                 <select value={newEvent.event_type} onChange={e => setNewEvent({...newEvent, event_type: e.target.value as any})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white">
                   <option value="meeting">Meeting</option>
                   <option value="training">Training</option>
                   <option value="drill">Emergency Drill</option>
+                  <option value="fire_drill">Fire Drill</option>
+                  <option value="earthquake_drill">Earthquake Drill</option>
+                  <option value="bomb_threat_drill">Bomb Threat Drill</option>
+                  <option value="inspection">Inspection</option>
                   <option value="other">Other</option>
                 </select>
               </div>
+
+              {/* Title */}
               <div>
-                <label className="block mb-1" style={T.bodyMedium}>Title</label>
-                <input type="text" value={newEvent.title} onChange={e => setNewEvent({...newEvent, title: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  placeholder="Fire drill, Safety training..." />
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  Event Title <span className="text-red-500">*</span>
+                </label>
+                <input type="text" value={newEvent.title}
+                  onChange={e => setNewEvent({...newEvent, title: e.target.value})}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  placeholder="e.g. Monthly Fire Safety Drill" />
               </div>
+
+              {/* Description */}
               <div>
-                <label className="block mb-1" style={T.bodyMedium}>Description</label>
-                <textarea value={newEvent.description} onChange={e => setNewEvent({...newEvent, description: e.target.value})} rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
-                  placeholder="Event details..." />
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  Description
+                </label>
+                <textarea value={newEvent.description}
+                  onChange={e => setNewEvent({...newEvent, description: e.target.value})}
+                  rows={3}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
+                  placeholder="Event details, instructions, or notes..." />
               </div>
-              <DateTimeInput value={newEvent.start_time} onChange={v => setNewEvent({...newEvent, start_time: v})} label="Start Time" />
-              <DateTimeInput value={newEvent.end_time}   onChange={v => setNewEvent({...newEvent, end_time: v})}   label="End Time" />
-              <div className="flex items-center gap-2">
-                <input type="checkbox" id="is_virtual" checked={newEvent.is_virtual}
-                  onChange={e => setNewEvent({...newEvent, is_virtual: e.target.checked})}
-                  className="rounded border-gray-300 text-green-600 focus:ring-green-500" />
-                <label htmlFor="is_virtual" style={T.bodyMedium}>Virtual Event</label>
+
+              {/* Date & Time */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Start Date & Time <span className="text-red-500">*</span>
+                  </label>
+                  <DateTimeInput value={newEvent.start_time} onChange={v => setNewEvent({...newEvent, start_time: v})} label="" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    End Date & Time <span className="text-red-500">*</span>
+                  </label>
+                  <DateTimeInput value={newEvent.end_time} onChange={v => setNewEvent({...newEvent, end_time: v})} label="" />
+                </div>
               </div>
-              {newEvent.is_virtual ? (
-                <div>
-                  <label className="block mb-1" style={T.bodyMedium}>Meeting Link</label>
-                  <input type="url" value={newEvent.meeting_link} onChange={e => setNewEvent({...newEvent, meeting_link: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    placeholder="https://zoom.us/..." />
-                </div>
-              ) : (
-                <div>
-                  <label className="block mb-1" style={T.bodyMedium}>Location</label>
-                  <input type="text" value={newEvent.location} onChange={e => setNewEvent({...newEvent, location: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    placeholder="Conference Room A..." />
-                </div>
-              )}
+
+              {/* Location */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  Location
+                </label>
+                <input type="text" value={newEvent.location}
+                  onChange={e => setNewEvent({...newEvent, location: e.target.value})}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  placeholder="e.g. Main Gymnasium, Room 301" />
+              </div>
             </div>
-            <div className="p-5 border-t border-gray-200 flex justify-end gap-3">
-              <button onClick={() => setShowCreateModal(false)}
-                className="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition">Cancel</button>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-200 flex gap-3 bg-gray-50">
+              <button onClick={() => { setShowCreateModal(false); setFormError(''); }}
+                className="flex-1 px-4 py-2.5 text-sm text-gray-700 border border-gray-300 bg-white rounded-xl hover:bg-gray-50 transition">
+                Cancel
+              </button>
               <button onClick={createEvent}
-                className="px-5 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition">Create Event</button>
+                className="flex-1 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-medium transition">
+                Create Event
+              </button>
             </div>
           </div>
         </div>

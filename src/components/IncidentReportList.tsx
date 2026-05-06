@@ -30,6 +30,8 @@ interface RichData {
   actions_taken?: string;
 }
 
+type IncidentStatus = 'pending' | 'under_review' | 'resolved' | 'closed';
+
 interface Incident {
   id: number;
   title: string;
@@ -38,7 +40,9 @@ interface Incident {
   severity: 'low' | 'medium' | 'high' | 'critical';
   location: string;
   incident_date: string;
-  status: 'pending' | 'under_review' | 'resolved' | 'closed';
+  /** Workflow state from API (`/api/incidents`); defaults to `pending` in DB */
+  status?: IncidentStatus;
+
   image_url?: string;
   image_urls?: string[];
   created_at: string;
@@ -67,12 +71,14 @@ const SEVERITY_STYLES: Record<string, string> = {
   low:      'bg-blue-100 text-blue-800 border-blue-300',
 };
 
-const STATUS_STYLES: Record<string, string> = {
-  resolved:     'bg-green-100 text-green-700',
-  under_review: 'bg-blue-100 text-blue-700',
-  pending:      'bg-yellow-100 text-yellow-700',
-  closed:       'bg-gray-100 text-gray-600',
+const STATUS_STYLES: Record<IncidentStatus, string> = {
+  pending:      'bg-amber-100 text-amber-900',
+  under_review: 'bg-blue-100 text-blue-900',
+  resolved:     'bg-green-100 text-green-900',
+  closed:       'bg-slate-100 text-slate-700',
 };
+
+
 
 // ── Boolean badge ─────────────────────────────────────────────────────────────
 function BoolBadge({ value, trueLabel, falseLabel }: { value: boolean; trueLabel: string; falseLabel: string }) {
@@ -235,7 +241,7 @@ function downloadIncidentPDF(incident: Incident) {
   </div>
 
   <div class="footer">
-    <span>Incident #${incident.id} &middot; ${esc(incident.reporter_email)} &middot; ${capitalize(incident.status)}</span>
+    <span>Incident #${incident.id} &middot; ${esc(incident.reporter_email)}</span>
     <span>Generated: ${new Date().toLocaleString()}</span>
   </div>
 
@@ -267,9 +273,8 @@ function IncidentCard({ incident, onClick }: { incident: Incident; onClick: () =
         <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${SEVERITY_STYLES[incident.severity] ?? SEVERITY_STYLES.medium}`}>
           {incident.severity.toUpperCase()}
         </span>
-        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_STYLES[incident.status] ?? STATUS_STYLES.pending}`}>
-          {capitalize(incident.status)}
-        </span>
+
+          
       </div>
 
       <div className="px-5 py-4 space-y-3">
@@ -317,7 +322,7 @@ function IncidentCard({ incident, onClick }: { incident: Incident; onClick: () =
 export default function IncidentReportsList() {
   const [incidents,        setIncidents]        = useState<Incident[]>([]);
   const [loading,          setLoading]          = useState(true);
-  const [filter,           setFilter]           = useState('all');
+
   const [showCreateModal,  setShowCreateModal]  = useState(false);
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
   const [userRole,         setUserRole]         = useState<'admin'|'coordinator'|'member'>('member');
@@ -336,7 +341,7 @@ export default function IncidentReportsList() {
     finally { setLoading(false); }
   };
 
-  const filtered = incidents.filter(i => filter === 'all' || i.status === filter);
+  const filtered = incidents;
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
@@ -348,7 +353,7 @@ export default function IncidentReportsList() {
   if (userRole === 'member') return (
     <div className="space-y-6">
       <div>
-        <h1 style={T.pageTitle}>Incident Reports</h1>
+        <h1 style={T.pageTitle}>Report Incidents</h1>
         <p className="mt-1" style={{...T.body, color: C.inkMuted}}>Report a safety incident or hazard</p>
       </div>
       <div className="bg-white rounded-xl border border-gray-200 p-8 text-center space-y-4">
@@ -378,7 +383,7 @@ export default function IncidentReportsList() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div>
-          <h1 style={T.pageTitle}>Incident Reports</h1>
+          <h1 style={T.pageTitle}>Report Incidents</h1>
           <p className="mt-1" style={{...T.body, color: C.inkMuted}}>{incidents.length} total report{incidents.length !== 1 ? 's' : ''}</p>
         </div>
         <button onClick={() => setShowCreateModal(true)}
@@ -389,9 +394,7 @@ export default function IncidentReportsList() {
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: 'Pending',         val: incidents.filter(i => i.status === 'pending').length,                                  color: 'text-yellow-600' },
-          { label: 'Under Review',    val: incidents.filter(i => i.status === 'under_review').length,                             color: 'text-blue-600'   },
-          { label: 'Resolved',        val: incidents.filter(i => i.status === 'resolved').length,                                 color: 'text-green-600'  },
+
           { label: 'High / Critical', val: incidents.filter(i => i.severity === 'high' || i.severity === 'critical').length,      color: 'text-red-600'    },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-xl border border-gray-200 px-4 py-3 shadow-sm">
@@ -404,13 +407,7 @@ export default function IncidentReportsList() {
       <div className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex flex-wrap items-center gap-2">
         <Filter className="w-4 h-4 text-gray-400" />
         <span className="mr-1" style={T.bodyMedium}>Status:</span>
-        {['all', 'pending', 'under_review', 'resolved', 'closed'].map(s => (
-          <button key={s} onClick={() => setFilter(s)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition
-              ${filter === s ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-            {s === 'all' ? 'All' : capitalize(s)}
-          </button>
-        ))}
+
       </div>
 
       {filtered.length === 0 ? (
@@ -418,7 +415,7 @@ export default function IncidentReportsList() {
           <AlertTriangle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
           <h3 className="mb-1" style={T.sectionHeader}>No incidents found</h3>
           <p style={{...T.body, color: C.inkMuted}}>
-            {filter === 'all' ? 'No incidents reported yet.' : `No ${capitalize(filter)} incidents.`}
+            No incidents reported yet.
           </p>
         </div>
       ) : (
@@ -452,6 +449,7 @@ function IncidentDetailModal({ incident, onClose, onRefresh }: {
   incident: Incident; onClose: () => void; onRefresh: () => void;
 }) {
   const rich = parseDescription(incident.description);
+  const workflowStatus: IncidentStatus = incident.status ?? 'pending';
 
   const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <div>
@@ -500,8 +498,8 @@ function IncidentDetailModal({ incident, onClose, onRefresh }: {
 
         <div className="p-6 space-y-6">
           <div className="flex flex-wrap gap-3 text-sm">
-            <span className={`px-3 py-1 rounded-full font-medium ${STATUS_STYLES[incident.status]}`}>
-              {capitalize(incident.status)}
+            <span className={`px-3 py-1 rounded-full font-medium ${STATUS_STYLES[workflowStatus]}`}>
+              {capitalize(workflowStatus)}
             </span>
             {rich?.report_date && (
               <span className="flex items-center gap-1.5" style={T.meta}>

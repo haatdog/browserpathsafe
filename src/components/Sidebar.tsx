@@ -77,7 +77,7 @@ export default function Sidebar({ profile, currentPage, onNavigate, isOpen, onCl
           {(isCoordinator || isMember) && (
             <NavBtn page="events"     icon={Calendar}      label="Events & Drills"   />
           )}
-          <NavBtn page="incidents"    icon={AlertTriangle} label="Incident Reports"  />
+          <NavBtn page="incidents"    icon={AlertTriangle} label="Report Incidents"  />
           {isCoordinator && <NavBtn page="simulations" icon={BarChart3}  label="Simulations"       />}
           {isCoordinator && <NavBtn page="projects"    icon={FolderOpen} label="Projects"          />}
           {isCoordinator && <NavBtn page="create"      icon={Plus}       label="Create Simulation" />}
