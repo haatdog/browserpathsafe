@@ -190,6 +190,71 @@ def delete_announcement(announcement_id):
         return jsonify({"error": str(e)}), 500
 
 
+@announcements_bp.route("/api/announcements/<int:announcement_id>", methods=["PUT", "OPTIONS"])
+def update_announcement(announcement_id):
+    if request.method == "OPTIONS":
+        return '', 200
+    try:
+        user_id = get_user_id()
+        if not user_id:
+            return jsonify({"error": "Not authenticated"}), 401
+
+        data = request.json or {}
+        title = (data.get('title') or '').strip()
+        content = (data.get('content') or '').strip()
+        if not title:
+            return jsonify({"error": "Title is required"}), 400
+        if not content:
+            return jsonify({"error": "Content is required"}), 400
+
+        conn = get_db()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        cursor.execute('SELECT role FROM user_profiles WHERE id = %s', (user_id,))
+        me = cursor.fetchone()
+        if not me:
+            cursor.close(); conn.close()
+            return jsonify({"error": "User not found"}), 404
+
+        cursor.execute('SELECT user_id FROM announcements WHERE id = %s', (announcement_id,))
+        existing = cursor.fetchone()
+        if not existing:
+            cursor.close(); conn.close()
+            return jsonify({"error": "Announcement not found"}), 404
+
+        is_owner = existing['user_id'] == user_id
+        is_admin = me['role'] in ('coordinator', 'admin')
+        if not is_owner and not is_admin:
+            cursor.close(); conn.close()
+            return jsonify({"error": "Not allowed to edit this announcement"}), 403
+
+        cursor.execute('''
+            UPDATE announcements
+            SET title = %s,
+                content = %s,
+                image_url = %s,
+                image_urls = %s,
+                target_group_id = %s,
+                target_heads_only = %s,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+        ''', (
+            title,
+            content,
+            data.get('image_url'),
+            json.dumps(data.get('image_urls', [])),
+            data.get('target_group_id'),
+            data.get('target_heads_only', False),
+            announcement_id,
+        ))
+        conn.commit()
+        cursor.close(); conn.close()
+        return jsonify({"success": True})
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
 @announcements_bp.route("/api/announcements/<int:announcement_id>/comments", methods=["GET", "OPTIONS"])
 def get_comments(announcement_id):
     if request.method == "OPTIONS":

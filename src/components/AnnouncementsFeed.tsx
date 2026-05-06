@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { T, C } from '../design/DesignTokens';
 import {
-  MessageSquare, Heart, Pin, Trash2, Send, FileText,
+  MessageSquare, Heart, Pin, Trash2, Send, FileText, Edit,
   AlertCircle, Upload, X, ChevronLeft, ChevronRight, Images, Filter, Star
 } from 'lucide-react';
 import { announcementAPI, organizationAPI } from '../lib/api';
@@ -166,6 +166,9 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
   const [newComment, setNewComment] = useState<Record<number, string>>({});
   const [showComments, setShowComments] = useState<Record<number, boolean>>({});
   const [slideshow, setSlideshow] = useState<{ images: string[]; index: number; title: string } | null>(null);
+  const [editingPostId, setEditingPostId] = useState<number | null>(null);
+  const [editPost, setEditPost] = useState({ title: '', content: '', target_group_id: '' as number | '', target_heads_only: false });
+  const [editImages, setEditImages] = useState<string[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [filterGroupId, setFilterGroupId] = useState<number | 'heads' | ''>('');
 
@@ -192,6 +195,39 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
   const togglePin      = async (id: number, currentlyPinned: boolean) => { try { await announcementAPI.togglePin(id, !currentlyPinned); loadAnnouncements(); } catch {} };
   const toggleLike     = async (id: number) => { try { await announcementAPI.toggleLike(id); loadAnnouncements(); } catch {} };
   const deleteAnnouncement = async (id: number) => { if (!confirm('Delete this announcement?')) return; try { await announcementAPI.delete(id); loadAnnouncements(); } catch {} };
+  const startEditing = (post: Announcement) => {
+    setEditingPostId(post.id);
+    setEditPost({
+      title: post.title,
+      content: post.content,
+      target_group_id: post.target_group_id ?? '',
+      target_heads_only: !!post.target_heads_only,
+    });
+    setEditImages(getImages(post));
+  };
+  const cancelEditing = () => {
+    setEditingPostId(null);
+    setEditPost({ title: '', content: '', target_group_id: '', target_heads_only: false });
+    setEditImages([]);
+  };
+  const saveEditedAnnouncement = async () => {
+    if (!editingPostId) return;
+    if (!editPost.title.trim() || !editPost.content.trim()) return;
+    try {
+      await announcementAPI.update(editingPostId, {
+        title: editPost.title,
+        content: editPost.content,
+        image_url: editImages[0] || '',
+        image_urls: editImages,
+        target_group_id: editPost.target_group_id || null,
+        target_heads_only: editPost.target_heads_only,
+      });
+      cancelEditing();
+      loadAnnouncements();
+    } catch (e) {
+      console.error('Failed to update announcement:', e);
+    }
+  };
   const loadComments   = async (id: number) => { try { const data = await announcementAPI.getComments(id); setComments(prev => ({ ...prev, [id]: data as Comment[] })); } catch {} };
   const addComment     = async (id: number) => { const content = newComment[id]?.trim(); if (!content) return; try { await announcementAPI.addComment(id, content); setNewComment(prev => ({ ...prev, [id]: '' })); loadComments(id); loadAnnouncements(); } catch {} };
   const toggleComments = (id: number) => { const showing = showComments[id]; setShowComments(prev => ({ ...prev, [id]: !showing })); if (!showing && !comments[id]) loadComments(id); };
@@ -239,12 +275,12 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
         {pinnedPosts.length > 0 && (
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-sm font-semibold text-gray-600 uppercase tracking-wider"><Pin className="w-4 h-4" /><span>Pinned</span></div>
-            {pinnedPosts.map(post => <PostCard key={post.id} post={post} canManage={canManagePost(post)} onTogglePin={togglePin} onToggleLike={toggleLike} onDelete={deleteAnnouncement} onToggleComments={toggleComments} showComments={!!showComments[post.id]} comments={comments[post.id] || []} newComment={newComment[post.id] || ''} onCommentChange={(v: string) => setNewComment(prev => ({ ...prev, [post.id]: v }))} onAddComment={addComment} formatTimeAgo={formatTimeAgo} onOpenSlideshow={(idx) => setSlideshow({ images: getImages(post), index: idx, title: post.title })} />)}
+            {pinnedPosts.map(post => <PostCard key={post.id} post={post} canManage={canManagePost(post)} canEdit={post.user_id === userId} onEdit={startEditing} onTogglePin={togglePin} onToggleLike={toggleLike} onDelete={deleteAnnouncement} onToggleComments={toggleComments} showComments={!!showComments[post.id]} comments={comments[post.id] || []} newComment={newComment[post.id] || ''} onCommentChange={(v: string) => setNewComment(prev => ({ ...prev, [post.id]: v }))} onAddComment={addComment} formatTimeAgo={formatTimeAgo} onOpenSlideshow={(idx) => setSlideshow({ images: getImages(post), index: idx, title: post.title })} />)}
           </div>
         )}
 
         <div className="space-y-4">
-          {regularPosts.map(post => <PostCard key={post.id} post={post} canManage={canManagePost(post)} onTogglePin={togglePin} onToggleLike={toggleLike} onDelete={deleteAnnouncement} onToggleComments={toggleComments} showComments={!!showComments[post.id]} comments={comments[post.id] || []} newComment={newComment[post.id] || ''} onCommentChange={(v: string) => setNewComment(prev => ({ ...prev, [post.id]: v }))} onAddComment={addComment} formatTimeAgo={formatTimeAgo} onOpenSlideshow={(idx) => setSlideshow({ images: getImages(post), index: idx, title: post.title })} />)}
+          {regularPosts.map(post => <PostCard key={post.id} post={post} canManage={canManagePost(post)} canEdit={post.user_id === userId} onEdit={startEditing} onTogglePin={togglePin} onToggleLike={toggleLike} onDelete={deleteAnnouncement} onToggleComments={toggleComments} showComments={!!showComments[post.id]} comments={comments[post.id] || []} newComment={newComment[post.id] || ''} onCommentChange={(v: string) => setNewComment(prev => ({ ...prev, [post.id]: v }))} onAddComment={addComment} formatTimeAgo={formatTimeAgo} onOpenSlideshow={(idx) => setSlideshow({ images: getImages(post), index: idx, title: post.title })} />)}
         </div>
 
         {loading && <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" /></div>}
@@ -300,13 +336,68 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
       {slideshow && slideshow.images.length > 0 && (
         <SlideshowModal images={slideshow.images} initialIndex={slideshow.index} title={slideshow.title} onClose={() => setSlideshow(null)} />
       )}
+      {editingPostId && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-2xl max-h-[92vh] sm:max-h-[90vh] overflow-auto">
+            <div className="p-4 sm:p-6 border-b border-gray-200 flex items-center justify-between">
+              <h2 style={T.pageTitle}>Edit Announcement</h2>
+              <button onClick={cancelEditing} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-4 sm:p-6 space-y-4">
+              <div>
+                <label className="block mb-2 text-sm font-medium text-gray-700">Title</label>
+                <input
+                  type="text"
+                  value={editPost.title}
+                  onChange={e => setEditPost({ ...editPost, title: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block mb-2 text-sm font-medium text-gray-700">Content</label>
+                <textarea
+                  value={editPost.content}
+                  onChange={e => setEditPost({ ...editPost, content: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
+                  rows={6}
+                />
+              </div>
+              <div>
+                <label className="block mb-2 text-sm font-medium text-gray-700">Audience</label>
+                <select
+                  value={editPost.target_heads_only ? 'heads' : (editPost.target_group_id || '')}
+                  onChange={e => {
+                    const v = e.target.value;
+                    if (v === 'heads') setEditPost(p => ({ ...p, target_heads_only: true, target_group_id: '' }));
+                    else if (v === '') setEditPost(p => ({ ...p, target_heads_only: false, target_group_id: '' }));
+                    else setEditPost(p => ({ ...p, target_heads_only: false, target_group_id: Number(v) }));
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+                >
+                  <option value="">🌐 Everyone</option>
+                  <option value="heads">⭐ Heads Only</option>
+                  {groups.map(g => <option key={g.id} value={g.id}>👥 {g.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block mb-2 text-sm font-medium text-gray-700">Photos (Optional, up to 5)</label>
+                <MultiImageUploader images={editImages} onChange={setEditImages} max={5} accentColor="green" />
+              </div>
+            </div>
+            <div className="p-4 sm:p-6 border-t border-gray-200 flex gap-3">
+              <button onClick={cancelEditing} className="flex-1 sm:flex-none px-4 py-2.5 text-gray-600 hover:bg-gray-100 rounded-xl transition border border-gray-300">Cancel</button>
+              <button onClick={saveEditedAnnouncement} className="flex-1 sm:flex-none px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-medium transition">Save Changes</button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
 
-interface PostCardProps { post: Announcement; canManage: boolean; onTogglePin: (id: number, isPinned: boolean) => void; onToggleLike: (id: number) => void; onDelete: (id: number) => void; onToggleComments: (id: number) => void; showComments: boolean; comments: Comment[]; newComment: string; onCommentChange: (value: string) => void; onAddComment: (id: number) => void; formatTimeAgo: (date: string) => string; onOpenSlideshow: (index: number) => void; }
+interface PostCardProps { post: Announcement; canManage: boolean; canEdit: boolean; onEdit: (post: Announcement) => void; onTogglePin: (id: number, isPinned: boolean) => void; onToggleLike: (id: number) => void; onDelete: (id: number) => void; onToggleComments: (id: number) => void; showComments: boolean; comments: Comment[]; newComment: string; onCommentChange: (value: string) => void; onAddComment: (id: number) => void; formatTimeAgo: (date: string) => string; onOpenSlideshow: (index: number) => void; }
 
-function PostCard({ post, canManage, onTogglePin, onToggleLike, onDelete, onToggleComments, showComments, comments, newComment, onCommentChange, onAddComment, formatTimeAgo, onOpenSlideshow }: PostCardProps) {
+function PostCard({ post, canManage, canEdit, onEdit, onTogglePin, onToggleLike, onDelete, onToggleComments, showComments, comments, newComment, onCommentChange, onAddComment, formatTimeAgo, onOpenSlideshow }: PostCardProps) {
   const images = getImages(post);
   const [expanded, setExpanded] = useState(false);
   const WORD_LIMIT = 40;
@@ -319,9 +410,9 @@ function PostCard({ post, canManage, onTogglePin, onToggleLike, onDelete, onTogg
     <div className={`bg-white rounded-xl shadow-sm border ${post.is_pinned ? 'border-green-300' : 'border-gray-200'} overflow-hidden`}>
       <div className="p-4 flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white font-bold">{(post.author_email || '?')[0].toUpperCase()}</div>
+          <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white font-bold">{(post.user_id || '?')[0].toUpperCase()}</div>
           <div>
-            <p className="text-sm font-semibold text-gray-900">{post.author_email}</p>
+            <p className="text-sm font-semibold text-gray-900">{post.user_id}</p>
             <div className="flex items-center gap-2 text-xs text-gray-500">
               <span className="capitalize px-2 py-0.5 bg-green-100 text-green-700 rounded">{post.author_role}</span>
               <span>•</span><span>{formatTimeAgo(post.created_at)}</span>
@@ -330,6 +421,11 @@ function PostCard({ post, canManage, onTogglePin, onToggleLike, onDelete, onTogg
         </div>
         {canManage && (
           <div className="flex gap-1">
+            {canEdit && (
+              <button onClick={() => onEdit(post)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Edit">
+                <Edit className="w-4 h-4" />
+              </button>
+            )}
             <button onClick={() => onTogglePin(post.id, post.is_pinned)} className={`p-2 rounded-lg transition ${post.is_pinned ? 'text-green-600 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-100'}`} title={post.is_pinned ? 'Unpin' : 'Pin'}><Pin className="w-4 h-4" /></button>
             <button onClick={() => onDelete(post.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"><Trash2 className="w-4 h-4" /></button>
           </div>
@@ -376,10 +472,10 @@ function PostCard({ post, canManage, onTogglePin, onToggleLike, onDelete, onTogg
             {comments.map((comment: Comment) => (
               <div key={comment.id} className="flex gap-3">
                 <div className="w-8 h-8 bg-gradient-to-br from-gray-400 to-gray-600 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                  {((comment.author_email || comment.user_email) || '?')[0].toUpperCase()}
+                  {(comment.user_id || '?')[0].toUpperCase()}
                 </div>
                 <div className="flex-1 bg-white rounded-lg p-3">
-                  <p className="text-xs font-semibold text-gray-700">{comment.author_email || comment.user_email || 'Unknown'}</p>
+                  <p className="text-xs font-semibold text-gray-700">{comment.user_id || 'Unknown'}</p>
                   <p className="text-gray-600 mt-1" style={T.body}>{comment.content}</p>
                   <p className="text-gray-400 mt-1" style={T.meta}>{formatTimeAgo(comment.created_at)}</p>
                 </div>

@@ -349,6 +349,19 @@ export const announcementAPI = {
   delete: (id: number) =>
     pythonRequest(`/api/announcements/${id}`, { method: 'DELETE' }),
 
+  update: (id: number, data: {
+    title: string;
+    content: string;
+    image_url?: string;
+    image_urls?: string[];
+    target_group_id?: number | null;
+    target_heads_only?: boolean;
+  }) =>
+    pythonRequest(`/api/announcements/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
   getComments: (announcementId: number) =>
     pythonRequest(`/api/announcements/${announcementId}/comments`, { method: 'GET' }),
 
