@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { T, C } from '../design/DesignTokens';
 import {
   MessageSquare, Heart, Pin, Trash2, Send, FileText, Edit,
-  AlertCircle, Upload, X, ChevronLeft, ChevronRight, Images, Filter, Star
+  AlertCircle, Upload, X, ChevronLeft, ChevronRight, ImageIcon, Filter, Star
 } from 'lucide-react';
 import { announcementAPI, organizationAPI } from '../lib/api';
 
@@ -111,7 +111,7 @@ function SlideshowModal({ images, initialIndex = 0, title, onClose }: { images: 
       </button>
       <div className="flex items-center justify-between px-4 pr-20 py-4 flex-shrink-0">
         <div className="flex items-center gap-3 min-w-0">
-          <Images className="w-5 h-5 text-white/60 flex-shrink-0" />
+          <ImageIcon className="w-5 h-5 text-white/60 flex-shrink-0" />
           {title && <span className="text-white truncate" style={T.sectionHeader}>{title}</span>}
         </div>
         <span className="text-white/60 tabular-nums flex-shrink-0" style={T.body}>{current + 1} / {images.length}</span>
@@ -517,7 +517,7 @@ function PostCard({ post, canManage, canEdit, onEdit, onTogglePin, onToggleLike,
       <div className="px-4 py-3 border-t border-gray-100 flex items-center gap-2 sm:gap-4">
         <button onClick={() => onToggleLike(post.id)} className="flex items-center gap-1.5 sm:gap-2 px-2 py-1.5 -mx-1 rounded-lg text-gray-600 hover:text-red-600 hover:bg-red-50 transition"><Heart className="w-5 h-5" /><span className="font-medium text-sm">{post.likes_count}</span></button>
         <button onClick={() => onToggleComments(post.id)} className="flex items-center gap-1.5 sm:gap-2 px-2 py-1.5 -mx-1 rounded-lg text-gray-600 hover:text-green-600 hover:bg-green-50 transition"><MessageSquare className="w-5 h-5" /><span className="font-medium text-sm">{post.comments_count}</span></button>
-        {images.length > 0 && <button onClick={() => onOpenSlideshow(0)} className="flex items-center gap-2 text-gray-600 hover:text-green-600 transition ml-auto"><Images className="w-4 h-4" /><span style={T.body}>{images.length} photo{images.length !== 1 ? 's' : ''}</span></button>}
+        {images.length > 0 && <button onClick={() => onOpenSlideshow(0)} className="flex items-center gap-2 text-gray-600 hover:text-green-600 transition ml-auto"><ImageIcon className="w-4 h-4" /><span style={T.body}>{images.length} photo{images.length !== 1 ? 's' : ''}</span></button>}
       </div>
       {showComments && (
         <div className="border-t border-gray-100 bg-gray-50">
