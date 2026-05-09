@@ -40,6 +40,7 @@ from src.routes.auth          import auth_bp
 from src.routes.users         import users_bp
 from src.routes.projects      import projects_bp
 from src.routes.simulations   import simulations_bp
+from src.routes.notifications  import notifications_bp
 from src.routes.announcements import announcements_bp
 from src.routes.events        import events_bp
 from src.routes.incidents     import incidents_bp
@@ -50,6 +51,7 @@ app.register_blueprint(auth_bp)
 app.register_blueprint(users_bp)
 app.register_blueprint(projects_bp)
 app.register_blueprint(simulations_bp)
+app.register_blueprint(notifications_bp)
 app.register_blueprint(announcements_bp)
 app.register_blueprint(events_bp)
 app.register_blueprint(incidents_bp)
@@ -260,6 +262,20 @@ def init_db():
         'ALTER TABLE simulations ADD COLUMN IF NOT EXISTS project_data JSON',
         # simulations: store project name at run time so renaming/deleting project doesn't affect simulations
         'ALTER TABLE simulations ADD COLUMN IF NOT EXISTS project_name VARCHAR(255)',
+        # ── notifications table ───────────────────────────────────────────────
+        '''CREATE TABLE IF NOT EXISTS notifications (
+            id         SERIAL PRIMARY KEY,
+            user_id    VARCHAR(255) NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE,
+            type       VARCHAR(50)  NOT NULL,  -- announcement, event, drill_reminder, account_approved
+            title      VARCHAR(255) NOT NULL,
+            body       TEXT,
+            link_type  VARCHAR(50),            -- which tab to navigate to
+            ref_id     INTEGER,                -- related object id
+            is_read    BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''',
+        'CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, is_read, created_at DESC)',
+
         # user verification: pending/approved/rejected
         """ALTER TABLE user_profiles
            ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'approved'""",
