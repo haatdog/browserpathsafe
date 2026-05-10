@@ -14,6 +14,7 @@ import CalendarSidebar from '../components/CalendarSidebar';
 import EventManagement from '../components/EventManagement';
 import IncidentReportsList from '../components/IncidentReportList';
 import OrganizationChart from '../components/OrganizationChart';
+import NotificationPanel from '../components/NotificationPanel';
 import { T, C } from '../design/DesignTokens';
 
 interface DashboardPageProps { onLogout: () => void; }
@@ -275,6 +276,7 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
                   <p style={{...T.meta, textTransform: 'capitalize'}}>{profile?.role}</p>
                 </div>
               </button>
+              <NotificationPanel onNavigate={navigate} />
               <div className="w-px h-5 bg-gray-200 hidden sm:block" />
               <button onClick={handleLogout} title="Logout" className="p-2 rounded-xl hover:bg-gray-100 transition" style={{ color: 'var(--color-ink-muted)' }}>
                 <LogOut className="w-4 h-4" />
