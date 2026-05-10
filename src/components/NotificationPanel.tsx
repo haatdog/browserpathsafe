@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Bell, X, Check, CheckCheck, Megaphone, Calendar, UserCheck, Info } from 'lucide-react';
 import { T } from '../design/DesignTokens';
+import { Page } from '@/types/navigation';
 
 const API = import.meta.env.VITE_PYTHON_API_URL || 'https://browserpathsafe.onrender.com';
 
@@ -30,7 +31,7 @@ interface Notification {
 }
 
 interface NotificationPanelProps {
-  onNavigate?: (page: string) => void;
+  onNavigate?: (page: Page) => void;
 }
 
 function timeAgo(iso: string) {
@@ -136,7 +137,7 @@ export default function NotificationPanel({ onNavigate }: NotificationPanelProps
   const handleClick = (notif: Notification) => {
     if (!notif.is_read) markRead(notif.id);
     if (notif.link_type && onNavigate) {
-      onNavigate(notif.link_type);
+      onNavigate(notif.link_type as Page);
       setOpen(false);
     }
   };
