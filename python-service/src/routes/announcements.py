@@ -7,6 +7,7 @@ from src.utils import get_user_id, get_db
 announcements_bp = Blueprint('announcements', __name__)
 
 
+
 @announcements_bp.route("/api/announcements", methods=["GET", "OPTIONS"])
 def get_announcements():
     if request.method == "OPTIONS":

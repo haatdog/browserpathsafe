@@ -221,7 +221,14 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
     if (!newPost.title.trim()) { setPostError('Title is required.'); return; }
     if (!newPost.content.trim()) { setPostError('Content is required.'); return; }
     try {
-      await announcementAPI.create({ title: newPost.title, content: newPost.content, image_url: newImages[0] || '', image_urls: newImages, target_group_id: newPost.target_group_id || null, target_heads_only: newPost.target_heads_only });
+      await announcementAPI.create({ 
+        title: newPost.title, 
+        content: newPost.content, 
+        image_url: newImages[0] || undefined, 
+        image_urls: newImages, 
+        target_group_id: newPost.target_group_id || null, 
+        target_heads_only: newPost.target_heads_only 
+      });
       setNewPost({ title: '', content: '', target_group_id: '', target_heads_only: false }); setNewImages([]); setShowCreateModal(false); loadAnnouncements();
     } catch (err: any) { setPostError(err.message || 'Failed to create announcement.'); }
   };
@@ -250,7 +257,7 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
       await announcementAPI.update(editingPostId, {
         title: editPost.title,
         content: editPost.content,
-        image_url: editImages[0] || '',
+        image_url: editImages[0] || undefined,
         image_urls: editImages,
         target_group_id: editPost.target_group_id || null,
         target_heads_only: editPost.target_heads_only,
