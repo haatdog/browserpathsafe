@@ -90,6 +90,36 @@ export interface MapProjectSummary {
   updated_at: string;
 }
 
+export interface Announcement {
+  id: number;
+  user_id: string;
+  author_email: string;
+  author_role: string;
+  author_first_name?: string | null;
+  author_last_name?: string | null;
+
+  title: string;
+  content: string;
+  image_url?: string;
+  image_urls?: string[] | string;
+
+  is_pinned: boolean;
+  likes_count: number;
+  comments_count: number;
+
+  author_group_id?: number | null;
+  author_group_name?: string | null;
+  author_is_head?: boolean;
+
+  target_group_id?: number | null;      // ✅ ADD THIS
+  target_group_name?: string | null;
+  target_heads_only?: boolean;         // already used in your code
+
+  created_at: string;
+  updated_at: string;
+}
+
+
 /* =========================
    GENERIC REQUEST HELPER
 ========================= */
