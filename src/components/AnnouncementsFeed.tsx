@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { T, C } from '../design/DesignTokens';
 import {
   MessageSquare, Heart, Pin, Trash2, Send, FileText, Edit,
-  AlertCircle, Upload, X, ChevronLeft, ChevronRight, ImageIcon, Filter, Star
+  AlertCircle, Upload, X, ChevronLeft, ChevronRight, Image as ImageIcon, Filter, Star
 } from 'lucide-react';
 import { announcementAPI, organizationAPI } from '../lib/api';
 
