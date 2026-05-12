@@ -60,7 +60,10 @@ function MultiImageUploader({ images, onChange, max = 5, accentColor = 'green' }
 
   const removeImage = (idx: number) => onChange(images.filter((_, i) => i !== idx));
   const dropBg = dragOver ? 'border-green-500 bg-green-50' : accentColor === 'purple' ? 'border-gray-300 hover:border-purple-400 hover:bg-purple-50' : 'border-gray-300 hover:border-green-400 hover:bg-green-50';
-
+  console.log({
+    MessageSquare, Heart, Pin, Trash2, Send, FileText, Edit,
+    AlertCircle, Upload, X, ChevronLeft, ChevronRight, ImageIcon, Filter, Star
+  });
   return (
     <div className="space-y-3">
       {images.length > 0 && (
