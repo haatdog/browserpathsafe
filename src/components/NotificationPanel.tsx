@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Bell, X, Check, CheckCheck, Megaphone, Calendar, UserCheck, Info } from 'lucide-react';
 import { T } from '../design/DesignTokens';
-import { Page } from '@/types/navigation';
+import type { Page } from '../types/navigation';
 
 const API = import.meta.env.VITE_PYTHON_API_URL || 'https://browserpathsafe.onrender.com';
 
