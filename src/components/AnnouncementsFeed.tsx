@@ -196,6 +196,7 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
     try {
       setAuthError(false);
       const data = await announcementAPI.getAll();
+      console.log("RAW ANNOUNCEMENTS:", data);
       const nextAnnouncements = Array.isArray(data) ? data : [];
       const nextIds = new Set<number>(nextAnnouncements.map((a: Announcement) => a.id));
       const firstLoad = knownAnnouncementIdsRef.current.size === 0;
