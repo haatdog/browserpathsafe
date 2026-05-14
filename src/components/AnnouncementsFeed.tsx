@@ -184,12 +184,12 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
   const knownAnnouncementIdsRef = useRef<Set<number>>(new Set());
 
   useEffect(() => { loadAnnouncements(); loadGroups(); }, []);
-  useEffect(() => {
-    const pollId = window.setInterval(() => {
-      loadAnnouncements(true);
-    }, 30000);
-    return () => window.clearInterval(pollId);
-  }, []);
+  // useEffect(() => {
+  //   const pollId = window.setInterval(() => {
+  //     loadAnnouncements(true);
+  //   }, 30000);
+  //   return () => window.clearInterval(pollId);
+  // }, []);
 
   const loadGroups = async () => { try { const data = await organizationAPI.listGroups(); setGroups(Array.isArray(data) ? data : []); } catch {} };
   const loadAnnouncements = async (withNotification = false) => {
