@@ -7,14 +7,41 @@ import {
 } from 'lucide-react';
 import { announcementAPI, organizationAPI } from '../lib/api';
 
+// interface Announcement {
+//   id: number; user_id: string; author_email: string; author_role: string;
+//   author_first_name?: string | null; author_last_name?: string | null;
+//   title: string; content: string; image_url?: string; image_urls?: string[] | string;
+//   is_pinned: boolean; likes_count: number; comments_count: number;
+//   author_group_id?: number | null; author_group_name?: string | null; author_is_head?: boolean;
+//   target_group_id?: number | null; target_group_name?: string | null; target_heads_only?: boolean;
+//   created_at: string; updated_at: string;
+// }
 interface Announcement {
-  id: number; user_id: string; author_email: string; author_role: string;
-  author_first_name?: string | null; author_last_name?: string | null;
-  title: string; content: string; image_url?: string; image_urls?: string[] | string;
-  is_pinned: boolean; likes_count: number; comments_count: number;
-  author_group_id?: number | null; author_group_name?: string | null; author_is_head?: boolean;
-  target_group_id?: number | null; target_group_name?: string | null; target_heads_only?: boolean;
-  created_at: string; updated_at: string;
+  id: number;
+  user_id: string;
+  author_email: string;
+  author_role: string;
+
+  author_first_name?: string | null;
+  author_last_name?: string | null;
+
+  title: string;
+  content: string;
+
+  is_pinned: boolean;
+  likes_count: number;
+  comments_count: number;
+
+  author_group_id?: number | null;
+  author_group_name?: string | null;
+  author_is_head?: boolean;
+
+  target_group_id?: number | null;
+  target_group_name?: string | null;
+  target_heads_only?: boolean;
+
+  created_at: string;
+  updated_at: string;
 }
 interface Comment {
   id: number; announcement_id: number; user_id: string; author_email?: string; user_email?: string;
@@ -24,121 +51,121 @@ interface Comment {
 interface Group { id: number; name: string; }
 interface AnnouncementsFeedProps { userRole: 'admin' | 'coordinator' | 'member'; userId: string; }
 
-function MultiImageUploader({ images, onChange, max = 5, accentColor = 'green' }: { images: string[]; onChange: (images: string[]) => void; max?: number; accentColor?: 'green' | 'purple'; }) {
-  const [dragOver, setDragOver] = useState(false);
+// function MultiImageUploader({ images, onChange, max = 5, accentColor = 'green' }: { images: string[]; onChange: (images: string[]) => void; max?: number; accentColor?: 'green' | 'purple'; }) {
+//   const [dragOver, setDragOver] = useState(false);
 
-  const compressImage = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onerror = reject;
-      reader.onload = e => {
-        const img = new window.Image();
-        img.onerror = reject;
-        img.onload = () => {
-          const MAX = 800;
-          let { width, height } = img;
-          if (width > MAX || height > MAX) {
-            if (width > height) { height = Math.round((height * MAX) / width); width = MAX; }
-            else { width = Math.round((width * MAX) / height); height = MAX; }
-          }
-          const canvas = document.createElement('canvas');
-          canvas.width = width; canvas.height = height;
-          canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL('image/jpeg', 0.55));
-        };
-        img.src = e.target!.result as string;
-      };
-      reader.readAsDataURL(file);
-    });
+//   const compressImage = (file: File): Promise<string> =>
+//     new Promise((resolve, reject) => {
+//       const reader = new FileReader();
+//       reader.onerror = reject;
+//       reader.onload = e => {
+//         const img = new window.Image();
+//         img.onerror = reject;
+//         img.onload = () => {
+//           const MAX = 800;
+//           let { width, height } = img;
+//           if (width > MAX || height > MAX) {
+//             if (width > height) { height = Math.round((height * MAX) / width); width = MAX; }
+//             else { width = Math.round((width * MAX) / height); height = MAX; }
+//           }
+//           const canvas = document.createElement('canvas');
+//           canvas.width = width; canvas.height = height;
+//           canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
+//           resolve(canvas.toDataURL('image/jpeg', 0.55));
+//         };
+//         img.src = e.target!.result as string;
+//       };
+//       reader.readAsDataURL(file);
+//     });
 
-  const processFiles = (files: FileList | null) => {
-    if (!files) return;
-    const toProcess = Array.from(files).filter(f => f.type.startsWith('image/') && f.size <= 10 * 1024 * 1024).slice(0, max - images.length);
-    if (toProcess.length === 0) return;
-    Promise.all(toProcess.map(compressImage)).then(compressed => onChange([...images, ...compressed])).catch(err => console.error('Image compression failed:', err));
-  };
+//   const processFiles = (files: FileList | null) => {
+//     if (!files) return;
+//     const toProcess = Array.from(files).filter(f => f.type.startsWith('image/') && f.size <= 10 * 1024 * 1024).slice(0, max - images.length);
+//     if (toProcess.length === 0) return;
+//     Promise.all(toProcess.map(compressImage)).then(compressed => onChange([...images, ...compressed])).catch(err => console.error('Image compression failed:', err));
+//   };
 
-  const removeImage = (idx: number) => onChange(images.filter((_, i) => i !== idx));
-  const dropBg = dragOver ? 'border-green-500 bg-green-50' : accentColor === 'purple' ? 'border-gray-300 hover:border-purple-400 hover:bg-purple-50' : 'border-gray-300 hover:border-green-400 hover:bg-green-50';
-  return (
-    <div className="space-y-3">
-      {images.length > 0 && (
-        <div className="grid grid-cols-5 gap-2">
-          {images.map((src, idx) => (
-            <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border border-gray-200 bg-gray-100">
-              <img src={src} alt="" className="w-full h-full object-cover" />
-              <button type="button" onClick={() => removeImage(idx)} className="absolute top-1 right-1 bg-black/60 hover:bg-red-600 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-all"><X className="w-3 h-3" /></button>
-              {idx === 0 && <span className="absolute bottom-1 left-1 text-[10px] bg-black/60 text-white px-1.5 py-0.5 rounded-sm" style={T.bodyMedium}>Cover</span>}
-            </div>
-          ))}
-        </div>
-      )}
-      {images.length < max && (
-        <label className={`flex flex-col items-center justify-center w-full h-28 border-2 border-dashed rounded-lg cursor-pointer transition ${dropBg}`}
-          onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)}
-          onDrop={e => { e.preventDefault(); setDragOver(false); processFiles(e.dataTransfer.files); }}>
-          <div className="flex flex-col items-center gap-1.5 text-gray-500 pointer-events-none">
-            <Upload className="w-6 h-6" />
-            <span className="text-sm font-medium">{images.length === 0 ? 'Upload photos' : 'Add more photos'}</span>
-            <span className="text-xs text-gray-400">{images.length}/{max} • PNG, JPG, WEBP up to 5MB each</span>
-          </div>
-          <input type="file" accept="image/*" multiple className="hidden" onChange={e => { processFiles(e.target.files); e.target.value = ''; }} />
-        </label>
-      )}
-      {images.length >= max && <p className="text-center text-gray-400 text-xs" style={T.meta}>Maximum {max} photos reached</p>}
-    </div>
-  );
-}
+//   const removeImage = (idx: number) => onChange(images.filter((_, i) => i !== idx));
+//   const dropBg = dragOver ? 'border-green-500 bg-green-50' : accentColor === 'purple' ? 'border-gray-300 hover:border-purple-400 hover:bg-purple-50' : 'border-gray-300 hover:border-green-400 hover:bg-green-50';
+//   return (
+//     <div className="space-y-3">
+//       {images.length > 0 && (
+//         <div className="grid grid-cols-5 gap-2">
+//           {images.map((src, idx) => (
+//             <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border border-gray-200 bg-gray-100">
+//               <img src={src} alt="" className="w-full h-full object-cover" />
+//               <button type="button" onClick={() => removeImage(idx)} className="absolute top-1 right-1 bg-black/60 hover:bg-red-600 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-all"><X className="w-3 h-3" /></button>
+//               {idx === 0 && <span className="absolute bottom-1 left-1 text-[10px] bg-black/60 text-white px-1.5 py-0.5 rounded-sm" style={T.bodyMedium}>Cover</span>}
+//             </div>
+//           ))}
+//         </div>
+//       )}
+//       {images.length < max && (
+//         <label className={`flex flex-col items-center justify-center w-full h-28 border-2 border-dashed rounded-lg cursor-pointer transition ${dropBg}`}
+//           onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)}
+//           onDrop={e => { e.preventDefault(); setDragOver(false); processFiles(e.dataTransfer.files); }}>
+//           <div className="flex flex-col items-center gap-1.5 text-gray-500 pointer-events-none">
+//             <Upload className="w-6 h-6" />
+//             <span className="text-sm font-medium">{images.length === 0 ? 'Upload photos' : 'Add more photos'}</span>
+//             <span className="text-xs text-gray-400">{images.length}/{max} • PNG, JPG, WEBP up to 5MB each</span>
+//           </div>
+//           <input type="file" accept="image/*" multiple className="hidden" onChange={e => { processFiles(e.target.files); e.target.value = ''; }} />
+//         </label>
+//       )}
+//       {images.length >= max && <p className="text-center text-gray-400 text-xs" style={T.meta}>Maximum {max} photos reached</p>}
+//     </div>
+//   );
+// }
 
-function SlideshowModal({ images, initialIndex = 0, title, onClose }: { images: string[]; initialIndex?: number; title?: string; onClose: () => void; }) {
-  const [current, setCurrent] = useState(initialIndex);
-  const prev = useCallback(() => setCurrent(c => (c - 1 + images.length) % images.length), [images.length]);
-  const next = useCallback(() => setCurrent(c => (c + 1) % images.length), [images.length]);
+// function SlideshowModal({ images, initialIndex = 0, title, onClose }: { images: string[]; initialIndex?: number; title?: string; onClose: () => void; }) {
+//   const [current, setCurrent] = useState(initialIndex);
+//   const prev = useCallback(() => setCurrent(c => (c - 1 + images.length) % images.length), [images.length]);
+//   const next = useCallback(() => setCurrent(c => (c + 1) % images.length), [images.length]);
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'ArrowLeft') prev(); else if (e.key === 'ArrowRight') next(); else if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [prev, next, onClose]);
+//   useEffect(() => {
+//     const handler = (e: KeyboardEvent) => { if (e.key === 'ArrowLeft') prev(); else if (e.key === 'ArrowRight') next(); else if (e.key === 'Escape') onClose(); };
+//     window.addEventListener('keydown', handler);
+//     return () => window.removeEventListener('keydown', handler);
+//   }, [prev, next, onClose]);
 
-  return (
-    <div className="fixed inset-0 z-[60] bg-black/95 flex flex-col" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      {/* Fixed close button — always top-right regardless of content */}
-      <button onClick={onClose}
-        className="fixed top-4 right-4 z-[70] bg-white/20 hover:bg-white/40 text-white transition p-3 rounded-2xl border border-white/30 backdrop-blur-sm shadow-lg">
-        <X className="w-5 h-5" />
-      </button>
-      <div className="flex items-center justify-between px-4 pr-20 py-4 flex-shrink-0">
-        <div className="flex items-center gap-3 min-w-0">
-          <ImageUp className="w-5 h-5 text-white/60 flex-shrink-0" />
-          {title && <span className="text-white truncate" style={T.sectionHeader}>{title}</span>}
-        </div>
-        <span className="text-white/60 tabular-nums flex-shrink-0" style={T.body}>{current + 1} / {images.length}</span>
-      </div>
-      <div className="flex-1 flex items-center justify-center px-4 min-h-0 relative">
-        {images.length > 1 && <button onClick={prev} className="absolute left-4 z-10 p-3 rounded-full bg-white/10 hover:bg-white/25 text-white transition backdrop-blur-sm"><ChevronLeft className="w-6 h-6" /></button>}
-        <div className="relative max-w-5xl max-h-full flex items-center justify-center w-full h-full">
-          <img key={current} src={images[current]} alt={`Photo ${current + 1}`} className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" style={{ maxHeight: 'calc(100vh - 220px)' }} />
-        </div>
-        {images.length > 1 && <button onClick={next} className="absolute right-4 z-10 p-3 rounded-full bg-white/10 hover:bg-white/25 text-white transition backdrop-blur-sm"><ChevronRight className="w-6 h-6" /></button>}
-      </div>
-      {images.length > 1 && (
-        <div className="flex-shrink-0 py-4 px-6">
-          <div className="flex items-center justify-center gap-2 overflow-x-auto pb-1">
-            {images.map((src, idx) => (
-              <button key={idx} onClick={() => setCurrent(idx)} className={`flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden border-2 transition-all ${idx === current ? 'border-white scale-110 shadow-lg' : 'border-transparent opacity-50 hover:opacity-80'}`}>
-                <img src={src} alt="" className="w-full h-full object-cover" />
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center justify-center gap-1.5 mt-3">
-            {images.map((_, idx) => <button key={idx} onClick={() => setCurrent(idx)} className={`rounded-full transition-all ${idx === current ? 'bg-white w-4 h-2' : 'bg-white/40 w-2 h-2'}`} />)}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+//   return (
+//     <div className="fixed inset-0 z-[60] bg-black/95 flex flex-col" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+//       {/* Fixed close button — always top-right regardless of content */}
+//       <button onClick={onClose}
+//         className="fixed top-4 right-4 z-[70] bg-white/20 hover:bg-white/40 text-white transition p-3 rounded-2xl border border-white/30 backdrop-blur-sm shadow-lg">
+//         <X className="w-5 h-5" />
+//       </button>
+//       <div className="flex items-center justify-between px-4 pr-20 py-4 flex-shrink-0">
+//         <div className="flex items-center gap-3 min-w-0">
+//           <ImageUp className="w-5 h-5 text-white/60 flex-shrink-0" />
+//           {title && <span className="text-white truncate" style={T.sectionHeader}>{title}</span>}
+//         </div>
+//         <span className="text-white/60 tabular-nums flex-shrink-0" style={T.body}>{current + 1} / {images.length}</span>
+//       </div>
+//       <div className="flex-1 flex items-center justify-center px-4 min-h-0 relative">
+//         {images.length > 1 && <button onClick={prev} className="absolute left-4 z-10 p-3 rounded-full bg-white/10 hover:bg-white/25 text-white transition backdrop-blur-sm"><ChevronLeft className="w-6 h-6" /></button>}
+//         <div className="relative max-w-5xl max-h-full flex items-center justify-center w-full h-full">
+//           <img key={current} src={images[current]} alt={`Photo ${current + 1}`} className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" style={{ maxHeight: 'calc(100vh - 220px)' }} />
+//         </div>
+//         {images.length > 1 && <button onClick={next} className="absolute right-4 z-10 p-3 rounded-full bg-white/10 hover:bg-white/25 text-white transition backdrop-blur-sm"><ChevronRight className="w-6 h-6" /></button>}
+//       </div>
+//       {images.length > 1 && (
+//         <div className="flex-shrink-0 py-4 px-6">
+//           <div className="flex items-center justify-center gap-2 overflow-x-auto pb-1">
+//             {images.map((src, idx) => (
+//               <button key={idx} onClick={() => setCurrent(idx)} className={`flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden border-2 transition-all ${idx === current ? 'border-white scale-110 shadow-lg' : 'border-transparent opacity-50 hover:opacity-80'}`}>
+//                 <img src={src} alt="" className="w-full h-full object-cover" />
+//               </button>
+//             ))}
+//           </div>
+//           <div className="flex items-center justify-center gap-1.5 mt-3">
+//             {images.map((_, idx) => <button key={idx} onClick={() => setCurrent(idx)} className={`rounded-full transition-all ${idx === current ? 'bg-white w-4 h-2' : 'bg-white/40 w-2 h-2'}`} />)}
+//           </div>
+//         </div>
+//       )}
+//     </div>
+//   );
+// }
 
 // function parseImageUrls(raw: string[] | string | null | undefined): string[] {
 //   if (!raw) return [];
@@ -170,14 +197,14 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [postError, setPostError] = useState('');
   const [newPost, setNewPost] = useState({ title: '', content: '', target_group_id: '' as number | '', target_heads_only: false });
-  const [newImages, setNewImages] = useState<string[]>([]);
+  // const [newImages, setNewImages] = useState<string[]>([]);
   const [comments, setComments] = useState<Record<number, Comment[]>>({});
   const [newComment, setNewComment] = useState<Record<number, string>>({});
-  const [showComments, setShowComments] = useState<Record<number, boolean>>({});
+  // const [showComments, setShowComments] = useState<Record<number, boolean>>({});
   const [slideshow, setSlideshow] = useState<{ images: string[]; index: number; title: string } | null>(null);
   const [editingPostId, setEditingPostId] = useState<number | null>(null);
   const [editPost, setEditPost] = useState({ title: '', content: '', target_group_id: '' as number | '', target_heads_only: false });
-  const [editImages, setEditImages] = useState<string[]>([]);
+  // const [editImages, setEditImages] = useState<string[]>([]);
   const [newPostNotice, setNewPostNotice] = useState<{ count: number; latestTitle: string } | null>(null);
   const [groups, setGroups] = useState<Group[]>([]);
   const [filterGroupId, setFilterGroupId] = useState<number | 'heads' | ''>('');
@@ -196,7 +223,6 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
     try {
       setAuthError(false);
       const data = await announcementAPI.getAll();
-      console.log("RAW ANNOUNCEMENTS:", data);
       const nextAnnouncements = Array.isArray(data) ? data : [];
       const nextIds = new Set<number>(nextAnnouncements.map((a: Announcement) => a.id));
       const firstLoad = knownAnnouncementIdsRef.current.size === 0;
@@ -216,63 +242,139 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
     } catch (e: any) { if (e.message?.includes('401')) setAuthError(true); setAnnouncements([]); }
     finally { setLoading(false); }
   };
+  // const createAnnouncement = async () => {
+  //   setPostError('');
+  //   if (!newPost.title.trim()) { setPostError('Title is required.'); return; }
+  //   if (!newPost.content.trim()) { setPostError('Content is required.'); return; }
+  //   try {
+  //     await announcementAPI.create({ 
+  //       title: newPost.title, 
+  //       content: newPost.content, 
+  //       image_url: newImages[0] || undefined, 
+  //       image_urls: newImages, 
+  //       target_group_id: newPost.target_group_id || null, 
+  //       target_heads_only: newPost.target_heads_only 
+  //     });
+  //     setNewPost({ title: '', content: '', target_group_id: '', target_heads_only: false }); setNewImages([]); setShowCreateModal(false); loadAnnouncements();
+  //   } catch (err: any) { setPostError(err.message || 'Failed to create announcement.'); }
+  // };
+
   const createAnnouncement = async () => {
     setPostError('');
-    if (!newPost.title.trim()) { setPostError('Title is required.'); return; }
-    if (!newPost.content.trim()) { setPostError('Content is required.'); return; }
+
+    if (!newPost.title.trim()) {
+      setPostError('Title is required.');
+      return;
+    }
+
+    if (!newPost.content.trim()) {
+      setPostError('Content is required.');
+      return;
+    }
+
     try {
-      await announcementAPI.create({ 
-        title: newPost.title, 
-        content: newPost.content, 
-        image_url: newImages[0] || undefined, 
-        image_urls: newImages, 
-        target_group_id: newPost.target_group_id || null, 
-        target_heads_only: newPost.target_heads_only 
+      await announcementAPI.create({
+        title: newPost.title,
+        content: newPost.content,
+        target_group_id: newPost.target_group_id || null,
+        target_heads_only: newPost.target_heads_only
       });
-      setNewPost({ title: '', content: '', target_group_id: '', target_heads_only: false }); setNewImages([]); setShowCreateModal(false); loadAnnouncements();
-    } catch (err: any) { setPostError(err.message || 'Failed to create announcement.'); }
+
+      setNewPost({
+        title: '',
+        content: '',
+        target_group_id: '',
+        target_heads_only: false
+      });
+
+      setShowCreateModal(false);
+
+      loadAnnouncements();
+    } catch (err: any) {
+      setPostError(err.message || 'Failed to create announcement.');
+    }
   };
   const togglePin      = async (id: number, currentlyPinned: boolean) => { try { await announcementAPI.togglePin(id, !currentlyPinned); loadAnnouncements(); } catch {} };
   const toggleLike     = async (id: number) => { try { await announcementAPI.toggleLike(id); loadAnnouncements(); } catch {} };
   const deleteAnnouncement = async (id: number) => { if (!confirm('Delete this announcement?')) return; try { await announcementAPI.delete(id); loadAnnouncements(); } catch {} };
+  // const startEditing = (post: Announcement) => {
+  //   setEditingPostId(post.id);
+  //   setEditPost({
+  //     title: post.title,
+  //     content: post.content,
+  //     target_group_id: post.target_group_id ?? '',
+  //     target_heads_only: !!post.target_heads_only,
+  //   });
+  //   setEditImages(getImages(post));
+  // };
   const startEditing = (post: Announcement) => {
     setEditingPostId(post.id);
+
     setEditPost({
       title: post.title,
       content: post.content,
       target_group_id: post.target_group_id ?? '',
       target_heads_only: !!post.target_heads_only,
     });
-    // setEditImages(getImages(post));
   };
+  // const cancelEditing = () => {
+  //   setEditingPostId(null);
+  //   setEditPost({ title: '', content: '', target_group_id: '', target_heads_only: false });
+  //   setEditImages([]);
+  // };
   const cancelEditing = () => {
     setEditingPostId(null);
-    setEditPost({ title: '', content: '', target_group_id: '', target_heads_only: false });
-    setEditImages([]);
+
+    setEditPost({
+      title: '',
+      content: '',
+      target_group_id: '',
+      target_heads_only: false
+    });
   };
+  // const saveEditedAnnouncement = async () => {
+  //   if (!editingPostId) return;
+  //   if (!editPost.title.trim() || !editPost.content.trim()) return;
+  //   try {
+  //     await announcementAPI.update(editingPostId, {
+  //       title: editPost.title,
+  //       content: editPost.content,
+  //       image_url: editImages[0] || undefined,
+  //       image_urls: editImages,
+  //       target_group_id: editPost.target_group_id || null,
+  //       target_heads_only: editPost.target_heads_only,
+  //     });
+  //     cancelEditing();
+  //     loadAnnouncements();
+  //   } catch (e) {
+  //     console.error('Failed to update announcement:', e);
+  //   }
+  // };
   const saveEditedAnnouncement = async () => {
     if (!editingPostId) return;
+
     if (!editPost.title.trim() || !editPost.content.trim()) return;
+
     try {
       await announcementAPI.update(editingPostId, {
         title: editPost.title,
         content: editPost.content,
-        image_url: editImages[0] || undefined,
-        image_urls: editImages,
         target_group_id: editPost.target_group_id || null,
         target_heads_only: editPost.target_heads_only,
       });
+
       cancelEditing();
+
       loadAnnouncements();
     } catch (e) {
       console.error('Failed to update announcement:', e);
     }
   };
-  const loadComments   = async (id: number) => { try { const data = await announcementAPI.getComments(id); setComments(prev => ({ ...prev, [id]: data as Comment[] })); } catch {} };
-  const addComment     = async (id: number) => { const content = newComment[id]?.trim(); if (!content) return; try { await announcementAPI.addComment(id, content); setNewComment(prev => ({ ...prev, [id]: '' })); loadComments(id); loadAnnouncements(); } catch {} };
-  const toggleComments = (id: number) => { const showing = showComments[id]; setShowComments(prev => ({ ...prev, [id]: !showing })); if (!showing && !comments[id]) loadComments(id); };
-  const formatTimeAgo  = (d: string) => { const diff = Date.now() - new Date(d).getTime(); const m = Math.floor(diff/60000), h = Math.floor(diff/3600000), day = Math.floor(diff/86400000); if (m < 1) return 'Just now'; if (m < 60) return `${m}m ago`; if (h < 24) return `${h}h ago`; if (day < 7) return `${day}d ago`; return new Date(d).toLocaleDateString(); };
-  const canManagePost  = (post: Announcement) => userRole === 'admin' || userRole === 'coordinator' || post.user_id === userId;
+  // const loadComments   = async (id: number) => { try { const data = await announcementAPI.getComments(id); setComments(prev => ({ ...prev, [id]: data as Comment[] })); } catch {} };
+  // const addComment     = async (id: number) => { const content = newComment[id]?.trim(); if (!content) return; try { await announcementAPI.addComment(id, content); setNewComment(prev => ({ ...prev, [id]: '' })); loadComments(id); loadAnnouncements(); } catch {} };
+  // const toggleComments = (id: number) => { const showing = showComments[id]; setShowComments(prev => ({ ...prev, [id]: !showing })); if (!showing && !comments[id]) loadComments(id); };
+  // const formatTimeAgo  = (d: string) => { const diff = Date.now() - new Date(d).getTime(); const m = Math.floor(diff/60000), h = Math.floor(diff/3600000), day = Math.floor(diff/86400000); if (m < 1) return 'Just now'; if (m < 60) return `${m}m ago`; if (h < 24) return `${h}h ago`; if (day < 7) return `${day}d ago`; return new Date(d).toLocaleDateString(); };
+  // const canManagePost  = (post: Announcement) => userRole === 'admin' || userRole === 'coordinator' || post.user_id === userId;
 
   const filteredAnnouncements = announcements.filter(post => {
     if (!filterGroupId) return true;
@@ -281,7 +383,7 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
   });
   const pinnedPosts  = filteredAnnouncements.filter(a => a.is_pinned);
   const regularPosts = filteredAnnouncements.filter(a => !a.is_pinned);
-  const resetModal   = () => { setShowCreateModal(false); setPostError(''); setNewPost({ title: '', content: '', target_group_id: '', target_heads_only: false }); setNewImages([]); };
+  const resetModal   = () => { setShowCreateModal(false); setPostError(''); setNewPost({ title: '', content: '', target_group_id: '', target_heads_only: false }); };
 
   return (
     <>
@@ -330,16 +432,16 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
           </div>
         )}
 
-        {pinnedPosts.length > 0 && (
+        {/* {pinnedPosts.length > 0 && (
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-sm font-semibold text-gray-600 uppercase tracking-wider"><Pin className="w-4 h-4" /><span>Pinned</span></div>
-            {/* {pinnedPosts.map(post => <PostCard key={post.id} post={post} canManage={canManagePost(post)} canEdit={post.user_id === userId} onEdit={startEditing} onTogglePin={togglePin} onToggleLike={toggleLike} onDelete={deleteAnnouncement} onToggleComments={toggleComments} showComments={!!showComments[post.id]} comments={comments[post.id] || []} newComment={newComment[post.id] || ''} onCommentChange={(v: string) => setNewComment(prev => ({ ...prev, [post.id]: v }))} onAddComment={addComment} formatTimeAgo={formatTimeAgo} onOpenSlideshow={(idx) => setSlideshow({ images: getImages(post), index: idx, title: post.title })} />)} */}
+            {pinnedPosts.map(post => <PostCard key={post.id} post={post} canManage={canManagePost(post)} canEdit={post.user_id === userId} onEdit={startEditing} onTogglePin={togglePin} onToggleLike={toggleLike} onDelete={deleteAnnouncement} onToggleComments={toggleComments} showComments={!!showComments[post.id]} comments={comments[post.id] || []} newComment={newComment[post.id] || ''} onCommentChange={(v: string) => setNewComment(prev => ({ ...prev, [post.id]: v }))} onAddComment={addComment} formatTimeAgo={formatTimeAgo} onOpenSlideshow={(idx) => setSlideshow({ images: getImages(post), index: idx, title: post.title })} />)}
           </div>
-        )}
+        )} */}
 
-        <div className="space-y-4">
-          {/* {regularPosts.map(post => <PostCard key={post.id} post={post} canManage={canManagePost(post)} canEdit={post.user_id === userId} onEdit={startEditing} onTogglePin={togglePin} onToggleLike={toggleLike} onDelete={deleteAnnouncement} onToggleComments={toggleComments} showComments={!!showComments[post.id]} comments={comments[post.id] || []} newComment={newComment[post.id] || ''} onCommentChange={(v: string) => setNewComment(prev => ({ ...prev, [post.id]: v }))} onAddComment={addComment} formatTimeAgo={formatTimeAgo} onOpenSlideshow={(idx) => setSlideshow({ images: getImages(post), index: idx, title: post.title })} />)} */}
-        </div>
+        {/* <div className="space-y-4">
+          {regularPosts.map(post => <PostCard key={post.id} post={post} canManage={canManagePost(post)} canEdit={post.user_id === userId} onEdit={startEditing} onTogglePin={togglePin} onToggleLike={toggleLike} onDelete={deleteAnnouncement} onToggleComments={toggleComments} showComments={!!showComments[post.id]} comments={comments[post.id] || []} newComment={newComment[post.id] || ''} onCommentChange={(v: string) => setNewComment(prev => ({ ...prev, [post.id]: v }))} onAddComment={addComment} formatTimeAgo={formatTimeAgo} onOpenSlideshow={(idx) => setSlideshow({ images: getImages(post), index: idx, title: post.title })} />)}
+        </div> */}
 
         {loading && <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" /></div>}
         {!loading && announcements.length === 0 && !authError && (
@@ -377,10 +479,10 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
                     {groups.map(g => <option key={g.id} value={g.id}>👥 {g.name}</option>)}
                   </select>
                 </div>
-                <div>
+                {/* <div>
                   <label className="block mb-2 text-sm font-medium text-gray-700">Photos (Optional, up to 5)</label>
                   <MultiImageUploader images={newImages} onChange={setNewImages} max={5} accentColor="green" />
-                </div>
+                </div> */}
               </div>
               <div className="p-4 sm:p-6 border-t border-gray-200 flex gap-3">
                 <button onClick={resetModal} className="flex-1 sm:flex-none px-4 py-2.5 text-gray-600 hover:bg-gray-100 rounded-xl transition border border-gray-300">Cancel</button>
@@ -391,9 +493,9 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
         )}
       </div>
 
-      {slideshow && slideshow.images.length > 0 && (
+      {/* {slideshow && slideshow.images.length > 0 && (
         <SlideshowModal images={slideshow.images} initialIndex={slideshow.index} title={slideshow.title} onClose={() => setSlideshow(null)} />
-      )}
+      )} */}
       {editingPostId && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
           <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-2xl max-h-[92vh] sm:max-h-[90vh] overflow-auto">
@@ -437,10 +539,10 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
                   {groups.map(g => <option key={g.id} value={g.id}>👥 {g.name}</option>)}
                 </select>
               </div>
-              <div>
+              {/* <div>
                 <label className="block mb-2 text-sm font-medium text-gray-700">Photos (Optional, up to 5)</label>
                 <MultiImageUploader images={editImages} onChange={setEditImages} max={5} accentColor="green" />
-              </div>
+              </div> */}
             </div>
             <div className="p-4 sm:p-6 border-t border-gray-200 flex gap-3">
               <button onClick={cancelEditing} className="flex-1 sm:flex-none px-4 py-2.5 text-gray-600 hover:bg-gray-100 rounded-xl transition border border-gray-300">Cancel</button>
@@ -454,101 +556,124 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
 }
 
 // interface PostCardProps { post: Announcement; canManage: boolean; canEdit: boolean; onEdit: (post: Announcement) => void; onTogglePin: (id: number, isPinned: boolean) => void; onToggleLike: (id: number) => void; onDelete: (id: number) => void; onToggleComments: (id: number) => void; showComments: boolean; comments: Comment[]; newComment: string; onCommentChange: (value: string) => void; onAddComment: (id: number) => void; formatTimeAgo: (date: string) => string; onOpenSlideshow: (index: number) => void; }
+interface PostCardProps {
+  post: Announcement;
+  canManage: boolean;
+  canEdit: boolean;
 
-// function PostCard({ post, canManage, canEdit, onEdit, onTogglePin, onToggleLike, onDelete, onToggleComments, showComments, comments, newComment, onCommentChange, onAddComment, formatTimeAgo, onOpenSlideshow }: PostCardProps) {
-//   const images = getImages(post);
-//   const [expanded, setExpanded] = useState(false);
-//   const WORD_LIMIT = 40;
-//   const words = post.content.split(' ');
-//   const isLong = words.length > WORD_LIMIT;
-//   const displayContent = isLong && !expanded
-//     ? words.slice(0, WORD_LIMIT).join(' ') + '…'
-//     : post.content;
-//   return (
-//     <div className={`bg-white rounded-xl shadow-sm border ${post.is_pinned ? 'border-green-300' : 'border-gray-200'} overflow-hidden`}>
-//       <div className="p-4 flex items-start justify-between">
-//         <div className="flex items-center gap-3">
-//           <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white font-bold">
-//             {fullName(post.author_first_name, post.author_last_name, post.user_id)[0].toUpperCase()}
-//           </div>
-//           <div>
-//             <p className="text-sm font-semibold text-gray-900">{fullName(post.author_first_name, post.author_last_name, post.user_id)}</p>
-//             <div className="flex items-center gap-2 text-xs text-gray-500">
-//               <span className="capitalize px-2 py-0.5 bg-green-100 text-green-700 rounded">{post.author_role}</span>
-//               <span>•</span><span>{formatTimeAgo(post.created_at)}</span>
-//             </div>
-//           </div>
-//         </div>
-//         {canManage && (
-//           <div className="flex gap-1">
-//             {canEdit && (
-//               <button onClick={() => onEdit(post)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Edit">
-//                 <Edit className="w-4 h-4" />
-//               </button>
-//             )}
-//             <button onClick={() => onTogglePin(post.id, post.is_pinned)} className={`p-2 rounded-lg transition ${post.is_pinned ? 'text-green-600 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-100'}`} title={post.is_pinned ? 'Unpin' : 'Pin'}><Pin className="w-4 h-4" /></button>
-//             <button onClick={() => onDelete(post.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"><Trash2 className="w-4 h-4" /></button>
-//           </div>
-//         )}
-//       </div>
-//       <div className="px-4 pb-3">
-//         {/* <h3 className="font-semibold text-gray-900 mb-2" style={T.pageTitle}>{post.title}</h3> */}
-//         {/* <p className="text-gray-700 whitespace-pre-wrap" style={T.body}>{displayContent}</p> */}
-//         {isLong && (
-//           <button onClick={() => setExpanded(e => !e)}
-//             className="mt-1 text-green-600 hover:text-green-700 text-sm font-medium transition">
-//             {expanded ? 'See less' : '…see more'}
-//           </button>
-//         )}
-//       </div>
-//       {(post.target_group_name || post.target_heads_only) && (
-//         <div className="px-4 pb-3">
-//           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200" style={T.bodyMedium}>
-//             {post.target_heads_only ? <><Star className="w-3 h-3 fill-amber-500 text-amber-500" /> Heads Only</> : <><Filter className="w-3 h-3" /> {post.target_group_name}</>}
-//           </span>
-//         </div>
-//       )}
-//       {images.length > 0 && (
-//         <div className={`grid gap-1 px-4 pb-3 ${images.length === 1 ? 'grid-cols-1' : images.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
-//           {images.slice(0, 3).map((src, idx) => {
-//             const isLast = idx === 2 && images.length > 3;
-//             return (
-//               <div key={idx} className="relative overflow-hidden rounded-lg bg-gray-100 cursor-pointer" style={{ aspectRatio: images.length === 1 ? '16/9' : '1' }} onClick={() => onOpenSlideshow(idx)}>
-//                 <img src={src} alt="" className="w-full h-full object-cover hover:scale-105 transition-transform duration-200" />
-//                 {isLast && <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-lg"><span className="text-white font-bold text-lg">+{images.length - 3}</span></div>}
-//               </div>
-//             );
-//           })}
-//         </div>
-//       )}
-//       <div className="px-4 py-3 border-t border-gray-100 flex items-center gap-2 sm:gap-4">
-//         <button onClick={() => onToggleLike(post.id)} className="flex items-center gap-1.5 sm:gap-2 px-2 py-1.5 -mx-1 rounded-lg text-gray-600 hover:text-red-600 hover:bg-red-50 transition"><Heart className="w-5 h-5" /><span className="font-medium text-sm">{post.likes_count}</span></button>
-//         <button onClick={() => onToggleComments(post.id)} className="flex items-center gap-1.5 sm:gap-2 px-2 py-1.5 -mx-1 rounded-lg text-gray-600 hover:text-green-600 hover:bg-green-50 transition"><MessageSquare className="w-5 h-5" /><span className="font-medium text-sm">{post.comments_count}</span></button>
-//         {images.length > 0 && <button onClick={() => onOpenSlideshow(0)} className="flex items-center gap-2 text-gray-600 hover:text-green-600 transition ml-auto"><ImageUp className="w-4 h-4" /><span style={T.body}>{images.length} photo{images.length !== 1 ? 's' : ''}</span></button>}
-//       </div>
-//       {showComments && (
-//         <div className="border-t border-gray-100 bg-gray-50">
-//           <div className="p-4 space-y-3">
-//             {comments.map((comment: Comment) => (
-//               <div key={comment.id} className="flex gap-3">
-//                 <div className="w-8 h-8 bg-gradient-to-br from-gray-400 to-gray-600 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-//                   {fullName(comment.user_first_name, comment.user_last_name, comment.user_id)[0].toUpperCase()}
-//                 </div>
-//                 <div className="flex-1 bg-white rounded-lg p-3">
-//                   <p className="text-xs font-semibold text-gray-700">{fullName(comment.user_first_name, comment.user_last_name, comment.user_id)}</p>
-//                   <p className="text-gray-600 mt-1" style={T.body}>{comment.content}</p>
-//                   <p className="text-gray-400 mt-1" style={T.meta}>{formatTimeAgo(comment.created_at)}</p>
-//                 </div>
-//               </div>
-//             ))}
-//             <div className="flex gap-2 pt-2">
-//               <input type="text" value={newComment} onChange={e => onCommentChange(e.target.value)} onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && onAddComment(post.id)}
-//                 className="flex-1 px-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm" placeholder="Write a comment..." />
-//               <button onClick={() => onAddComment(post.id)} className="px-3 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl transition flex-shrink-0"><Send className="w-4 h-4" /></button>
-//             </div>
-//           </div>
-//         </div>
-//       )}
-//     </div>
-//   );
-// }
+  onEdit: (post: Announcement) => void;
+
+  onTogglePin: (id: number, isPinned: boolean) => void;
+  onToggleLike: (id: number) => void;
+  onDelete: (id: number) => void;
+
+  onToggleComments: (id: number) => void;
+
+  showComments: boolean;
+  comments: Comment[];
+
+  newComment: string;
+
+  onCommentChange: (value: string) => void;
+  onAddComment: (id: number) => void;
+
+  formatTimeAgo: (date: string) => string;
+}
+
+function PostCard({ post, canManage, canEdit, onEdit, onTogglePin, onToggleLike, onDelete, onToggleComments, showComments, comments, newComment, onCommentChange, onAddComment, formatTimeAgo }: PostCardProps) {
+  // const images = getImages(post);
+  const [expanded, setExpanded] = useState(false);
+  const WORD_LIMIT = 40;
+  const words = post.content.split(' ');
+  const isLong = words.length > WORD_LIMIT;
+  const displayContent = isLong && !expanded
+    ? words.slice(0, WORD_LIMIT).join(' ') + '…'
+    : post.content;
+  return (
+    <div className={`bg-white rounded-xl shadow-sm border ${post.is_pinned ? 'border-green-300' : 'border-gray-200'} overflow-hidden`}>
+      <div className="p-4 flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white font-bold">
+            {fullName(post.author_first_name, post.author_last_name, post.user_id)[0].toUpperCase()}
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-gray-900">{fullName(post.author_first_name, post.author_last_name, post.user_id)}</p>
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <span className="capitalize px-2 py-0.5 bg-green-100 text-green-700 rounded">{post.author_role}</span>
+              <span>•</span><span>{formatTimeAgo(post.created_at)}</span>
+            </div>
+          </div>
+        </div>
+        {canManage && (
+          <div className="flex gap-1">
+            {canEdit && (
+              <button onClick={() => onEdit(post)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Edit">
+                <Edit className="w-4 h-4" />
+              </button>
+            )}
+            <button onClick={() => onTogglePin(post.id, post.is_pinned)} className={`p-2 rounded-lg transition ${post.is_pinned ? 'text-green-600 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-100'}`} title={post.is_pinned ? 'Unpin' : 'Pin'}><Pin className="w-4 h-4" /></button>
+            <button onClick={() => onDelete(post.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"><Trash2 className="w-4 h-4" /></button>
+          </div>
+        )}
+      </div>
+      <div className="px-4 pb-3">
+        <h3 className="font-semibold text-gray-900 mb-2" style={T.pageTitle}>{post.title}</h3>
+        <p className="text-gray-700 whitespace-pre-wrap" style={T.body}>{displayContent}</p>
+        {isLong && (
+          <button onClick={() => setExpanded(e => !e)}
+            className="mt-1 text-green-600 hover:text-green-700 text-sm font-medium transition">
+            {expanded ? 'See less' : '…see more'}
+          </button>
+        )}
+      </div>
+      {(post.target_group_name || post.target_heads_only) && (
+        <div className="px-4 pb-3">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200" style={T.bodyMedium}>
+            {post.target_heads_only ? <><Star className="w-3 h-3 fill-amber-500 text-amber-500" /> Heads Only</> : <><Filter className="w-3 h-3" /> {post.target_group_name}</>}
+          </span>
+        </div>
+      )}
+      {/* {images.length > 0 && (
+        <div className={`grid gap-1 px-4 pb-3 ${images.length === 1 ? 'grid-cols-1' : images.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+          {images.slice(0, 3).map((src, idx) => {
+            const isLast = idx === 2 && images.length > 3;
+            return (
+              <div key={idx} className="relative overflow-hidden rounded-lg bg-gray-100 cursor-pointer" style={{ aspectRatio: images.length === 1 ? '16/9' : '1' }} onClick={() => onOpenSlideshow(idx)}>
+                <img src={src} alt="" className="w-full h-full object-cover hover:scale-105 transition-transform duration-200" />
+                {isLast && <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-lg"><span className="text-white font-bold text-lg">+{images.length - 3}</span></div>}
+              </div>
+            );
+          })}
+        </div>
+      )} */}
+      <div className="px-4 py-3 border-t border-gray-100 flex items-center gap-2 sm:gap-4">
+        <button onClick={() => onToggleLike(post.id)} className="flex items-center gap-1.5 sm:gap-2 px-2 py-1.5 -mx-1 rounded-lg text-gray-600 hover:text-red-600 hover:bg-red-50 transition"><Heart className="w-5 h-5" /><span className="font-medium text-sm">{post.likes_count}</span></button>
+        <button onClick={() => onToggleComments(post.id)} className="flex items-center gap-1.5 sm:gap-2 px-2 py-1.5 -mx-1 rounded-lg text-gray-600 hover:text-green-600 hover:bg-green-50 transition"><MessageSquare className="w-5 h-5" /><span className="font-medium text-sm">{post.comments_count}</span></button>
+        {/* {images.length > 0 && <button onClick={() => onOpenSlideshow(0)} className="flex items-center gap-2 text-gray-600 hover:text-green-600 transition ml-auto"><ImageUp className="w-4 h-4" /><span style={T.body}>{images.length} photo{images.length !== 1 ? 's' : ''}</span></button>} */}
+      </div>
+      {showComments && (
+        <div className="border-t border-gray-100 bg-gray-50">
+          <div className="p-4 space-y-3">
+            {comments.map((comment: Comment) => (
+              <div key={comment.id} className="flex gap-3">
+                <div className="w-8 h-8 bg-gradient-to-br from-gray-400 to-gray-600 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                  {fullName(comment.user_first_name, comment.user_last_name, comment.user_id)[0].toUpperCase()}
+                </div>
+                <div className="flex-1 bg-white rounded-lg p-3">
+                  <p className="text-xs font-semibold text-gray-700">{fullName(comment.user_first_name, comment.user_last_name, comment.user_id)}</p>
+                  <p className="text-gray-600 mt-1" style={T.body}>{comment.content}</p>
+                  <p className="text-gray-400 mt-1" style={T.meta}>{formatTimeAgo(comment.created_at)}</p>
+                </div>
+              </div>
+            ))}
+            <div className="flex gap-2 pt-2">
+              <input type="text" value={newComment} onChange={e => onCommentChange(e.target.value)} onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && onAddComment(post.id)}
+                className="flex-1 px-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm" placeholder="Write a comment..." />
+              <button onClick={() => onAddComment(post.id)} className="px-3 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl transition flex-shrink-0"><Send className="w-4 h-4" /></button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
