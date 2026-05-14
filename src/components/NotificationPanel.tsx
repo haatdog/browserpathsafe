@@ -85,7 +85,9 @@ export default function NotificationPanel({ onNavigate }: NotificationPanelProps
         const data = await res.json();
         setUnreadCount(data.unread_count ?? 0);
       }
-    } catch {}
+    } catch (err) {
+      console.error("Notification fetch failed:", err);
+    }
   };
 
   const fetchAll = async () => {
@@ -97,7 +99,9 @@ export default function NotificationPanel({ onNavigate }: NotificationPanelProps
         setNotifications(data.notifications ?? []);
         setUnreadCount(data.unread_count ?? 0);
       }
-    } catch {}
+    } catch (err) {
+      console.error("Notification fetch failed:", err);
+    }
     finally { setLoading(false); }
   };
 
@@ -111,7 +115,9 @@ export default function NotificationPanel({ onNavigate }: NotificationPanelProps
       await authFetch(`${API}/api/notifications/${id}/read`, { method: 'POST' });
       setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
       setUnreadCount(prev => Math.max(0, prev - 1));
-    } catch {}
+    } catch (err) {
+      console.error("Notification fetch failed:", err);
+    }
   };
 
   const markAllRead = async () => {
@@ -119,7 +125,9 @@ export default function NotificationPanel({ onNavigate }: NotificationPanelProps
       await authFetch(`${API}/api/notifications/read-all`, { method: 'POST' });
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
       setUnreadCount(0);
-    } catch {}
+    } catch (err) {
+      console.error("Notification fetch failed:", err);
+    }
   };
 
   const deleteNotif = async (id: number, e: React.MouseEvent) => {
@@ -131,7 +139,9 @@ export default function NotificationPanel({ onNavigate }: NotificationPanelProps
         if (removed && !removed.is_read) setUnreadCount(c => Math.max(0, c - 1));
         return prev.filter(n => n.id !== id);
       });
-    } catch {}
+    } catch (err) {
+      console.error("Notification fetch failed:", err);
+    }
   };
 
   const handleClick = (notif: Notification) => {
