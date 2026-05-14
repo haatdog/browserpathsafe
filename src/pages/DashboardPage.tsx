@@ -287,7 +287,7 @@ export default function DashboardPage({ onLogout }: DashboardPageProps) {
 
         <div className="flex-1 flex overflow-hidden">
           <main className={`flex-1 overflow-auto p-3 sm:p-6 ${currentPage === 'home' ? 'max-w-4xl' : 'max-w-7xl'} mx-auto w-full`}>
-            {currentPage === 'home'         && profile && <AnnouncementsFeed userRole={profile.role} userId={profile.id} />}
+            {currentPage === 'home'         && profile && <AnnouncementsFeed />}
             {currentPage === 'organization' && <OrganizationChart />}
             {currentPage === 'incidents'    && <IncidentReportsList />}
             {currentPage === 'events'       && (profile?.role === 'coordinator' || profile?.role === 'member' || profile?.role === 'admin' ? <EventManagement /> : <AccessDenied />)}
