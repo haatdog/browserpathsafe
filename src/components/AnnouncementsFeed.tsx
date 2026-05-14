@@ -183,7 +183,7 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
   const [filterGroupId, setFilterGroupId] = useState<number | 'heads' | ''>('');
   const knownAnnouncementIdsRef = useRef<Set<number>>(new Set());
 
-  useEffect(() => { loadAnnouncements(); loadGroups(); }, []);
+  // useEffect(() => { loadAnnouncements(); loadGroups(); }, []);
   // useEffect(() => {
   //   const pollId = window.setInterval(() => {
   //     loadAnnouncements(true);
@@ -191,7 +191,7 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
   //   return () => window.clearInterval(pollId);
   // }, []);
 
-  const loadGroups = async () => { try { const data = await organizationAPI.listGroups(); setGroups(Array.isArray(data) ? data : []); } catch {} };
+  // const loadGroups = async () => { try { const data = await organizationAPI.listGroups(); setGroups(Array.isArray(data) ? data : []); } catch {} };
   const loadAnnouncements = async (withNotification = false) => {
     try {
       setAuthError(false);
