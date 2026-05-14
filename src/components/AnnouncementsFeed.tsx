@@ -1,9 +1,22 @@
 // AnnouncementsFeed.tsx
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { T, C } from '../design/DesignTokens';
+// import {
+//   MessageSquare, Heart, Pin, Trash2, Send, FileText, Edit,
+//   AlertCircle, Upload, X, ChevronLeft, ChevronRight, ImageUp, Filter, Star
+// } from 'lucide-react';
 import {
-  MessageSquare, Heart, Pin, Trash2, Send, FileText, Edit,
-  AlertCircle, Upload, X, ChevronLeft, ChevronRight, ImageUp, Filter, Star
+  MessageSquare,
+  Heart,
+  Pin,
+  Trash2,
+  Send,
+  FileText,
+  Edit,
+  AlertCircle,
+  X,
+  Filter,
+  Star
 } from 'lucide-react';
 import { announcementAPI, organizationAPI } from '../lib/api';
 
@@ -200,8 +213,8 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
   // const [newImages, setNewImages] = useState<string[]>([]);
   const [comments, setComments] = useState<Record<number, Comment[]>>({});
   const [newComment, setNewComment] = useState<Record<number, string>>({});
-  // const [showComments, setShowComments] = useState<Record<number, boolean>>({});
-  const [slideshow, setSlideshow] = useState<{ images: string[]; index: number; title: string } | null>(null);
+  const [showComments, setShowComments] = useState<Record<number, boolean>>({});
+  // const [slideshow, setSlideshow] = useState<{ images: string[]; index: number; title: string } | null>(null);
   const [editingPostId, setEditingPostId] = useState<number | null>(null);
   const [editPost, setEditPost] = useState({ title: '', content: '', target_group_id: '' as number | '', target_heads_only: false });
   // const [editImages, setEditImages] = useState<string[]>([]);
@@ -370,19 +383,32 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
       console.error('Failed to update announcement:', e);
     }
   };
-  // const loadComments   = async (id: number) => { try { const data = await announcementAPI.getComments(id); setComments(prev => ({ ...prev, [id]: data as Comment[] })); } catch {} };
-  // const addComment     = async (id: number) => { const content = newComment[id]?.trim(); if (!content) return; try { await announcementAPI.addComment(id, content); setNewComment(prev => ({ ...prev, [id]: '' })); loadComments(id); loadAnnouncements(); } catch {} };
-  // const toggleComments = (id: number) => { const showing = showComments[id]; setShowComments(prev => ({ ...prev, [id]: !showing })); if (!showing && !comments[id]) loadComments(id); };
+  const loadComments   = async (id: number) => { try { const data = await announcementAPI.getComments(id); setComments(prev => ({ ...prev, [id]: data as Comment[] })); } catch {} };
+  const addComment     = async (id: number) => { const content = newComment[id]?.trim(); if (!content) return; try { await announcementAPI.addComment(id, content); setNewComment(prev => ({ ...prev, [id]: '' })); loadComments(id); loadAnnouncements(); } catch {} };
+  const toggleComments = (id: number) => { const showing = showComments[id]; setShowComments(prev => ({ ...prev, [id]: !showing })); if (!showing && !comments[id]) loadComments(id); };
   // const formatTimeAgo  = (d: string) => { const diff = Date.now() - new Date(d).getTime(); const m = Math.floor(diff/60000), h = Math.floor(diff/3600000), day = Math.floor(diff/86400000); if (m < 1) return 'Just now'; if (m < 60) return `${m}m ago`; if (h < 24) return `${h}h ago`; if (day < 7) return `${day}d ago`; return new Date(d).toLocaleDateString(); };
   // const canManagePost  = (post: Announcement) => userRole === 'admin' || userRole === 'coordinator' || post.user_id === userId;
+const formatTimeAgo = (d: string) => {
+  const diff = Date.now() - new Date(d).getTime();
 
+  const m = Math.floor(diff / 60000);
+  const h = Math.floor(diff / 3600000);
+  const day = Math.floor(diff / 86400000);
+
+  if (m < 1) return 'Just now';
+  if (m < 60) return `${m}m ago`;
+  if (h < 24) return `${h}h ago`;
+  if (day < 7) return `${day}d ago`;
+
+  return new Date(d).toLocaleDateString();
+};
   const filteredAnnouncements = announcements.filter(post => {
     if (!filterGroupId) return true;
     if (filterGroupId === 'heads') return post.author_is_head === true;
     return post.author_group_id === filterGroupId;
   });
-  const pinnedPosts  = filteredAnnouncements.filter(a => a.is_pinned);
-  const regularPosts = filteredAnnouncements.filter(a => !a.is_pinned);
+  // const pinnedPosts  = filteredAnnouncements.filter(a => a.is_pinned);
+  // const regularPosts = filteredAnnouncements.filter(a => !a.is_pinned);
   const resetModal   = () => { setShowCreateModal(false); setPostError(''); setNewPost({ title: '', content: '', target_group_id: '', target_heads_only: false }); };
 
   return (
@@ -442,6 +468,28 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
         {/* <div className="space-y-4">
           {regularPosts.map(post => <PostCard key={post.id} post={post} canManage={canManagePost(post)} canEdit={post.user_id === userId} onEdit={startEditing} onTogglePin={togglePin} onToggleLike={toggleLike} onDelete={deleteAnnouncement} onToggleComments={toggleComments} showComments={!!showComments[post.id]} comments={comments[post.id] || []} newComment={newComment[post.id] || ''} onCommentChange={(v: string) => setNewComment(prev => ({ ...prev, [post.id]: v }))} onAddComment={addComment} formatTimeAgo={formatTimeAgo} onOpenSlideshow={(idx) => setSlideshow({ images: getImages(post), index: idx, title: post.title })} />)}
         </div> */}
+        <div className="space-y-4">
+          {filteredAnnouncements.map(post => (
+            <div
+              key={post.id}
+              className="bg-white rounded-xl border border-gray-200 p-4"
+            >
+              <h3 className="font-bold">{post.title}</h3>
+
+              <p className="text-sm text-gray-500">
+                {fullName(
+                  post.author_first_name,
+                  post.author_last_name,
+                  post.user_id
+                )}
+              </p>
+
+              <p className="mt-2 whitespace-pre-wrap">
+                {post.content}
+              </p>
+            </div>
+          ))}
+        </div>
 
         {loading && <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" /></div>}
         {!loading && announcements.length === 0 && !authError && (
