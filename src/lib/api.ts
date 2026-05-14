@@ -341,53 +341,7 @@ export const simulationAPI = {
     pythonRequest(`/api/simulations/${id}`, { method: 'DELETE' }),
 };
 
-/* =========================
-   ANNOUNCEMENT API — /api/announcements/*
-   src/routes/announcements.py
 
-   CHANGED: create() — added image_urls, target_group_id, target_heads_only
-========================= */
-
-// export const announcementAPI = {
-//   getAll: (): Promise<any[]> =>
-//     pythonRequest('/api/announcements', { method: 'GET' }),
-
-//   // ✅ CHANGED — added targeting fields
-//   create: (data: {
-//     title: string;
-//     content: string;
-//     image_url?: string;
-//     image_urls?: string[];
-//     is_pinned?: boolean;
-//     target_group_id?: number | null;
-//     target_heads_only?: boolean;
-//   }) =>
-//     pythonRequest('/api/announcements', {
-//       method: 'POST',
-//       body: JSON.stringify(data),
-//     }),
-
-//   togglePin: (id: number, isPinned: boolean) =>
-//     pythonRequest(`/api/announcements/${id}/pin`, {
-//       method: 'PUT',
-//       body: JSON.stringify({ is_pinned: isPinned }),
-//     }),
-
-//   toggleLike: (id: number) =>
-//     pythonRequest(`/api/announcements/${id}/like`, { method: 'POST' }),
-
-//   delete: (id: number) =>
-//     pythonRequest(`/api/announcements/${id}`, { method: 'DELETE' }),
-
-//   getComments: (announcementId: number) =>
-//     pythonRequest(`/api/announcements/${announcementId}/comments`, { method: 'GET' }),
-
-//   addComment: (announcementId: number, content: string) =>
-//     pythonRequest(`/api/announcements/${announcementId}/comments`, {
-//       method: 'POST',
-//       body: JSON.stringify({ content }),
-//     }),
-// };
 export const announcementAPI = {
   getAll: (): Promise<any[]> =>
     pythonRequest('/api/announcements', { method: 'GET' }),
