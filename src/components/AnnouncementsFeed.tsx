@@ -268,7 +268,7 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
     if (m < 1) return 'Just now'; if (m < 60) return `${m}m ago`; if (h < 24) return `${h}h ago`; if (day < 7) return `${day}d ago`;
     return new Date(d).toLocaleDateString();
   };
-  const canManage = (post: Announcement) => userRole === 'admin' || userRole === 'coordinator' || post.user_id === userId;
+  const canManage = (post: Announcement) => post.user_id === userId;
 
   const filtered = announcements.filter(p => {
     if (!filterGroup) return true;

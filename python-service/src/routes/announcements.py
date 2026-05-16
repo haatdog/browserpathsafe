@@ -12,24 +12,23 @@ def _notify_targeted(cursor, announcement_id, title, body, target_group_id, targ
     try:
         from src.routes.notifications import create_notification
         if target_heads_only:
-            # Only group heads
+            # Only group heads (any role)
             cursor.execute('''
                 SELECT DISTINCT up.id FROM user_profiles up
                 JOIN user_groups ug ON ug.user_id = up.id
-                WHERE ug.is_head = TRUE AND up.status = 'approved' AND up.role = 'member'
+                WHERE ug.is_head = TRUE AND up.status = 'approved'
             ''')
         elif target_group_id:
-            # Only members of that group
+            # Only members of that specific group (any role)
             cursor.execute('''
                 SELECT DISTINCT up.id FROM user_profiles up
                 JOIN user_groups ug ON ug.user_id = up.id
-                WHERE ug.group_id = %s AND up.status = 'approved' AND up.role = 'member'
+                WHERE ug.group_id = %s AND up.status = 'approved'
             ''', (target_group_id,))
         else:
-            # Everyone (all approved members)
+            # Everyone — all approved users regardless of role
             cursor.execute('''
-                SELECT id FROM user_profiles
-                WHERE status = 'approved' AND role = 'member'
+                SELECT id FROM user_profiles WHERE status = 'approved'
             ''')
         for row in cursor.fetchall():
             create_notification(cursor, row['id'], 'announcement', title, body, 'home', announcement_id)
@@ -191,21 +190,15 @@ def update_announcement(announcement_id):
 
         conn   = get_db()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
-        cursor.execute('SELECT role FROM user_profiles WHERE id = %s', (user_id,))
-        me = cursor.fetchone()
-        if not me:
-            cursor.close(); conn.close()
-            return jsonify({"error": "User not found"}), 404
-
         cursor.execute('SELECT user_id FROM announcements WHERE id = %s', (announcement_id,))
         existing = cursor.fetchone()
         if not existing:
             cursor.close(); conn.close()
             return jsonify({"error": "Announcement not found"}), 404
 
-        if existing['user_id'] != user_id and me['role'] not in ('coordinator', 'admin'):
+        if existing['user_id'] != user_id:
             cursor.close(); conn.close()
-            return jsonify({"error": "Not allowed to edit this announcement"}), 403
+            return jsonify({"error": "You can only edit your own announcements"}), 403
 
         cursor.execute('''
             UPDATE announcements
@@ -294,12 +287,16 @@ def delete_announcement(announcement_id):
 
         conn   = get_db()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
-        cursor.execute('SELECT role FROM user_profiles WHERE id = %s', (user_id,))
-        user = cursor.fetchone()
-        if not user or user['role'] not in ('coordinator', 'admin'):
+        cursor.execute('SELECT user_id FROM announcements WHERE id = %s', (announcement_id,))
+        ann = cursor.fetchone()
+        if not ann:
             cursor.close(); conn.close()
-            return jsonify({"error": "Only coordinators or admins can delete announcements"}), 403
+            return jsonify({"error": "Announcement not found"}), 404
+        if ann['user_id'] != user_id:
+            cursor.close(); conn.close()
+            return jsonify({"error": "You can only delete your own announcements"}), 403
 
+        cursor.execute('DELETE FROM notifications WHERE type = %s AND ref_id = %s', ('announcement', announcement_id))
         cursor.execute('DELETE FROM announcements WHERE id = %s', (announcement_id,))
         conn.commit(); cursor.close(); conn.close()
         return jsonify({"success": True})
