@@ -2,7 +2,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Bell, X, Check, CheckCheck, Megaphone, Calendar, UserCheck, Info } from 'lucide-react';
 import { T } from '../design/DesignTokens';
-import type { Page } from '../types/navigation';
 
 const API = import.meta.env.VITE_PYTHON_API_URL || 'https://browserpathsafe.onrender.com';
 
@@ -31,7 +30,7 @@ interface Notification {
 }
 
 interface NotificationPanelProps {
-  onNavigate?: (page: Page) => void;
+  onNavigate?: (page: string) => void;
 }
 
 function timeAgo(iso: string) {
@@ -85,9 +84,7 @@ export default function NotificationPanel({ onNavigate }: NotificationPanelProps
         const data = await res.json();
         setUnreadCount(data.unread_count ?? 0);
       }
-    } catch (err) {
-      console.error("Notification fetch failed:", err);
-    }
+    } catch {}
   };
 
   const fetchAll = async () => {
@@ -99,9 +96,7 @@ export default function NotificationPanel({ onNavigate }: NotificationPanelProps
         setNotifications(data.notifications ?? []);
         setUnreadCount(data.unread_count ?? 0);
       }
-    } catch (err) {
-      console.error("Notification fetch failed:", err);
-    }
+    } catch {}
     finally { setLoading(false); }
   };
 
@@ -115,9 +110,7 @@ export default function NotificationPanel({ onNavigate }: NotificationPanelProps
       await authFetch(`${API}/api/notifications/${id}/read`, { method: 'POST' });
       setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
       setUnreadCount(prev => Math.max(0, prev - 1));
-    } catch (err) {
-      console.error("Notification fetch failed:", err);
-    }
+    } catch {}
   };
 
   const markAllRead = async () => {
@@ -125,9 +118,7 @@ export default function NotificationPanel({ onNavigate }: NotificationPanelProps
       await authFetch(`${API}/api/notifications/read-all`, { method: 'POST' });
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
       setUnreadCount(0);
-    } catch (err) {
-      console.error("Notification fetch failed:", err);
-    }
+    } catch {}
   };
 
   const deleteNotif = async (id: number, e: React.MouseEvent) => {
@@ -139,15 +130,13 @@ export default function NotificationPanel({ onNavigate }: NotificationPanelProps
         if (removed && !removed.is_read) setUnreadCount(c => Math.max(0, c - 1));
         return prev.filter(n => n.id !== id);
       });
-    } catch (err) {
-      console.error("Notification fetch failed:", err);
-    }
+    } catch {}
   };
 
   const handleClick = (notif: Notification) => {
     if (!notif.is_read) markRead(notif.id);
     if (notif.link_type && onNavigate) {
-      onNavigate(notif.link_type as Page);
+      onNavigate(notif.link_type);
       setOpen(false);
     }
   };

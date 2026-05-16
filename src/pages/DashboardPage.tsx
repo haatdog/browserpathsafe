@@ -14,7 +14,6 @@ import CalendarSidebar from '../components/CalendarSidebar';
 import EventManagement from '../components/EventManagement';
 import IncidentReportsList from '../components/IncidentReportList';
 import OrganizationChart from '../components/OrganizationChart';
-import NotificationPanel from '../components/NotificationPanel';
 import { T, C } from '../design/DesignTokens';
 
 interface DashboardPageProps { onLogout: () => void; }
