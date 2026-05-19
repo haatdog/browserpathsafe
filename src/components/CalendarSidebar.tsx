@@ -138,11 +138,15 @@ export default function CalendarSidebar({ userRole, mobileSheet = false }: Calen
   const todayEvents   = getTodayEvents();
   const upcomingEvents = getUpcomingEvents();
 
-  const eventTypeColors = {
-    training: 'bg-blue-100 text-blue-700',
-    meeting:  'bg-purple-100 text-purple-700',
-    drill:    'bg-red-100 text-red-700',
-    other:    'bg-gray-100 text-gray-700',
+  const eventTypeColors: Record<string, string> = {
+    training:          'bg-blue-100 text-blue-700',
+    meeting:           'bg-purple-100 text-purple-700',
+    drill:             'bg-red-100 text-red-700',
+    fire_drill:        'bg-orange-100 text-orange-700',
+    earthquake_drill:  'bg-yellow-100 text-yellow-700',
+    bomb_threat_drill: 'bg-rose-100 text-rose-700',
+    inspection:        'bg-teal-100 text-teal-700',
+    other:             'bg-gray-100 text-gray-700',
   };
 
   // ── Collapsed state — just show a tab ─────────────────────────────────────
@@ -396,16 +400,22 @@ interface EventCardProps {
   event: Event;
   formatTime: (t: string) => string;
   formatDate?: (t: string) => string;
-  eventTypeColors: Record<Event['event_type'], string>;
+  eventTypeColors: Record<string, string>;
 }
 
 function EventCard({ event, formatTime, formatDate, eventTypeColors }: EventCardProps) {
-  const icons: Record<Event['event_type'], any> = { training: FileText, meeting: Users, drill: CalendarIcon, other: CalendarIcon };
-  const Icon = icons[event.event_type];
+  const icons: Record<string, any> = {
+    training: FileText, meeting: Users,
+    drill: CalendarIcon, fire_drill: CalendarIcon,
+    earthquake_drill: CalendarIcon, bomb_threat_drill: CalendarIcon,
+    inspection: FileText, other: CalendarIcon,
+  };
+  const Icon = icons[event.event_type] ?? CalendarIcon;
+  const color = eventTypeColors[event.event_type] ?? 'bg-gray-100 text-gray-700';
   return (
     <div className="bg-gray-50 rounded-lg p-3 border border-gray-200 hover:border-green-200 hover:bg-green-50 hover:shadow-sm transition">
       <div className="flex items-start gap-2 mb-1.5">
-        <div className={`p-1.5 rounded text-xs ${eventTypeColors[event.event_type]}`}><Icon className="w-3 h-3" /></div>
+        <div className={`p-1.5 rounded text-xs ${color}`}><Icon className="w-3 h-3" /></div>
         <div className="flex-1 min-w-0">
           <h4 className="truncate" style={T.cardTitle}>{event.title}</h4>
           {formatDate && <p style={T.meta}>{formatDate(event.start_time)}</p>}

@@ -61,7 +61,7 @@ def create_event():
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute('SELECT role FROM user_profiles WHERE id = %s', (user_id,))
         user = cursor.fetchone()
-        if not user or user['role'] != 'coordinator':
+        if not user or user['role'] not in ['coordinator', 'admin']:
             cursor.close(); conn.close()
             return jsonify({"error": "Only executives can create events"}), 403
 
@@ -73,6 +73,19 @@ def create_event():
               data.get('start_time'), data.get('end_time'), data.get('location'), user_id))
         event = cursor.fetchone()
         conn.commit()
+
+        # Notify all members about the new event
+        try:
+            from src.routes.notifications import notify_all_members as _notify
+            event_type_label = data.get('event_type','event').replace('_',' ').title()
+            _notify(cursor,
+                'event',
+                f'New {event_type_label} Scheduled: {data.get("title","")}',
+                f'Scheduled for {data.get("start_time","")[:10]}' if data.get('start_time') else None,
+                'events', event['id'])
+            conn.commit()
+        except Exception as ne:
+            print(f'⚠️ Event notification error: {ne}')
 
         cursor.execute('SELECT email FROM user_profiles WHERE id = %s', (user_id,))
         creator = cursor.fetchone()
@@ -103,7 +116,7 @@ def update_event(event_id):
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute('SELECT role FROM user_profiles WHERE id = %s', (user_id,))
         user = cursor.fetchone()
-        if not user or user['role'] != 'coordinator':
+        if not user or user['role'] not in ['coordinator', 'admin']:
             cursor.close(); conn.close()
             return jsonify({"error": "Only executives can update events"}), 403
 
@@ -150,7 +163,7 @@ def delete_event(event_id):
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute('SELECT role FROM user_profiles WHERE id = %s', (user_id,))
         user = cursor.fetchone()
-        if not user or user['role'] != 'coordinator':
+        if not user or user['role'] not in ['coordinator', 'admin']:
             cursor.close(); conn.close()
             return jsonify({"error": "Only executives can delete events"}), 403
 
