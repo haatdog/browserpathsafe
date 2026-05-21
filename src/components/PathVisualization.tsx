@@ -448,7 +448,7 @@ export default function PathVisualization({ projectData, simulationResults, onCl
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl max-h-[90vh] overflow-hidden border border-gray-200 flex flex-col">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl max-h-[180vh] overflow-hidden border border-gray-200 flex flex-col">
 
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4 flex items-center justify-between flex-shrink-0">
