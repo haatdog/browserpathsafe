@@ -189,6 +189,7 @@ function collectAllPaths(paths: any): Array<[number,number]>[] {
 
 export default function PathVisualization({ projectData, simulationResults, onClose }: PathVisualizationProps) {
   const canvasRef    = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [zoom,       setZoom]   = useState(1);
   const [offset,     setOffset] = useState({ x: 0, y: 0 });
   const isPanningRef     = useRef(false);
@@ -270,8 +271,6 @@ export default function PathVisualization({ projectData, simulationResults, onCl
   const draw = useCallback(() => {
     const canvas = canvasRef.current; if (!canvas) return;
     const ctx    = canvas.getContext('2d'); if (!ctx) return;
-    canvas.width  = gridWidth  * cellSize;
-    canvas.height = gridHeight * cellSize;
 
     ctx.fillStyle = '#f8f7f4';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -294,6 +293,36 @@ export default function PathVisualization({ projectData, simulationResults, onCl
 
     ctx.restore();
   }, [gridWidth, gridHeight, cellSize, offset, zoom, drawGrid, drawPath, objects, allPaths]);
+
+  // Resize canvas to container
+  useEffect(() => {
+    const resize = () => {
+      const canvas = canvasRef.current;
+      const container = containerRef.current;
+      if (!canvas || !container) return;
+      canvas.width  = container.clientWidth;
+      canvas.height = container.clientHeight;
+    };
+    resize();
+    window.addEventListener('resize', resize);
+    return () => window.removeEventListener('resize', resize);
+  }, []);
+
+  // Auto-fit map on first load
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !canvas.width) return;
+    const mapW = gridWidth  * cellSize;
+    const mapH = gridHeight * cellSize;
+    const scaleX = canvas.width  / mapW;
+    const scaleY = canvas.height / mapH;
+    const fitZoom = Math.min(scaleX, scaleY) * 0.9;
+    setZoom(fitZoom);
+    setOffset({
+      x: (canvas.width  - mapW * fitZoom) / 2,
+      y: (canvas.height - mapH * fitZoom) / 2,
+    });
+  }, [gridWidth, gridHeight, cellSize]);
 
   useEffect(() => { draw(); }, [draw]);
 
@@ -462,9 +491,9 @@ export default function PathVisualization({ projectData, simulationResults, onCl
             Scroll to zoom · Drag to pan
           </p>
 
-          <div className="w-full h-full flex justify-center overflow-hidden">
+          <div className="w-full h-full flex justify-center overflow-hidden" ref={containerRef}>
             <canvas ref={canvasRef}
-              className="border border-gray-300 rounded-xl shadow-xl bg-white"
+              className="border border-gray-300 rounded-xl shadow-xl bg-white w-full h-full"
               style={{ cursor: 'grab', touchAction: 'none' }}
               onWheel={handleWheel}
               onMouseDown={handleMouseDown}

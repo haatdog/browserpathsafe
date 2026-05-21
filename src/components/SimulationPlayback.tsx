@@ -301,7 +301,8 @@ function drawMapObject(ctx: CanvasRenderingContext2D, obj: any) {
 }
 
 export default function SimulationPlayback({ simulation, projectData, onClose }: SimulationPlaybackProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRef    = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [isPlaying, setIsPlaying] = useState(true);
   const [currentFloor, setCurrentFloor] = useState(0);
   const [zoom, setZoom] = useState(1);
@@ -321,6 +322,34 @@ export default function SimulationPlayback({ simulation, projectData, onClose }:
   const MOVEMENT_SPEED = 3.4;
   const ANIMATION_SPEED = MOVEMENT_SPEED * cellSize;
   const WAYPOINT_LOOKAHEAD = 3;
+
+  // Resize canvas to match container
+  useEffect(() => {
+    const resize = () => {
+      const canvas = canvasRef.current;
+      const container = containerRef.current;
+      if (!canvas || !container) return;
+      canvas.width  = container.clientWidth;
+      canvas.height = container.clientHeight;
+    };
+    resize();
+    window.addEventListener('resize', resize);
+    return () => window.removeEventListener('resize', resize);
+  }, []);
+
+  // Auto-fit map to canvas on first load
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !projectData) return;
+    const mapW = (projectData.grid_width  || 80) * cellSize;
+    const mapH = (projectData.grid_height || 60) * cellSize;
+    const fitZoom = Math.min(canvas.clientWidth / mapW, canvas.clientHeight / mapH) * 0.85;
+    setZoom(fitZoom);
+    setOffset({
+      x: (canvas.clientWidth  - mapW * fitZoom) / 2,
+      y: (canvas.clientHeight - mapH * fitZoom) / 2,
+    });
+  }, [projectData, cellSize]);
 
   // Initialize agents from paths
   useEffect(() => {
@@ -755,8 +784,8 @@ export default function SimulationPlayback({ simulation, projectData, onClose }:
         </div>
 
         {/* Canvas */}
-        <div className="flex-1 relative bg-gray-800">
-          <canvas ref={canvasRef} width={1200} height={800}
+        <div className="flex-1 relative bg-gray-800" ref={containerRef}>
+          <canvas ref={canvasRef}
             className="w-full h-full"
             style={{ cursor: 'grab', touchAction: 'none' }}
             onWheel={handleWheel}
