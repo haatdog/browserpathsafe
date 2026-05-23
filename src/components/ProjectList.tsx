@@ -165,11 +165,11 @@ function SimulationProgress({
               <div className="absolute inset-0 rounded-full border-4 border-blue-100" />
               <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-blue-500 animate-spin" />
               {/* Inner pct */}
-              <div className="absolute inset-0 flex items-center justify-center">
+              {/* <div className="absolute inset-0 flex items-center justify-center">
                 <span className="text-xs font-bold text-blue-600">
                   {phase === 'queued' ? '…' : `${pct.toFixed(0)}%`}
                 </span>
-              </div>
+              </div> */}
             </div>
           )}
 
@@ -195,11 +195,11 @@ function SimulationProgress({
             <span className="font-mono text-gray-600">{fmt(elapsed)}</span>
             <span>elapsed</span>
           </div>
-          {phase === 'running' && info.total > 0 && (
+          {/* {phase === 'running' && info.total > 0 && (
             <div className="text-xs text-gray-400">
               {info.remaining} remaining · {info.queued} queued
             </div>
-          )}
+          )} */}
         </div>
 
         {phase === 'completed' ? (
