@@ -1,5 +1,5 @@
 //ProjectList - with simulation progress bar
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useRef } from 'react';
 import { projectAPI, simulationAPI } from '../lib/api';
 import SimulationResultsModal from './SimulationResultsModal';
 import SimulationCreator from './SimulationCreator';
@@ -50,7 +50,8 @@ function SimulationProgress({
   const [info, setInfo]         = useState({ evacuated: 0, remaining: 0, queued: 0, total: 0, step: 0 });
   const [phase, setPhase]       = useState<'queued'|'running'|'completed'|'cancelled'|'failed'>('queued');
   const [errMsg, setErrMsg]     = useState<string | null>(null);
-  const startRef = useRef(Date.now());
+  const startRef    = useRef(Date.now());
+  const pctHistory  = useRef<{ t: number; pct: number }[]>([]);  // rolling window for ETA
 
   const fmt = (s: number) => s < 60 ? `${Math.floor(s)}s` : `${Math.floor(s/60)}m ${Math.floor(s%60)}s`;
 
@@ -67,8 +68,7 @@ function SimulationProgress({
     if (!jobId) return;
     const poll = async () => {
       try {
-        // Derive API base from Vite env or default to Flask port 5000
-        const apiBase = (import.meta.env.VITE_API_URL as string) ?? 
+        const apiBase = (import.meta.env.VITE_API_URL as string) ??
                         (import.meta.env.VITE_PYTHON_API_URL as string) ??
                         `${location.protocol}//${location.hostname}:5000`;
         const res = await fetch(`${apiBase}/api/simulations/progress/${jobId}`, { credentials: 'include' });
@@ -76,7 +76,8 @@ function SimulationProgress({
         const data = await res.json();
         setPhase(data.status);
         if (data.progress) {
-          setPct(data.progress.pct ?? 0);
+          const newPct = data.progress.pct ?? 0;
+          setPct(newPct);
           setInfo({
             evacuated: data.progress.evacuated ?? 0,
             remaining: data.progress.remaining ?? 0,
@@ -84,6 +85,9 @@ function SimulationProgress({
             total:     data.progress.total     ?? 0,
             step:      data.progress.step      ?? 0,
           });
+          // Track pct over time for better ETA (keep last 8 samples)
+          pctHistory.current.push({ t: (Date.now() - startRef.current) / 1000, pct: newPct });
+          if (pctHistory.current.length > 8) pctHistory.current.shift();
         }
         if (data.status === 'completed' && data.results) {
           onCompleted(data.results);
@@ -91,23 +95,37 @@ function SimulationProgress({
         if (data.status === 'cancelled') {
           setErrMsg('Simulation was cancelled — no results saved.');
           setPhase('cancelled');
-          // Auto-dismiss modal after 2 seconds
           setTimeout(() => onCompleted(null), 2000);
-          return; // stop polling
+          return;
         }
         if (data.status === 'failed') {
           setErrMsg(data.error ?? 'Unknown error');
         }
       } catch { /* ignore network blips */ }
     };
-    poll(); // immediate first poll
+    poll();
     const id = setInterval(poll, 500);
     return () => clearInterval(id);
   }, [jobId]);
 
-  const eta = pct > 0 && pct < 100
-    ? fmt(elapsed / pct * (100 - pct))
-    : null;
+  // Improved ETA — use rate from last few samples instead of simple linear
+  const eta = (() => {
+    if (pct <= 2 || pct >= 100 || phase !== 'running') return null;
+    const hist = pctHistory.current;
+    if (hist.length < 2) {
+      // Fallback: simple elapsed/pct projection
+      const remaining = elapsed / pct * (100 - pct);
+      return fmt(Math.max(1, remaining));
+    }
+    const oldest = hist[0];
+    const newest = hist[hist.length - 1];
+    const dt = newest.t - oldest.t;
+    const dp = newest.pct - oldest.pct;
+    if (dt <= 0 || dp <= 0) return null;
+    const rate = dp / dt; // pct per second
+    const remaining = (100 - pct) / rate;
+    return fmt(Math.max(1, remaining));
+  })();
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
@@ -131,45 +149,61 @@ function SimulationProgress({
           <div className="mb-4 bg-red-50 text-red-700 text-sm rounded-xl p-3">{errMsg}</div>
         )}
 
-        {/* Progress bar */}
-        <div className="mb-4">
-          <div className="flex justify-between text-xs text-gray-500 mb-1.5">
-            <span>
-              {phase === 'queued' ? 'Queued — starting soon…' :
-               phase === 'running' ? `Step ${info.step.toLocaleString()} / pathfinding` :
-               phase === 'completed' ? 'Done!' : ''}
-            </span>
-            <span className="font-mono" style={T.sectionHeader}>{pct.toFixed(0)}%</span>
-          </div>
-          <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all duration-700"
-              style={{
-                width: `${pct}%`,
-                background: phase === 'completed'
-                  ? 'linear-gradient(90deg, #22c55e, #16a34a)'
-                  : 'linear-gradient(90deg, #3b82f6, #06b6d4)',
-              }}
-            />
+        {/* Spinner + status */}
+        <div className="flex flex-col items-center justify-center py-6 gap-4">
+          {phase === 'completed' ? (
+            <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
+              <span className="text-3xl">✅</span>
+            </div>
+          ) : phase === 'failed' ? (
+            <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center">
+              <span className="text-3xl">❌</span>
+            </div>
+          ) : (
+            <div className="relative w-16 h-16">
+              {/* Outer spinning ring */}
+              <div className="absolute inset-0 rounded-full border-4 border-blue-100" />
+              <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-blue-500 animate-spin" />
+              {/* Inner pct */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-xs font-bold text-blue-600">
+                  {phase === 'queued' ? '…' : `${pct.toFixed(0)}%`}
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div className="text-center space-y-1">
+            <p className="text-sm font-medium text-gray-700">
+              {phase === 'queued'    ? 'Queued — starting soon…' :
+               phase === 'running'   ? `Computing paths · ${info.total > 0 ? `${info.evacuated} / ${info.total} agents` : `step ${info.step.toLocaleString()}`}` :
+               phase === 'completed' ? 'Done! Loading results…' :
+               phase === 'cancelled' ? 'Cancelled' : 'Something went wrong'}
+            </p>
+            {phase === 'running' && (
+              <p className="text-xs text-gray-400">
+                {eta ? `~${eta} remaining` : 'Calculating…'}
+              </p>
+            )}
           </div>
         </div>
 
-
-
         {/* Time row */}
-        <div className="flex justify-between text-sm text-gray-500 mb-4">
+        <div className="flex justify-between text-sm text-gray-400 pt-2 border-t border-gray-100">
           <div className="flex items-center gap-1.5">
             <Clock className="w-4 h-4 text-blue-400" />
-            <span className="font-mono" style={T.sectionHeader}>{fmt(elapsed)}</span>
+            <span className="font-mono text-gray-600">{fmt(elapsed)}</span>
             <span>elapsed</span>
           </div>
-          {eta && phase === 'running' && (
-            <div className="text-gray-400">ETA ~{eta}</div>
+          {phase === 'running' && info.total > 0 && (
+            <div className="text-xs text-gray-400">
+              {info.remaining} remaining · {info.queued} queued
+            </div>
           )}
         </div>
 
         {phase === 'completed' ? (
-          <div className="text-center text-green-600 font-semibold text-sm">
+          <div className="text-center text-green-600 font-semibold text-sm mt-3">
             ✅ Results loading…
           </div>
         ) : phase === 'cancelled' ? (
