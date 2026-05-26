@@ -1,5 +1,5 @@
 //ProjectList - with simulation progress bar
-import { useState, useEffect, useRef, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { projectAPI, simulationAPI } from '../lib/api';
 import SimulationResultsModal from './SimulationResultsModal';
 import SimulationCreator from './SimulationCreator';
