@@ -29,6 +29,13 @@ export const T = {
       lineHeight: 'var(--text-section-lh)',
       color:      'var(--color-ink-primary)',
     },
+    sectionHeaderlight: {
+      fontFamily: 'var(--font-base)',
+      fontSize:   'var(--text-section-size)',       // 16px
+      fontWeight: 'var(--text-section-weight)',     // 600
+      lineHeight: 'var(--text-section-lh)',
+      color:      '#ffffff',
+    },
   
     /** Card / item title — inside cards, list rows, modal headers */
     cardTitle: {
