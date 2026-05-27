@@ -459,13 +459,13 @@ export default function ProjectList({ onOpenEditor, onRunSimulation }: ProjectLi
                   </div>
 
                   <div className="p-6 space-y-4">
-                    {/* Stats */}
+                    {/* Stats
                     <div className="grid grid-cols-2 gap-3 text-sm">
                       <div><div className="text-gray-400 text-xs">Grid</div><div className="font-semibold">{project.grid_width} × {project.grid_height}m</div></div>
                       <div><div className="text-gray-400 text-xs">Buildings</div><div className="font-semibold">{project.building_count}</div></div>
                       <div><div className="text-gray-400 text-xs">Floors</div><div className="font-semibold">{project.total_floors}</div></div>
                       <div><div className="text-gray-400 text-xs">Updated</div><div className="font-semibold text-xs">{formatDate(project.updated_at)}</div></div>
-                    </div>
+                    </div> */}
 
                     {/* Disaster selector */}
                     <div className="p-3 bg-orange-50 rounded-xl border border-orange-200">

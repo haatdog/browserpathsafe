@@ -1,6 +1,6 @@
 // PathVisualization.tsx
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { X, Download, ArrowUpDown } from 'lucide-react';
+import { X, Download, Printer } from 'lucide-react';
 import { T, C } from '../design/DesignTokens';
 
 interface PathVisualizationProps {
@@ -426,6 +426,73 @@ export default function PathVisualization({ projectData, simulationResults, onCl
 
   const resetView = () => { setZoom(1); setOffset({ x:0, y:0 }); };
 
+  const handlePrint = () => {
+    const w = gridWidth  * cellSize;
+    const h = gridHeight * cellSize;
+    const tmp = document.createElement('canvas');
+    tmp.width = w; tmp.height = h;
+    const tctx = tmp.getContext('2d');
+    if (!tctx) return;
+    tctx.fillStyle = '#f8f7f4';
+    tctx.fillRect(0, 0, w, h);
+    drawGrid(tctx);
+    objects.forEach(obj => drawMapObject(tctx, obj));
+    allPaths.forEach((path, idx) => drawPath(tctx, path, idx));
+    const dataUrl = tmp.toDataURL('image/png');
+
+    const win = window.open('', '_blank');
+    if (!win) return;
+    win.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Evacuation Path — PathSafe</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { background: #fff; font-family: Arial, sans-serif; }
+            .header { padding: 16px 24px 8px; border-bottom: 2px solid #e5e7eb; }
+            .header h1 { font-size: 18px; color: #111827; }
+            .header p  { font-size: 12px; color: #6b7280; margin-top: 4px; }
+            .map-wrap  { padding: 16px 24px; }
+            img { max-width: 100%; height: auto; border: 1px solid #e5e7eb; border-radius: 8px; }
+            .legend { padding: 12px 24px 16px; display: flex; gap: 20px; flex-wrap: wrap; }
+            .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #374151; }
+            .legend-dot  { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; }
+            @media print {
+              .no-print { display: none !important; }
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Evacuation Path Visualization</h1>
+            <p>PathSafe DRRM System &nbsp;·&nbsp; Generated ${new Date().toLocaleString()}&nbsp;·&nbsp; ${pathCount} evacuation path${pathCount !== 1 ? 's' : ''} recorded</p>
+          </div>
+          <div class="map-wrap">
+            <img src="${dataUrl}" alt="Evacuation Path Map" />
+          </div>
+          <div class="legend">
+            <div class="legend-item"><div class="legend-dot" style="background:#3b82f6;"></div> Path</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#3b82f6;border-radius:50%;"></div> Spawn Origin</div>
+            <div class="legend-item"><div class="legend-dot" style="border:2px solid #22c55e;background:transparent;"></div> Exit</div>
+            <div class="legend-item"><div class="legend-dot" style="border:2px solid #f59e0b;background:transparent;"></div> Stairs</div>
+            <div class="legend-item"><div class="legend-dot" style="border:2px solid #0ea5e9;background:transparent;"></div> Safe Zone</div>
+            <div class="legend-item"><div class="legend-dot" style="border:2px solid #1e293b;background:transparent;"></div> Wall</div>
+          </div>
+          <div class="no-print" style="padding:12px 24px;">
+            <button onclick="window.print()" style="padding:8px 20px;background:#1d4ed8;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;">
+              🖨️ Print / Save as PDF
+            </button>
+          </div>
+        </body>
+      </html>
+    `);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 500);
+  };
+
   const handleDownload = () => {
     // Draw the full unzoomed map onto a correctly-sized canvas and download it
     const w   = gridWidth  * cellSize;
@@ -461,6 +528,10 @@ export default function PathVisualization({ projectData, simulationResults, onCl
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <button onClick={handlePrint}
+              className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition flex items-center gap-2 text-sm">
+              <Printer className="w-4 h-4"/> Print
+            </button>
             <button onClick={handleDownload}
               className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition flex items-center gap-2 text-sm">
               <Download className="w-4 h-4"/> Download
