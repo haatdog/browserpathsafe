@@ -452,9 +452,9 @@ export default function ProjectList({ onOpenEditor, onRunSimulation }: ProjectLi
                 >
                   {/* Card header */}
                   <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-4">
-                    <h3 className="text-green truncate" style={T.sectionHeader}>{project.name}</h3>
+                    <h3 className="text-white truncate" style={T.sectionHeader}>{project.name}</h3>
                     {project.description && (
-                      <p className="text-blue-100 mt-1 line-clamp-2" style={T.body}>{project.description}</p>
+                      <p className="text-blue-100 mt-1 line-clamp-2" style={T.bodylight}>{project.description}</p>
                     )}
                   </div>
 

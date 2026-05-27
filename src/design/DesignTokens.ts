@@ -47,6 +47,14 @@ export const T = {
       lineHeight: 'var(--text-body-lh)',
       color:      'var(--color-ink-secondary)',
     },
+
+    bodylight: {
+      fontFamily: 'var(--font-base)',
+      fontSize:   'var(--text-body-size)',          // 14px
+      fontWeight: 'var(--text-body-weight)',        // 400
+      lineHeight: 'var(--text-body-lh)',
+      color:      '#ffffff',
+    },
   
     /** Body text with medium weight — labels, emphasized content */
     bodyMedium: {
