@@ -283,6 +283,8 @@ def init_db():
         "UPDATE user_profiles SET status = 'approved' WHERE status IS NULL",
         # middle name field
         'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS middle_name VARCHAR(255)',
+        # description field — additional info displayed on org chart and profile
+        'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS description VARCHAR(500)',
         # Drop the FK constraint so deleting a project does NOT cascade-delete its simulations
         '''DO $$
         BEGIN

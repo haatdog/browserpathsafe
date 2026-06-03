@@ -1,7 +1,7 @@
 // UserManagement.tsx
 import { useState, useEffect } from 'react';
 import { T } from '../design/DesignTokens';
-import { Users, UserPlus, UserMinus, Trash2, Shield, User, Crown, Loader, Tag, Star, Plus, X, Pencil, Check } from 'lucide-react';
+import { Users, UserPlus, UserMinus, Trash2, Shield, User, Crown, Loader, Tag, Star, Plus, X, Pencil, Check, FileText } from 'lucide-react';
 
 const API = import.meta.env.VITE_PYTHON_API_URL || 'https://browserpathsafe.onrender.com';
 
@@ -21,6 +21,7 @@ interface UserProfile {
   role: 'admin' | 'coordinator' | 'member';
   group_id: number | null; group_name: string | null; is_head: boolean;
   groups: UserGroup[];
+  description?: string | null;
   created_at: string; updated_at: string;
 }
 
@@ -75,6 +76,12 @@ export default function UserManagement({
   const [activeTab,        setActiveTab]        = useState<'members'|'pending'>('members');
   const [approvingId,      setApprovingId]      = useState<string|null>(null);
   const [pickerSelected,  setPickerSelected]  = useState<string[]>([]);
+
+  // Edit description modal
+  const [editDescUserId,  setEditDescUserId]  = useState<string | null>(null);
+  const [editDescValue,   setEditDescValue]   = useState('');
+  const [savingDesc,      setSavingDesc]      = useState(false);
+  const [descError,       setDescError]       = useState('');
   const [pickerSaving,    setPickerSaving]    = useState(false);
 
   useEffect(() => { loadAll(); }, []);
@@ -150,6 +157,29 @@ export default function UserManagement({
       if (userId === currentUserId) window.location.reload();
     } catch (err: any) { setError(err.message); }
     finally { setSavingRole(false); }
+  };
+
+  // ── Edit description ──────────────────────────────────────────────────────────
+  const startEditDesc = (user: UserProfile) => {
+    setEditDescUserId(user.id);
+    setEditDescValue(user.description || '');
+    setDescError('');
+  };
+
+  const handleSaveDesc = async () => {
+    if (!editDescUserId) return;
+    if (editDescValue.length > 500) { setDescError('Description must be 500 characters or less.'); return; }
+    setSavingDesc(true); setDescError('');
+    try {
+      const res = await authFetch(`${API}/api/users/${editDescUserId}/description`, {
+        method: 'PUT',
+        body: JSON.stringify({ description: editDescValue.trim() }),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed to save'); }
+      setEditDescUserId(null);
+      await loadAll();
+    } catch (err: any) { setDescError(err.message); }
+    finally { setSavingDesc(false); }
   };
 
   // ── Delete user ──────────────────────────────────────────────────────────────
@@ -428,6 +458,12 @@ export default function UserManagement({
                     </button>
                   )}
                   {isAdmin && (
+                    <button onClick={() => startEditDesc(user)} title="Edit description"
+                      className={`p-1.5 rounded-lg transition ${editDescUserId === user.id ? 'text-purple-600 bg-purple-50' : 'text-gray-400 hover:text-purple-600 hover:bg-purple-50'}`}>
+                      <FileText className="w-4 h-4" />
+                    </button>
+                  )}
+                  {isAdmin && (
                     <button onClick={() => handleDeleteUser(user.id)} title="Delete user"
                       className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"><Trash2 className="w-4 h-4" /></button>
                   )}
@@ -450,6 +486,45 @@ export default function UserManagement({
                       <button onClick={() => handleSaveRole(user.id)} disabled={savingRole}
                         className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 flex items-center gap-1">
                         {savingRole ? <><Loader className="w-4 h-4 animate-spin" />Saving…</> : <><Check className="w-4 h-4" />Save</>}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Description display */}
+              {!editDescUserId && user.description && editDescUserId !== user.id && (
+                <div className="mt-2 pt-2 border-t border-gray-100">
+                  <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-0.5">Description</p>
+                  <p className="text-sm text-gray-600 italic">{user.description}</p>
+                </div>
+              )}
+
+              {/* Inline description editor */}
+              {editDescUserId === user.id && (
+                <div className="mt-3 pt-3 border-t border-purple-100 bg-purple-50 rounded-lg p-3 space-y-2">
+                  <p className="text-xs font-medium text-purple-700 uppercase tracking-wide flex items-center gap-1">
+                    <FileText className="w-3.5 h-3.5" /> Edit Description
+                  </p>
+                  <textarea
+                    value={editDescValue}
+                    onChange={e => { setEditDescValue(e.target.value); setDescError(''); }}
+                    maxLength={500}
+                    rows={3}
+                    placeholder="Add a description for this user — e.g. their role title, responsibilities, or department..."
+                    className="w-full px-3 py-2 border border-purple-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-400 focus:border-transparent resize-none bg-white"
+                  />
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-400">{editDescValue.length}/500</span>
+                      {descError && <span className="text-xs text-red-500">{descError}</span>}
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => { setEditDescUserId(null); setDescError(''); }}
+                        className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition">Cancel</button>
+                      <button onClick={handleSaveDesc} disabled={savingDesc}
+                        className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50 flex items-center gap-1">
+                        {savingDesc ? <><Loader className="w-4 h-4 animate-spin" />Saving…</> : <><Check className="w-4 h-4" />Save</>}
                       </button>
                     </div>
                   </div>

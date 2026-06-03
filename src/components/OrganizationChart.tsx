@@ -18,6 +18,7 @@ interface UserProfile {
   group_id: number | null;
   group_name: string | null;
   is_head: boolean;
+  description?: string | null;
   groups?: { group_id: number; group_name: string; is_head: boolean }[];
 }
 
@@ -57,8 +58,8 @@ function Avatar({ email, firstName, lastName, size = 'md', highlight = false }: 
   return (
     <div className={`${sz} rounded-full flex items-center justify-center font-bold flex-shrink-0
       ${highlight
-        ? 'bg-gradient-to-br from-slate-700 to-slate-900 text-white ring-2 ring-amber-400 ring-offset-1'
-        : 'bg-slate-200 text-slate-600'}`}>
+        ? 'bg-[#374151] bg-opacity-90 text-white'
+        : 'bg-slate-100 text-slate-600'}`}>
       {initials}
     </div>
   );
@@ -95,13 +96,18 @@ function MemberCard({ user, isHead, colorIdx }: { user: UserProfile; isHead: boo
         <div className="font-semibold text-gray-900 text-sm truncate" title={user.email}>
           {username}
         </div>
-        <div className="text-[11px] text-gray-400 truncate">{user.email.split('@')[1]}</div>
       </div>
 
       <div className="flex items-center gap-1 text-[10px] text-gray-500">
         <RoleIcon role={user.role} />
         <span className="capitalize">{user.role}</span>
       </div>
+
+      {user.description && (
+        <p className="text-[10px] text-gray-400 text-center leading-tight line-clamp-2 px-1">
+          {user.description}
+        </p>
+      )}
     </div>
   );
 }
@@ -195,36 +201,30 @@ function GroupCard({ group, members, colorIdx }: { group: Group | null; members:
 
 // ── Leadership row ────────────────────────────────────────────────────────────
 function LeadershipRow({ users }: { users: UserProfile[] }) {
-  const admins     = users.filter(u => u.role === 'admin');
+  // Only coordinators appear in leadership — admins are system-level and hidden
   const coordinators = users.filter(u => u.role === 'coordinator');
-  const all        = [...admins, ...coordinators];
-  if (all.length === 0) return null;
+  if (coordinators.length === 0) return null;
 
   return (
-    <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-6 shadow-xl mb-8">
+    <div className="bg-[#80EF80]/80 border border-[#2E7D32] rounded-2xl p-6 shadow-lg mb-8">
       <div className="flex items-center gap-2 mb-5">
-        <Crown className="w-5 h-5 text-amber-400" />
+      <Crown className="w-8 h-8 text-yellow-400 drop-shadow-[0_0_8px_darkgreen]" />
         <h3 className="text-white" style={T.pageTitle}>Leadership</h3>
-        <span className="px-2 py-0.5 bg-white/10 text-white/70 rounded-full ml-1" style={T.meta}>{all.length} people</span>
+        <span className="px-2 py-0.5 bg-white/10 text-white/70 rounded-full ml-1" style={T.meta}>{coordinators.length} {coordinators.length === 1 ? 'person' : 'people'}</span>
       </div>
 
       <div className="flex flex-wrap gap-4 justify-center">
-        {all.map(u => {
+        {coordinators.map(u => {
           const username = getDisplayName(u);
-          const isAdmin  = u.role === 'admin';
           return (
-            <div key={u.id} className="flex flex-col items-center gap-2.5 w-32 text-center">
+            <div key={u.id} className="flex flex-col items-center gap-2.5 w-36 text-center">
               <Avatar email={u.email} firstName={u.first_name} lastName={u.last_name} size="lg" highlight />
               <div>
-                <div className="text-white font-semibold text-sm truncate w-full">{username}</div>
-                <div className="text-white/40 text-[11px] truncate">{u.email.split('@')[1]}</div>
+                <div className="text-black  font-semibold text-sm truncate w-full">{username}</div>
               </div>
-              <span className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold
-                ${isAdmin
-                  ? 'bg-amber-400/20 text-amber-300 border border-amber-500/30'
-                  : 'bg-blue-400/20 text-blue-300 border border-blue-500/30'}`}>
-                {isAdmin ? <Crown className="w-3 h-3" /> : <Shield className="w-3 h-3" />}
-                {isAdmin ? 'Admin' : 'Executive'}
+              <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-400/20 text-blue-300 border border-blue-500/30">
+                <Shield className="w-3 h-3" />
+                {u.is_head}
               </span>
             </div>
           );
@@ -244,14 +244,14 @@ function StatsBar({ users, groups }: { users: UserProfile[]; groups: Group[] }) 
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
       {[
         { label: 'Total Members',  value: users.length,    sub: 'all roles',           color: 'text-slate-700' },
-        { label: 'Groups',         value: groups.length,   sub: 'active groups',       color: 'text-blue-600'  },
-        { label: 'Assigned',       value: assigned.length, sub: 'in a group',          color: 'text-green-600' },
-        { label: 'Group Heads',    value: heads.length,    sub: 'team leads',          color: 'text-amber-600' },
+        { label: 'Groups',         value: groups.length,   sub: 'active groups',       color: 'text-slate-700'  },
+        { label: 'Assigned',       value: assigned.length, sub: 'in a group',          color: 'text-slate-700' },
+        { label: 'Group Heads',    value: heads.length,    sub: 'team leads',          color: 'text-slate-700' },
       ].map(s => (
         <div key={s.label} className="bg-white rounded-xl border border-gray-200 px-5 py-4 shadow-sm">
           <div className={`text-3xl font-black ${s.color}`}>{s.value}</div>
           <div className="mt-0.5" style={T.sectionHeader}>{s.label}</div>
-          <div className="text-xs text-gray-400">{s.sub}</div>
+          <div className="text-xs text-gray-600">{s.sub}</div>
         </div>
       ))}
     </div>

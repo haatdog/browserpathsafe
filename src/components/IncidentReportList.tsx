@@ -383,11 +383,11 @@ export default function IncidentReportsList() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div>
-          <h1 style={T.pageTitle}>Report Incidents</h1>
+          <h1 style={T.pageTitle}>Reported Incidents</h1>
           <p className="mt-1" style={{...T.body, color: C.inkMuted}}>{incidents.length} total report{incidents.length !== 1 ? 's' : ''}</p>
         </div>
         <button onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl transition text-sm font-medium shadow-sm w-full sm:w-auto justify-center sm:justify-start">
+          className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl transition text-sm font-medium shadow-sm w-full sm:w-auto justify-center sm:justify-start">
           <Plus className="w-4 h-4" /> Report Incident
         </button>
       </div>

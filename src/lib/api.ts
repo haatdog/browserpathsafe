@@ -24,6 +24,7 @@ export interface UserProfile {
   group_name?: string | null;
   is_head?: boolean;
   groups?: UserGroup[];   // multi-group memberships
+  description?: string | null;
   created_at: string;
   updated_at: string;
 }

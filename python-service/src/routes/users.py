@@ -162,6 +162,45 @@ def update_user_role(uid):
         return jsonify({'error': str(e)}), 500
 
 
+@users_bp.route('/api/users/<string:uid>/description', methods=['PUT', 'OPTIONS'])
+def update_user_description(uid):
+    if request.method == 'OPTIONS':
+        return '', 200
+    current_user_id = get_user_id()
+    if not current_user_id:
+        return jsonify({'error': 'Not authenticated'}), 401
+    try:
+        conn   = get_db()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute('SELECT role FROM user_profiles WHERE id = %s', (current_user_id,))
+        me = cursor.fetchone()
+        if not me or me['role'] != 'admin':
+            cursor.close(); conn.close()
+            return jsonify({'error': 'Admin access required'}), 403
+
+        description = (request.json.get('description') or '').strip()
+        if len(description) > 500:
+            cursor.close(); conn.close()
+            return jsonify({'error': 'Description must be 500 characters or less'}), 400
+
+        cursor.execute('''
+            UPDATE user_profiles
+            SET description = %s, updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s RETURNING id, email, description
+        ''', (description or None, uid))
+        updated = cursor.fetchone()
+        conn.commit(); cursor.close(); conn.close()
+
+        if not updated:
+            return jsonify({'error': 'User not found'}), 404
+
+        return jsonify({'id': updated['id'], 'email': updated['email'], 'description': updated['description']})
+
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 @users_bp.route('/api/users/<string:uid>', methods=['DELETE', 'OPTIONS'])
 def delete_user(uid):
     if request.method == 'OPTIONS':
@@ -374,6 +413,15 @@ def approve_user(uid):
             "UPDATE user_profiles SET status = 'approved' WHERE id = %s",
             (uid,)
         )
+        # Notify the user their account was approved
+        try:
+            from src.routes.notifications import notify_user
+            notify_user(cursor, uid, 'account_approved',
+                'Account Approved!',
+                'Your PathSafe account has been approved. You can now log in.',
+                'home')
+        except Exception as ne:
+            print(f'⚠️ Approval notification error: {ne}')
         conn.commit(); cursor.close(); conn.close()
         return jsonify({'success': True})
     except Exception as e:

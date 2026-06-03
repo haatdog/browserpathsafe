@@ -386,7 +386,7 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
       <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
 
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-600 to-purple-700 px-6 py-4 flex items-center justify-between flex-shrink-0">
+        <div className="bg-gradient-to-r from-green-600 to-green-700 px-6 py-4 flex items-center justify-between flex-shrink-0">
           <div>
             <h2 className="text-white" style={T.pageTitle}>Evacuation Evaluations</h2>
             <p className="text-purple-100 mt-0.5" style={T.body}>{event.title}</p>
@@ -399,9 +399,9 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
             <div><p className="text-xs text-gray-500">Event Date</p><p className="font-semibold">{new Date(event.start_time).toLocaleDateString()}</p></div>
             <div><p className="text-xs text-gray-500">Submissions</p><p className="font-semibold">{memberEvalList.length}</p></div>
-            <div><p className="text-xs text-gray-500">Total Participants</p><p className="font-bold text-purple-700">{stats.total}</p></div>
-            <div><p className="text-xs text-gray-500">Total Males</p><p className="font-bold text-blue-600">{stats.totalMale}</p></div>
-            <div><p className="text-xs text-gray-500">Total Females</p><p className="font-bold text-pink-600">{stats.totalFemale}</p></div>
+            <div><p className="text-xs text-gray-500">Total Participants</p><p className="font-bold text-slate-700">{stats.total}</p></div>
+            <div><p className="text-xs text-gray-500">Total Males</p><p className="font-bold text-slate-700">{stats.totalMale}</p></div>
+            <div><p className="text-xs text-gray-500">Total Females</p><p className="font-bold text-slate-700">{stats.totalFemale}</p></div>
           </div>
         </div>
 
@@ -412,9 +412,9 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
             { key: 'submit', icon: <PlusCircle className="w-4 h-4" />, label: 'My Evaluation',      badge: null },
           ].map(t => (
             <button key={t.key} onClick={() => { setActiveTab(t.key as any); setSubmitSuccess(false); }}
-              className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition border-b-2 ${activeTab === t.key ? 'border-purple-600 text-purple-700 bg-purple-50' : 'border-transparent text-gray-600 hover:bg-gray-50'}`}>
+              className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition border-b-2 ${activeTab === t.key ? 'border-green-600 text-green-700 bg-green-50' : 'border-transparent text-gray-600 hover:bg-gray-50'}`}>
               {t.icon}{t.label}
-              {t.badge !== null && t.badge > 0 && <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs">{t.badge}</span>}
+              {t.badge !== null && t.badge > 0 && <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs">{t.badge}</span>}
               {t.key === 'submit' && myEval && <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs">Submitted</span>}
             </button>
           ))}
@@ -556,7 +556,7 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
                     </div>
 
                     <button onClick={handlePrintMyEval}
-                      className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition font-medium">
+                      className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl transition font-medium">
                       <Printer className="w-4 h-4" /> Print / Save PDF
                     </button>
                   </div>
@@ -646,7 +646,7 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
           <p style={{...T.body, color: C.inkMuted}}>{memberEvalList.length} member submission{memberEvalList.length !== 1 ? 's' : ''} · {stats.total} total ({stats.totalMale}M / {stats.totalFemale}F)</p>
           <div className="flex items-center gap-2">
             <button onClick={handleDownloadMemberReport} disabled={evaluations.length === 0}
-              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition text-sm font-medium">
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition text-sm font-medium">
               <Download className="w-4 h-4" />Member Report
             </button>
             <button onClick={onClose} className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm">Close</button>

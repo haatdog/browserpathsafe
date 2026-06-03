@@ -207,7 +207,7 @@ export default function SimulationList() {
                     <button
                       onClick={() => handlePlayback(sim)}
                       disabled={!!loadingPlayback || isDeleting}
-                      className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg transition text-sm font-medium"
+                      className="flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg transition text-sm font-medium"
                     >
                       {isLoadingPlay
                         ? <><Loader className="w-3.5 h-3.5 animate-spin"/> Loading…</>
@@ -218,7 +218,7 @@ export default function SimulationList() {
                     <button
                       onClick={() => handleViewPaths(sim)}
                       disabled={!!loadingPlayback || isDeleting || sim.status !== 'completed'}
-                      className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition text-sm font-medium"
+                      className="flex items-center gap-1.5 px-3 py-2 bg-gray-600 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition text-sm font-medium"
                       title={sim.status !== 'completed' ? 'Only available for completed simulations' : undefined}
                     >
                       {isLoadingPath
