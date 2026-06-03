@@ -254,7 +254,7 @@ export default function MemberEvaluationModal({ event, userId, alreadySubmitted 
             Close
           </button>
           <button onClick={handlePrint}
-            className="flex-1 px-4 py-2.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition flex items-center justify-center gap-2">
+            className="flex-1 px-4 py-2.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-xl transition flex items-center justify-center gap-2">
             <Printer className="w-4 h-4" /> Print / Save PDF
           </button>
         </div>

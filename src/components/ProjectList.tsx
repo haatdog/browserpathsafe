@@ -410,7 +410,7 @@ export default function ProjectList({ onOpenEditor, onRunSimulation }: ProjectLi
           <button
             onClick={loadProjects}
             disabled={loading}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition flex items-center gap-2 disabled:opacity-50"
+            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition flex items-center gap-2 disabled:opacity-50"
           >
             <Loader className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh
@@ -451,7 +451,7 @@ export default function ProjectList({ onOpenEditor, onRunSimulation }: ProjectLi
                   className="border border-gray-200 rounded-xl hover:shadow-xl transition-all duration-200 overflow-hidden bg-gradient-to-br from-white to-gray-50"
                 >
                   {/* Card header */}
-                  <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-4">
+                  <div className="bg-gradient-to-r from-green-700 to-green-600 px-6 py-4">
                     <h3 className="text-white truncate" style={T.sectionHeaderlight}>{project.name}</h3>
                     {project.description && (
                       <p className="text-blue-100 mt-1 line-clamp-2" style={T.body}>{project.description}</p>
@@ -459,18 +459,11 @@ export default function ProjectList({ onOpenEditor, onRunSimulation }: ProjectLi
                   </div>
 
                   <div className="p-6 space-y-4">
-                    {/* Stats
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div><div className="text-gray-400 text-xs">Grid</div><div className="font-semibold">{project.grid_width} × {project.grid_height}m</div></div>
-                      <div><div className="text-gray-400 text-xs">Buildings</div><div className="font-semibold">{project.building_count}</div></div>
-                      <div><div className="text-gray-400 text-xs">Floors</div><div className="font-semibold">{project.total_floors}</div></div>
-                      <div><div className="text-gray-400 text-xs">Updated</div><div className="font-semibold text-xs">{formatDate(project.updated_at)}</div></div>
-                    </div> */}
 
                     {/* Disaster selector */}
-                    <div className="p-3 bg-orange-50 rounded-xl border border-orange-200">
+                    <div className="p-3 bg-gray-100 rounded-xl border border-gray-200">
                       <div className="flex items-center gap-2 mb-2">
-                        <AlertTriangle className="w-3.5 h-3.5 text-orange-500" />
+                        <AlertTriangle className="w-5 h-5 text-orange-600" />
                         <span className="text-[10px] uppercase tracking-widest" style={T.pageTitle}>Disaster Type</span>
                       </div>
                       <div className="grid grid-cols-3 gap-1.5">
@@ -484,7 +477,7 @@ export default function ProjectList({ onOpenEditor, onRunSimulation }: ProjectLi
                             onClick={() => setDisasterType(project.id, key)}
                             className={`py-2 rounded-lg border-2 transition text-center ${
                               (disasterTypes[project.id] || 'fire') === key
-                                ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                ? 'border-green-500 bg-green-50 text-green-700'
                                 : 'border-gray-200 bg-white hover:border-gray-300 text-gray-500'
                             }`}
                           >
@@ -499,7 +492,7 @@ export default function ProjectList({ onOpenEditor, onRunSimulation }: ProjectLi
                     <div className="space-y-2">
                       <button
                         onClick={() => handleOpenEditor(project.id)}
-                        className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition font-medium text-sm"
+                        className="w-full px-4 py-2.5 bg-gray-500 hover:bg-gray-700 text-white rounded-lg transition font-medium text-sm"
                       >
                         📝 Open in Editor
                       </button>

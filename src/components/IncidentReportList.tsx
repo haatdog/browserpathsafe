@@ -357,8 +357,8 @@ export default function IncidentReportsList() {
         <p className="mt-1" style={{...T.body, color: C.inkMuted}}>Report a safety incident or hazard</p>
       </div>
       <div className="bg-white rounded-xl border border-gray-200 p-8 text-center space-y-4">
-        <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto">
-          <FileText className="w-8 h-8 text-blue-600" />
+        <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto">
+          <FileText className="w-8 h-8 text-green-600" />
         </div>
         <div>
           <h3 className="font-semibold text-gray-900 mb-1">Submit an Incident Report</h3>
@@ -367,7 +367,7 @@ export default function IncidentReportsList() {
           </p>
         </div>
         <button onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl transition text-sm font-medium shadow-sm">
+          className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-2.5 rounded-xl transition text-sm font-medium shadow-sm">
           <Plus className="w-4 h-4" /> Report an Incident
         </button>
       </div>
