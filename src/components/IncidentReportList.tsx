@@ -65,10 +65,10 @@ function fmt(dateStr: string) {
 }
 
 const SEVERITY_STYLES: Record<string, string> = {
-  critical: 'bg-red-100 text-red-800 border-red-300',
-  high:     'bg-orange-100 text-orange-800 border-orange-300',
-  medium:   'bg-yellow-100 text-yellow-800 border-yellow-300',
-  low:      'bg-blue-100 text-blue-800 border-blue-300',
+  critical: 'bg-red-200 text-red-800 border-red-600',
+  high:     'bg-orange-200 text-orange-800 border-orange-600',
+  medium:   'bg-yellow-200 text-yellow-800 border-yellow-600',
+  low:      'bg-blue-200 text-blue-800 border-blue-600',
 };
 
 const STATUS_STYLES: Record<IncidentStatus, string> = {
@@ -268,7 +268,7 @@ function IncidentCard({ incident, onClick }: { incident: Incident; onClick: () =
 
   return (
     <div onClick={onClick}
-      className="bg-white rounded-xl border border-gray-200 hover:shadow-lg hover:border-blue-200 transition-all cursor-pointer group">
+      className="bg-white rounded-xl border border-gray-400 hover:shadow-lg hover:border-green-600 transition-all cursor-pointer group">
       <div className="flex items-center justify-between px-4 sm:px-5 pt-4 pb-3 border-b border-gray-100">
         <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${SEVERITY_STYLES[incident.severity] ?? SEVERITY_STYLES.medium}`}>
           {incident.severity.toUpperCase()}
@@ -397,14 +397,14 @@ export default function IncidentReportsList() {
 
           { label: 'High / Critical', val: incidents.filter(i => i.severity === 'high' || i.severity === 'critical').length,      color: 'text-red-600'    },
         ].map(s => (
-          <div key={s.label} className="bg-white rounded-xl border border-gray-200 px-4 py-3 shadow-sm">
+          <div key={s.label} className="bg-white rounded-xl border border-gray-400 px-4 py-3 shadow-sm">
             <div className={`text-2xl font-black ${s.color}`}>{s.val}</div>
             <div className="text-xs text-gray-500 mt-0.5">{s.label}</div>
           </div>
         ))}
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex flex-wrap items-center gap-2">
+      <div className="bg-white rounded-xl border border-gray-400 px-4 py-3 flex flex-wrap items-center gap-2">
         <Filter className="w-4 h-4 text-gray-400" />
         <span className="mr-1" style={T.bodyMedium}>Status:</span>
 

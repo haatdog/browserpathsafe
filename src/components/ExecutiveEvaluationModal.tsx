@@ -23,6 +23,11 @@ interface Evaluation {
   male_count: number; female_count: number; comments: string;
   submitted_by: string; submitted_by_email: string; submitted_at: string;
   image_url?: string; image_urls?: string[] | string;
+  infrastructure_type?: string | null;
+  infrastructure_name?: string | null;
+  infrastructure_others?: string | null;
+  region?: string | null;
+  quarter?: string | null;
 }
 
 interface ExecutiveEvaluationModalProps { event: AppEvent; onClose: () => void; }
@@ -30,6 +35,11 @@ interface ExecutiveEvaluationModalProps { event: AppEvent; onClose: () => void; 
 const EMPTY_FORM = {
   instructor_name: '', program_class: '', classroom_office: '',
   male_count: 0, female_count: 0, comments: '',
+  infrastructure_type: '' as string,
+  infrastructure_name: '',
+  infrastructure_others: '',
+  region: '',
+  quarter: '',
 };
 
 function getImages(ev: Evaluation | null): string[] {
@@ -187,6 +197,11 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
       await evaluationAPI.submit({
         event_id: event.id, ...form,
         program_class: form.program_class || 'N/A',
+        infrastructure_type: form.infrastructure_type || null,
+        infrastructure_name: form.infrastructure_name || null,
+        infrastructure_others: form.infrastructure_others || null,
+        region: form.region || null,
+        quarter: form.quarter || null,
         image_urls: images,
       } as any);
       setSubmitSuccess(true); setForm(EMPTY_FORM); setImages([]);
@@ -198,178 +213,131 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
   // ── Coordinator's own evaluation PDF ──────────────────────────────────────
   const handlePrintMyEval = () => {
     if (!myEval) return;
-    const imgs = getImages(myEval);
-    const date = new Date(event.start_time);
+    const imgs      = getImages(myEval);
+    const date      = new Date(event.start_time);
     const submitted = new Date(myEval.submitted_at);
-    const total = myEval.male_count + myEval.female_count;
+    const total     = myEval.male_count + myEval.female_count;
+    const logoSrc   = `${window.location.origin}/Pathsafe2.png`;
+    const displayDate = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+    const drillType = event.event_type.replace(/_/g,' ').replace(/\b\w/g,(c:string)=>c.toUpperCase());
 
-    const photosHtml = imgs.length > 0 ? `
-      <div class="section">
-        <div class="section-title">Photo Evidence</div>
-        <div class="photos-grid">
-          ${imgs.map((src, i) => `
-            <div class="photo-wrap">
-              <img src="${src}" alt="Photo ${i + 1}" />
-              ${i === 0 ? '<div class="photo-label">Cover Photo</div>' : ''}
-            </div>`).join('')}
-        </div>
+    const photosSection = imgs.length > 0 ? `
+      <p style="font-weight:bold;font-size:10pt;text-transform:uppercase;border-bottom:1px solid #ccc;padding-bottom:4px;margin:16px 0 10px;">Photo Evidence</p>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+        ${imgs.map((src,i) => `
+          <div style="border:1px solid #ccc;border-radius:4px;overflow:hidden;">
+            <img src="${src}" style="width:100%;aspect-ratio:4/3;object-fit:cover;display:block;"/>
+            ${i===0?'<div style="background:rgba(0,0,0,.5);color:#fff;font-size:8pt;text-align:center;padding:2px;">Cover Photo</div>':''}
+          </div>`).join('')}
       </div>` : '';
 
-    const html = `<!DOCTYPE html>
+    const infraSection = myEval.infrastructure_type ? `
+      <p style="font-weight:bold;font-size:10pt;text-transform:uppercase;border-bottom:1px solid #ccc;padding-bottom:4px;margin:16px 0 10px;">Critical Infrastructure Covered</p>
+      <table style="width:100%;border-collapse:collapse;font-size:10pt;margin-bottom:14px;">
+        <tr><td style="width:200px;font-weight:bold;padding:5px 0;">Type:</td><td style="padding:5px 0;border-bottom:1px solid #ccc;text-transform:capitalize;">${myEval.infrastructure_type}</td></tr>
+        ${myEval.infrastructure_name ? `<tr><td style="font-weight:bold;padding:5px 0;">Establishment:</td><td style="padding:5px 0;border-bottom:1px solid #ccc;">${myEval.infrastructure_name}</td></tr>` : ''}
+        ${myEval.infrastructure_others ? `<tr><td style="font-weight:bold;padding:5px 0;">Specified as:</td><td style="padding:5px 0;border-bottom:1px solid #ccc;">${myEval.infrastructure_others}</td></tr>` : ''}
+      </table>` : '';
+
+    const commentsSection = myEval.comments ? `
+      <p style="font-weight:bold;font-size:10pt;text-transform:uppercase;border-bottom:1px solid #ccc;padding-bottom:4px;margin:16px 0 10px;">Comments &amp; Observations</p>
+      <div style="border:1px solid #ccc;padding:10px;min-height:50px;border-radius:4px;font-size:10pt;white-space:pre-wrap;">${myEval.comments}</div>` : '';
+
+    const win = window.open('', '_blank');
+    if (!win) return;
+    win.document.write(`<!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8"/>
   <title>Coordinator Evaluation — ${event.title}</title>
   <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family: Arial, sans-serif; font-size: 11pt; color:#111; padding:32px; }
-    .header { text-align:center; border-bottom:2px solid #111; padding-bottom:12px; margin-bottom:20px; }
-    .header h1 { font-size:14pt; text-transform:uppercase; letter-spacing:1px; }
-    .header h2 { font-size:12pt; font-weight:normal; margin-top:4px; }
-    .section { margin-bottom:18px; }
-    .section-title { font-size:10pt; text-transform:uppercase; letter-spacing:.5px; color:#555; border-bottom:1px solid #ccc; padding-bottom:4px; margin-bottom:10px; }
-    .field-row { display:flex; margin-bottom:8px; }
-    .field-label { font-weight:bold; width:180px; flex-shrink:0; }
-    .field-value { flex:1; border-bottom:1px solid #999; padding-bottom:2px; min-height:18px; }
-    .counts { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; margin-top:8px; }
-    .count-box { border:1px solid #ccc; padding:10px; text-align:center; border-radius:4px; }
-    .count-box .num { font-size:20pt; font-weight:bold; }
-    .count-box .lbl { font-size:9pt; color:#555; margin-top:4px; }
-    .comments-box { border:1px solid #ccc; padding:10px; min-height:60px; border-radius:4px; font-size:10pt; white-space:pre-wrap; }
-    .photos-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:8px; }
-    .photo-wrap { position:relative; border:1px solid #ccc; border-radius:4px; overflow:hidden; }
-    .photo-wrap img { width:100%; aspect-ratio:4/3; object-fit:cover; display:block; }
-    .photo-label { position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,.5); color:#fff; font-size:8pt; text-align:center; padding:2px; }
-    .footer { margin-top:40px; display:flex; justify-content:space-between; font-size:9pt; color:#777; border-top:1px solid #ccc; padding-top:8px; }
-    @media print { body { padding:16px; } }
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{font-family:Arial,sans-serif;font-size:10pt;color:#000;background:#fff;}
+    .page{padding:60px 72px;}
+    .header{display:flex;align-items:center;gap:16px;margin-bottom:36px;padding-bottom:16px;border-bottom:2px solid #000;}
+    .header img{width:72px;height:72px;object-fit:contain;flex-shrink:0;}
+    .header-title{font-size:10pt;font-weight:bold;line-height:1.5;text-align:center;flex:1;}
+    .date{text-align:right;margin-bottom:28px;font-size:11pt;}
+    .report-title{text-align:center;font-weight:bold;font-size:13pt;margin-bottom:28px;}
+    .section-title{font-weight:bold;font-size:10pt;text-transform:uppercase;border-bottom:1px solid #ccc;padding-bottom:4px;margin:16px 0 10px;}
+    table{width:100%;border-collapse:collapse;font-size:10pt;margin-bottom:14px;}
+    td{padding:5px 0;}
+    .uline{border-bottom:1px solid #000;display:inline-block;flex:1;padding-bottom:1px;}
+    .count-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:14px;}
+    .count-box{border:1px solid #ccc;padding:10px;text-align:center;border-radius:4px;}
+    .count-num{font-size:18pt;font-weight:bold;}
+    .count-lbl{font-size:9pt;color:#555;margin-top:4px;}
+    .prepared{margin-top:36px;}
+    .no-print{position:fixed;bottom:20px;right:20px;}
+    @media print{.no-print{display:none!important}body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
   </style>
 </head>
 <body>
+<div class="page">
   <div class="header">
-    <h1>Cavite State University — Carmona Campus</h1>
-    <h2>Evacuation Drill — Coordinator Evaluation Report</h2>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Event Information</div>
-    <div class="field-row"><span class="field-label">Event Title:</span><span class="field-value">${event.title}</span></div>
-    <div class="field-row"><span class="field-label">Drill Type:</span><span class="field-value">${event.event_type.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}</span></div>
-    <div class="field-row"><span class="field-label">Date Conducted:</span><span class="field-value">${date.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</span></div>
-    <div class="field-row"><span class="field-label">Time:</span><span class="field-value">${date.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</span></div>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Coordinator Information</div>
-    <div class="field-row"><span class="field-label">Name / Representative:</span><span class="field-value">${myEval.instructor_name}</span></div>
-    <div class="field-row"><span class="field-label">Program / Class:</span><span class="field-value">${myEval.program_class}</span></div>
-    <div class="field-row"><span class="field-label">Classroom / Office:</span><span class="field-value">${myEval.classroom_office}</span></div>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Headcount</div>
-    <div class="counts">
-      <div class="count-box"><div class="num">${myEval.male_count}</div><div class="lbl">Male</div></div>
-      <div class="count-box"><div class="num">${myEval.female_count}</div><div class="lbl">Female</div></div>
-      <div class="count-box"><div class="num">${total}</div><div class="lbl">Total</div></div>
+    <img src="${logoSrc}" alt="PathSafe"/>
+    <div class="header-title">
+      PATHSAFE: WEB-BASED DISASTER RISK REDUCTION AND MANAGEMENT<br/>
+      SYSTEM WITH PATHFINDING AND ROUTE OPTIMIZATION USING A-STAR<br/>
+      SEARCH ALGORITHM
     </div>
   </div>
+  <div class="date">${displayDate}</div>
+  <div class="report-title">Evacuation Drill — Coordinator Evaluation Report</div>
 
-  ${myEval.comments ? `
-  <div class="section">
-    <div class="section-title">Comments &amp; Observations</div>
-    <div class="comments-box">${myEval.comments}</div>
-  </div>` : ''}
+  <p class="section-title">Event Information</p>
+  <table>
+    <tr><td style="width:200px;font-weight:bold;">Event Title:</td><td style="border-bottom:1px solid #ccc;">${event.title}</td></tr>
+    <tr><td style="font-weight:bold;">Drill Type:</td><td style="border-bottom:1px solid #ccc;">${drillType}</td></tr>
+    <tr><td style="font-weight:bold;">Date Conducted:</td><td style="border-bottom:1px solid #ccc;">${date.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</td></tr>
+    <tr><td style="font-weight:bold;">Time:</td><td style="border-bottom:1px solid #ccc;">${date.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</td></tr>
+    ${myEval.region ? `<tr><td style="font-weight:bold;">Region:</td><td style="border-bottom:1px solid #ccc;">${myEval.region}</td></tr>` : ''}
+    ${myEval.quarter ? `<tr><td style="font-weight:bold;">Quarter:</td><td style="border-bottom:1px solid #ccc;">${myEval.quarter}</td></tr>` : ''}
+  </table>
 
-  ${photosHtml}
+  <p class="section-title">Coordinator Information</p>
+  <table>
+    <tr><td style="width:200px;font-weight:bold;">Name / Representative:</td><td style="border-bottom:1px solid #ccc;">${myEval.instructor_name}</td></tr>
+    <tr><td style="font-weight:bold;">Program / Class:</td><td style="border-bottom:1px solid #ccc;">${myEval.program_class}</td></tr>
+    <tr><td style="font-weight:bold;">Classroom / Office:</td><td style="border-bottom:1px solid #ccc;">${myEval.classroom_office}</td></tr>
+  </table>
 
-  <div class="footer">
-    <span>PathSafe — DRRM System</span>
-    <span>Submitted: ${submitted.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})} at ${submitted.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</span>
+  ${infraSection}
+
+  <p class="section-title">Evacuation Headcount</p>
+  <div class="count-grid">
+    <div class="count-box"><div class="count-num">${myEval.male_count}</div><div class="count-lbl">Male</div></div>
+    <div class="count-box"><div class="count-num">${myEval.female_count}</div><div class="count-lbl">Female</div></div>
+    <div class="count-box"><div class="count-num">${total}</div><div class="count-lbl">Total</div></div>
   </div>
+
+  ${commentsSection}
+  ${photosSection}
+
+  <div class="prepared">
+    <p style="margin-bottom:20px;">Prepared by:</p>
+    <p style="font-weight:bold;">${myEval.instructor_name.toUpperCase()}</p>
+    ${myEval.program_class && myEval.program_class !== 'N/A' ? `<p>${myEval.program_class}</p>` : ''}
+    <p>${myEval.classroom_office}</p>
+  </div>
+  <p style="font-size:9pt;color:#777;margin-top:16px;">Submitted: ${submitted.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})} at ${submitted.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</p>
+</div>
+<div class="no-print">
+  <button onclick="window.print()" style="padding:10px 22px;background:#166534;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;">🖨️ Print / Save as PDF</button>
+</div>
+<script>
+  window.addEventListener('DOMContentLoaded',function(){
+    var imgs=document.querySelectorAll('img');
+    if(!imgs.length){setTimeout(function(){window.focus();window.print();},400);return;}
+    var loaded=0;
+    function chk(){loaded++;if(loaded>=imgs.length){window.focus();window.print();}}
+    imgs.forEach(function(img){if(img.complete)chk();else{img.onload=chk;img.onerror=chk;}});
+    setTimeout(function(){window.focus();window.print();},2000);
+  });
+</script>
 </body>
-</html>`;
-
-    const w = window.open('', '_blank', 'width=850,height=950');
-    if (w) {
-      w.document.write(html);
-      w.document.close();
-      // Wait for all images (base64) to fully render before printing
-      const waitAndPrint = () => {
-        const allImgs = Array.from(w.document.images);
-        if (allImgs.length === 0) { setTimeout(() => { w.focus(); w.print(); }, 300); return; }
-        let loaded = 0;
-        const check = () => { loaded++; if (loaded >= allImgs.length) { w.focus(); w.print(); } };
-        allImgs.forEach(img => {
-          if (img.complete) { check(); }
-          else { img.onload = check; img.onerror = check; }
-        });
-        // Fallback in case onload never fires
-        setTimeout(() => { w.focus(); w.print(); }, 2000);
-      };
-      setTimeout(waitAndPrint, 300);
-    }
-  };
-
-  // ── Aggregate member report PDF ───────────────────────────────────────────
-  const handleDownloadMemberReport = () => {
-    const eventDate   = new Date(event.start_time).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
-    const totalMale   = memberEvalList.reduce((s, e) => s + e.male_count, 0);
-    const totalFemale = memberEvalList.reduce((s, e) => s + e.female_count, 0);
-    const rows = memberEvalList.map((ev, i) => `
-      <tr>
-        <td>${i+1}</td>
-        <td>${ev.instructor_name}</td>
-        <td>${ev.program_class||'N/A'}</td>
-        <td>${ev.classroom_office}</td>
-        <td style="text-align:center">${ev.male_count}</td>
-        <td style="text-align:center">${ev.female_count}</td>
-        <td style="text-align:center;font-weight:bold">${ev.male_count+ev.female_count}</td>
-        <td>${ev.comments||'—'}</td>
-      </tr>`).join('');
-
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/>
-    <title>Member Evaluations — ${event.title}</title>
-    <style>
-      * { box-sizing:border-box; margin:0; padding:0; }
-      body { font-family:Arial,sans-serif; font-size:10pt; padding:32px 44px; }
-      .header { text-align:center; margin-bottom:16px; }
-      .header h1 { font-size:14pt; font-weight:bold; text-transform:uppercase; }
-      .header h2 { font-size:11pt; font-weight:normal; margin-top:4px; }
-      hr { border:none; border-top:2px solid #000; margin:8px 0; }
-      .summary { display:flex; border:1px solid #ccc; margin-bottom:16px; }
-      .summary div { flex:1; padding:8px 12px; border-right:1px solid #ccc; }
-      .summary div:last-child { border-right:none; }
-      .summary .val { font-size:18pt; font-weight:bold; }
-      .summary .lbl { font-size:8pt; color:#555; text-transform:uppercase; }
-      table { width:100%; border-collapse:collapse; font-size:9.5pt; }
-      th { background:#1e1b4b; color:#fff; padding:7px 8px; text-align:left; font-size:9pt; }
-      td { padding:6px 8px; border-bottom:1px solid #e5e7eb; vertical-align:top; }
-      tr:nth-child(even) td { background:#f5f3ff; }
-      .footer { margin-top:20px; display:flex; justify-content:space-between; font-size:8.5pt; color:#666; border-top:1px solid #ddd; padding-top:8px; }
-    </style></head><body>
-    <div class="header"><h1>Evacuation Drill — Member Evaluation Summary</h1><h2>${event.title}</h2></div>
-    <hr/><hr style="border-top:1px solid #000;margin-top:2px"/>
-    <div class="summary">
-      <div><div class="lbl">Date</div><div style="font-size:11pt;font-weight:bold;margin-top:4px">${eventDate}</div></div>
-      <div><div class="lbl">Submissions</div><div class="val">${memberEvalList.length}</div></div>
-      <div><div class="lbl">Total</div><div class="val" style="color:#5b21b6">${totalMale+totalFemale}</div></div>
-      <div><div class="lbl">Male</div><div class="val" style="color:#1d4ed8">${totalMale}</div></div>
-      <div><div class="lbl">Female</div><div class="val" style="color:#be185d">${totalFemale}</div></div>
-    </div>
-    <table>
-      <thead><tr>
-        <th style="width:28px">#</th><th>Instructor / Representative</th><th>Program / Class</th>
-        <th>Classroom / Office</th><th style="width:44px;text-align:center">Male</th>
-        <th style="width:50px;text-align:center">Female</th><th style="width:44px;text-align:center">Total</th>
-        <th>Comments</th>
-      </tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-    <div class="footer"><span>PathSafe — DRRM System</span><span>Generated: ${new Date().toLocaleString()}</span></div>
-    </body></html>`;
-
-    const w = window.open('', '_blank', 'width=1000,height=700');
-    if (w) { w.document.write(html); w.document.close(); setTimeout(() => { w.focus(); w.print(); }, 400); }
+</html>`);
+    win.document.close();
   };
 
   const memberEvalList = evaluations.filter(ev => !myEval || ev.submitted_by !== myEval.submitted_by);
@@ -379,6 +347,138 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
     get total()  { return this.totalMale + this.totalFemale; },
   };
 
+  // ── Aggregate member report — NSEDPD format ──────────────────────────────
+  const handleDownloadMemberReport = () => {
+    const totalMale   = memberEvalList.reduce((s, e) => s + e.male_count, 0);
+    const totalFemale = memberEvalList.reduce((s, e) => s + e.female_count, 0);
+    const rows = memberEvalList.map(ev => {
+      const school   = ev.infrastructure_type === 'school'   ? (ev.infrastructure_name || '✓') : '';
+      const hospital = ev.infrastructure_type === 'hospital' ? (ev.infrastructure_name || '✓') : '';
+      const others   = ev.infrastructure_type === 'others'   ? (ev.infrastructure_name || ev.infrastructure_others || '✓') : '';
+      return `
+        <tr>
+          <td style="border:1px solid #000;padding:4px 6px;font-size:9pt;">${ev.classroom_office}</td>
+          <td style="border:1px solid #000;padding:4px 6px;text-align:center;font-size:9pt;">${ev.male_count}</td>
+          <td style="border:1px solid #000;padding:4px 6px;text-align:center;font-size:9pt;">${ev.female_count}</td>
+          <td style="border:1px solid #000;padding:4px 6px;font-size:9pt;">${school}</td>
+          <td style="border:1px solid #000;padding:4px 6px;font-size:9pt;">${hospital}</td>
+          <td style="border:1px solid #000;padding:4px 6px;font-size:9pt;">${others}</td>
+        </tr>`;
+    }).join('');
+
+    const fillerCount = Math.max(0, 10 - memberEvalList.length);
+    const fillerRows = Array.from({length: fillerCount}).map(() => `
+      <tr style="height:22px;">
+        <td style="border:1px solid #000;"></td>
+        <td style="border:1px solid #000;"></td>
+        <td style="border:1px solid #000;"></td>
+        <td style="border:1px solid #000;"></td>
+        <td style="border:1px solid #000;"></td>
+        <td style="border:1px solid #000;"></td>
+      </tr>`).join('');
+
+    const prepName = (myEval?.instructor_name || 'COORDINATOR NAME').toUpperCase();
+    const prepDesc = (myEval?.program_class && myEval.program_class !== 'N/A') ? myEval.program_class : '[USER DESCRIPTION]';
+    const prepLoc  = myEval?.classroom_office || '[LOCATION OF EVALUATION]';
+
+    const logoSrc = `${window.location.origin}/Pathsafe2.png`;
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <title>NSEDPD — PathSafe</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{font-family:Arial,sans-serif;font-size:10pt;color:#000;background:#fff;}
+    .page{padding:60px 72px;}
+    .header{display:flex;align-items:center;gap:16px;margin-bottom:36px;padding-bottom:16px;border-bottom:2px solid #000;}
+    .header img{width:72px;height:72px;object-fit:contain;flex-shrink:0;}
+    .header-title{font-size:10pt;font-weight:bold;line-height:1.5;text-align:center;flex:1;}
+    .report-title{text-align:center;font-weight:bold;font-size:11pt;margin-bottom:16px;}
+    .meta-table{margin-bottom:14px;font-size:10pt;}
+    .meta-table td{padding:2px 0;}
+    .meta-underline{border-bottom:1px solid #000;display:inline-block;min-width:200px;padding-bottom:1px;}
+    table.main{width:100%;border-collapse:collapse;font-size:9pt;}
+    table.main th,table.main td{border:1px solid #000;}
+    .prepared{margin-top:32px;font-size:10pt;}
+    .prepared p{margin-bottom:4px;}
+    .no-print{position:fixed;bottom:20px;right:20px;}
+    @media print{.no-print{display:none!important}body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
+  </style>
+</head>
+<body>
+<div class="page">
+  <div class="header">
+    <img src="${logoSrc}" alt="PathSafe" />
+    <div class="header-title">
+      PATHSAFE: WEB-BASED DISASTER RISK REDUCTION AND MANAGEMENT<br/>
+      SYSTEM WITH PATHFINDING AND ROUTE OPTIMIZATION USING A-STAR<br/>
+      SEARCH ALGORITHM
+    </div>
+  </div>
+
+  <p class="report-title">NATIONAL SIMULTANEOUS EARTHQUAKE DRILL PARTICIPATION DATA</p>
+
+  <table class="meta-table">
+    <tr><td style="padding-right:8px;">Region:</td><td><span id="rv" class="meta-underline">&nbsp;</span></td></tr>
+    <tr><td style="padding-right:8px;">Quarter:</td><td><span id="qv" class="meta-underline">&nbsp;</span></td></tr>
+  </table>
+
+  <table class="main">
+    <thead>
+      <tr>
+        <th rowspan="3" style="padding:5px;text-align:left;vertical-align:middle;width:34%;">Agency/Office/Organization:</th>
+        <th colspan="2" style="padding:5px;text-align:center;">No. Participants</th>
+        <th colspan="3" style="padding:5px;text-align:center;">Critical Infrastructure Covered<br/><span style="font-weight:normal;font-style:italic;font-size:8pt;">(Indicate name of establishment)</span></th>
+      </tr>
+      <tr>
+        <th style="padding:4px;text-align:center;">Male</th>
+        <th style="padding:4px;text-align:center;">Female</th>
+        <th style="padding:4px;text-align:center;">Schools</th>
+        <th style="padding:4px;text-align:center;">Hospitals</th>
+        <th style="padding:4px;text-align:center;">Others (Pls. specify)</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows}
+      ${fillerRows}
+      <tr style="font-weight:bold;">
+        <td style="padding:5px;text-align:center;">TOTAL</td>
+        <td style="padding:5px;text-align:center;">${totalMale}</td>
+        <td style="padding:5px;text-align:center;">${totalFemale}</td>
+        <td colspan="3"></td>
+      </tr>
+      <tr style="font-weight:bold;">
+        <td style="padding:5px;text-align:center;">GRAND TOTAL</td>
+        <td style="padding:5px;text-align:center;" colspan="2">${totalMale + totalFemale}</td>
+        <td colspan="3"></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="prepared">
+    <p style="margin-bottom:20px;">Prepared by:</p>
+    <p style="font-weight:bold;">${prepName}</p>
+    <p>${prepDesc}</p>
+    <p>${prepLoc}</p>
+  </div>
+</div>
+
+<div class="no-print">
+  <button onclick="window.print()" style="padding:10px 22px;background:#166534;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;">🖨️ Print / Save as PDF</button>
+</div>
+
+
+</body>
+</html>`;
+
+    const win = window.open('', '_blank');
+    if (!win) return;
+    win.document.write(html);
+    win.document.close();
+  };
+
   const myEvalImages = getImages(myEval);
 
   return (
@@ -386,7 +486,7 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
       <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
 
         {/* Header */}
-        <div className="bg-gradient-to-r from-green-600 to-green-700 px-6 py-4 flex items-center justify-between flex-shrink-0">
+        <div className="bg-gradient-to-r from-purple-600 to-purple-700 px-6 py-4 flex items-center justify-between flex-shrink-0">
           <div>
             <h2 className="text-white" style={T.pageTitle}>Evacuation Evaluations</h2>
             <p className="text-purple-100 mt-0.5" style={T.body}>{event.title}</p>
@@ -399,9 +499,9 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
             <div><p className="text-xs text-gray-500">Event Date</p><p className="font-semibold">{new Date(event.start_time).toLocaleDateString()}</p></div>
             <div><p className="text-xs text-gray-500">Submissions</p><p className="font-semibold">{memberEvalList.length}</p></div>
-            <div><p className="text-xs text-gray-500">Total Participants</p><p className="font-bold text-slate-700">{stats.total}</p></div>
-            <div><p className="text-xs text-gray-500">Total Males</p><p className="font-bold text-slate-700">{stats.totalMale}</p></div>
-            <div><p className="text-xs text-gray-500">Total Females</p><p className="font-bold text-slate-700">{stats.totalFemale}</p></div>
+            <div><p className="text-xs text-gray-500">Total Participants</p><p className="font-bold text-purple-700">{stats.total}</p></div>
+            <div><p className="text-xs text-gray-500">Total Males</p><p className="font-bold text-blue-600">{stats.totalMale}</p></div>
+            <div><p className="text-xs text-gray-500">Total Females</p><p className="font-bold text-pink-600">{stats.totalFemale}</p></div>
           </div>
         </div>
 
@@ -412,9 +512,9 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
             { key: 'submit', icon: <PlusCircle className="w-4 h-4" />, label: 'My Evaluation',      badge: null },
           ].map(t => (
             <button key={t.key} onClick={() => { setActiveTab(t.key as any); setSubmitSuccess(false); }}
-              className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition border-b-2 ${activeTab === t.key ? 'border-green-600 text-green-700 bg-green-50' : 'border-transparent text-gray-600 hover:bg-gray-50'}`}>
+              className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition border-b-2 ${activeTab === t.key ? 'border-purple-600 text-purple-700 bg-purple-50' : 'border-transparent text-gray-600 hover:bg-gray-50'}`}>
               {t.icon}{t.label}
-              {t.badge !== null && t.badge > 0 && <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs">{t.badge}</span>}
+              {t.badge !== null && t.badge > 0 && <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs">{t.badge}</span>}
               {t.key === 'submit' && myEval && <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs">Submitted</span>}
             </button>
           ))}
@@ -549,6 +649,33 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
                       </div>
                     )}
 
+                    {(myEval.region || myEval.quarter) && (
+                      <div className="grid grid-cols-2 gap-3">
+                        {myEval.region && (
+                          <div>
+                            <p className="text-xs font-medium text-gray-500 mb-1">Region</p>
+                            <p className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm">{myEval.region}</p>
+                          </div>
+                        )}
+                        {myEval.quarter && (
+                          <div>
+                            <p className="text-xs font-medium text-gray-500 mb-1">Quarter</p>
+                            <p className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm">{myEval.quarter}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {myEval.infrastructure_type && (
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 mb-1">Critical Infrastructure Covered</p>
+                        <div className="px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm space-y-0.5">
+                          <p className="capitalize font-medium">{myEval.infrastructure_type === 'others' ? `Others — ${myEval.infrastructure_others || ''}` : myEval.infrastructure_type}</p>
+                          {myEval.infrastructure_name && <p className="text-gray-600">{myEval.infrastructure_name}</p>}
+                        </div>
+                      </div>
+                    )}
+
                     {myEvalImages.length > 0 && <MiniSlideshow images={myEvalImages} />}
 
                     <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-xs text-amber-700">
@@ -556,7 +683,7 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
                     </div>
 
                     <button onClick={handlePrintMyEval}
-                      className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl transition font-medium">
+                      className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition font-medium">
                       <Printer className="w-4 h-4" /> Print / Save PDF
                     </button>
                   </div>
@@ -582,6 +709,27 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
                     <form onSubmit={handleSubmit} className="space-y-4">
                       {submitError && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-center gap-2"><AlertCircle className="w-4 h-4 flex-shrink-0" />{submitError}</div>}
 
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block mb-1" style={T.bodyMedium}>Region</label>
+                          <input type="text" value={form.region}
+                            onChange={e => setForm(p => ({...p, region: e.target.value}))}
+                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
+                            placeholder="e.g. Region IV-A" />
+                        </div>
+                        <div>
+                          <label className="block mb-1" style={T.bodyMedium}>Quarter</label>
+                          <select value={form.quarter}
+                            onChange={e => setForm(p => ({...p, quarter: e.target.value}))}
+                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm bg-white">
+                            <option value="">Select quarter...</option>
+                            <option value="1st Quarter">1st Quarter</option>
+                            <option value="2nd Quarter">2nd Quarter</option>
+                            <option value="3rd Quarter">3rd Quarter</option>
+                            <option value="4th Quarter">4th Quarter</option>
+                          </select>
+                        </div>
+                      </div>
                       <div>
                         <label className="block mb-1" style={T.bodyMedium}>Your Name / Representative *</label>
                         <input type="text" required value={form.instructor_name} onChange={e => setForm(p => ({...p, instructor_name: e.target.value}))}
@@ -616,6 +764,38 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
                         <span className="text-purple-700 font-bold text-lg">{form.male_count + form.female_count}</span>
                       </div>
                       <div>
+                        <label className="block mb-1" style={T.bodyMedium}>Critical Infrastructure Covered <span className="text-gray-400 font-normal">(Optional)</span></label>
+                        <div className="flex gap-4 mb-2">
+                          {(['school','hospital','others'] as const).map(type => (
+                            <label key={type} className="flex items-center gap-2 cursor-pointer text-sm">
+                              <input type="radio" name="infra_type"
+                                checked={form.infrastructure_type === type}
+                                onChange={() => setForm(p => ({ ...p, infrastructure_type: type, infrastructure_name: '', infrastructure_others: '' }))}
+                                className="accent-green-600" />
+                              {type === 'school' ? 'School' : type === 'hospital' ? 'Hospital' : 'Others (Pls. specify)'}
+                            </label>
+                          ))}
+                          {form.infrastructure_type && (
+                            <button type="button" onClick={() => setForm(p => ({ ...p, infrastructure_type: '', infrastructure_name: '', infrastructure_others: '' }))}
+                              className="text-xs text-gray-400 hover:text-red-500 underline">Clear</button>
+                          )}
+                        </div>
+                        {form.infrastructure_type && (
+                          <div className="space-y-2">
+                            <input type="text" value={form.infrastructure_name}
+                              onChange={e => setForm(p => ({ ...p, infrastructure_name: e.target.value }))}
+                              className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                              placeholder={`Name of ${form.infrastructure_type === 'school' ? 'school' : form.infrastructure_type === 'hospital' ? 'hospital' : 'establishment'}...`} />
+                            {form.infrastructure_type === 'others' && (
+                              <input type="text" value={form.infrastructure_others}
+                                onChange={e => setForm(p => ({ ...p, infrastructure_others: e.target.value }))}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                placeholder="Please specify the type of establishment..." />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <div>
                         <label className="block mb-1" style={T.bodyMedium}>Comments & Observations</label>
                         <textarea rows={3} value={form.comments} onChange={e => setForm(p => ({...p, comments: e.target.value}))}
                           className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none text-sm"
@@ -646,7 +826,7 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
           <p style={{...T.body, color: C.inkMuted}}>{memberEvalList.length} member submission{memberEvalList.length !== 1 ? 's' : ''} · {stats.total} total ({stats.totalMale}M / {stats.totalFemale}F)</p>
           <div className="flex items-center gap-2">
             <button onClick={handleDownloadMemberReport} disabled={evaluations.length === 0}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition text-sm font-medium">
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition text-sm font-medium">
               <Download className="w-4 h-4" />Member Report
             </button>
             <button onClick={onClose} className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm">Close</button>

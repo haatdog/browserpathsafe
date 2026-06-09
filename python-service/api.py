@@ -253,7 +253,13 @@ def init_db():
         'CREATE INDEX IF NOT EXISTS idx_evals_user      ON evacuation_evaluations(submitted_by)',
         'CREATE INDEX IF NOT EXISTS idx_evals_submitted ON evacuation_evaluations(submitted_at)',
 
-        # ── Safe migrations (ADD COLUMN IF NOT EXISTS never fails) ─────────────
+        # infrastructure fields for earthquake drill participation data
+        'ALTER TABLE evacuation_evaluations ADD COLUMN IF NOT EXISTS infrastructure_type VARCHAR(20)',
+        'ALTER TABLE evacuation_evaluations ADD COLUMN IF NOT EXISTS infrastructure_name VARCHAR(255)',
+        'ALTER TABLE evacuation_evaluations ADD COLUMN IF NOT EXISTS infrastructure_others VARCHAR(255)',
+        # region and quarter for NSEDPD report
+        'ALTER TABLE evacuation_evaluations ADD COLUMN IF NOT EXISTS region VARCHAR(255)',
+        'ALTER TABLE evacuation_evaluations ADD COLUMN IF NOT EXISTS quarter VARCHAR(50)',
         # user_profiles: name fields used by OrganizationChart, profile editor,
         #                display names across the app
         'ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS first_name VARCHAR(100)',

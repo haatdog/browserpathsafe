@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { X, Save, User, Users, MapPin, MessageSquare, GraduationCap, Printer, CheckCircle } from 'lucide-react';
 import { T, C } from '../design/DesignTokens';
 import { evaluationAPI } from '../lib/api';
+import { printReport } from './PrintTemplate';
 
 interface AppEvent { id: number; title: string; event_type: string; start_time: string; }
 interface MemberEvaluationModalProps {
@@ -101,79 +102,43 @@ export default function MemberEvaluationModal({ event, userId, alreadySubmitted 
 
   const handlePrint = () => {
     if (!submission) return;
-    const date = new Date(event.start_time);
+    const date      = new Date(event.start_time);
     const submitted = new Date(submission.submitted_at);
-    const total = submission.male_count + submission.female_count;
-    const html = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8" />
-  <title>Evacuation Drill Evaluation — ${event.title}</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: Arial, sans-serif; font-size: 11pt; color: #111; padding: 32px; }
-    .header { text-align: center; border-bottom: 2px solid #111; padding-bottom: 12px; margin-bottom: 20px; }
-    .header h1 { font-size: 14pt; text-transform: uppercase; letter-spacing: 1px; }
-    .header h2 { font-size: 12pt; font-weight: normal; margin-top: 4px; }
-    .section { margin-bottom: 18px; }
-    .section-title { font-size: 10pt; text-transform: uppercase; letter-spacing: 0.5px; color: #555; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-bottom: 10px; }
-    .field-row { display: flex; margin-bottom: 8px; }
-    .field-label { font-weight: bold; width: 180px; flex-shrink: 0; }
-    .field-value { flex: 1; border-bottom: 1px solid #999; padding-bottom: 2px; min-height: 18px; }
-    .counts { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-top: 8px; }
-    .count-box { border: 1px solid #ccc; padding: 10px; text-align: center; border-radius: 4px; }
-    .count-box .num { font-size: 20pt; font-weight: bold; }
-    .count-box .lbl { font-size: 9pt; color: #555; margin-top: 4px; }
-    .comments-box { border: 1px solid #ccc; padding: 10px; min-height: 60px; border-radius: 4px; font-size: 10pt; white-space: pre-wrap; }
-    .footer { margin-top: 40px; display: flex; justify-content: space-between; font-size: 9pt; color: #777; border-top: 1px solid #ccc; padding-top: 8px; }
-    @media print { body { padding: 16px; } }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>Cavite State University — Carmona Campus</h1>
-    <h2>Evacuation Drill Evaluation Form</h2>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Event Information</div>
-    <div class="field-row"><span class="field-label">Event Title:</span><span class="field-value">${event.title}</span></div>
-    <div class="field-row"><span class="field-label">Drill Type:</span><span class="field-value">${event.event_type.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}</span></div>
-    <div class="field-row"><span class="field-label">Date Conducted:</span><span class="field-value">${date.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</span></div>
-    <div class="field-row"><span class="field-label">Time:</span><span class="field-value">${date.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</span></div>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Respondent Information</div>
-    <div class="field-row"><span class="field-label">Instructor / Representative:</span><span class="field-value">${submission.instructor_name}</span></div>
-    <div class="field-row"><span class="field-label">Program / Class:</span><span class="field-value">${submission.program_class}</span></div>
-    <div class="field-row"><span class="field-label">Classroom / Office:</span><span class="field-value">${submission.classroom_office}</span></div>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Evacuation Headcount</div>
-    <div class="counts">
-      <div class="count-box"><div class="num">${submission.male_count}</div><div class="lbl">Male</div></div>
-      <div class="count-box"><div class="num">${submission.female_count}</div><div class="lbl">Female</div></div>
-      <div class="count-box"><div class="num">${total}</div><div class="lbl">Total</div></div>
-    </div>
-  </div>
-
-  ${submission.comments ? `
-  <div class="section">
-    <div class="section-title">Comments &amp; Observations</div>
-    <div class="comments-box">${submission.comments}</div>
-  </div>` : ''}
-
-  <div class="footer">
-    <span>PathSafe — DRRM System</span>
-    <span>Submitted: ${submitted.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})} at ${submitted.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</span>
-  </div>
-</body>
-</html>`;
-
-    const w = window.open('', '_blank', 'width=800,height=900');
-    if (w) { w.document.write(html); w.document.close(); w.print(); }
+    const total     = submission.male_count + submission.female_count;
+ 
+    const contentHtml = `
+      <table style="width:100%;border-collapse:collapse;font-size:10pt;">
+        <tr><td style="padding:6px 0;width:200px;font-weight:bold;">Event Title:</td><td style="padding:6px 0;border-bottom:1px solid #ccc;">${event.title}</td></tr>
+        <tr><td style="padding:6px 0;font-weight:bold;">Drill Type:</td><td style="padding:6px 0;border-bottom:1px solid #ccc;">${event.event_type.replace(/_/g,' ').replace(/\b\w/g,(c:string)=>c.toUpperCase())}</td></tr>
+        <tr><td style="padding:6px 0;font-weight:bold;">Date Conducted:</td><td style="padding:6px 0;border-bottom:1px solid #ccc;">${date.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</td></tr>
+        <tr><td style="padding:6px 0;font-weight:bold;">Time:</td><td style="padding:6px 0;border-bottom:1px solid #ccc;">${date.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</td></tr>
+      </table>
+      <br/>
+      <p style="font-weight:bold;font-size:10pt;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #ccc;padding-bottom:4px;margin-bottom:10px;">Respondent Information</p>
+      <table style="width:100%;border-collapse:collapse;font-size:10pt;">
+        <tr><td style="padding:6px 0;width:200px;font-weight:bold;">Instructor / Representative:</td><td style="padding:6px 0;border-bottom:1px solid #ccc;">${submission.instructor_name}</td></tr>
+        <tr><td style="padding:6px 0;font-weight:bold;">Program / Class:</td><td style="padding:6px 0;border-bottom:1px solid #ccc;">${submission.program_class}</td></tr>
+        <tr><td style="padding:6px 0;font-weight:bold;">Classroom / Office:</td><td style="padding:6px 0;border-bottom:1px solid #ccc;">${submission.classroom_office}</td></tr>
+      </table>
+      <br/>
+      <p style="font-weight:bold;font-size:10pt;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #ccc;padding-bottom:4px;margin-bottom:10px;">Evacuation Headcount</p>
+      <table style="width:100%;border-collapse:collapse;text-align:center;font-size:10pt;">
+        <tr>
+          <td style="border:1px solid #ccc;padding:10px;"><div style="font-size:18pt;font-weight:bold;">${submission.male_count}</div><div style="font-size:9pt;color:#555;">Male</div></td>
+          <td style="border:1px solid #ccc;padding:10px;"><div style="font-size:18pt;font-weight:bold;">${submission.female_count}</div><div style="font-size:9pt;color:#555;">Female</div></td>
+          <td style="border:1px solid #ccc;padding:10px;"><div style="font-size:18pt;font-weight:bold;">${total}</div><div style="font-size:9pt;color:#555;">Total</div></td>
+        </tr>
+      </table>
+      ${submission.comments ? `<br/><p style="font-weight:bold;font-size:10pt;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #ccc;padding-bottom:4px;margin-bottom:10px;">Comments &amp; Observations</p><p style="font-size:10pt;white-space:pre-wrap;border:1px solid #ccc;padding:10px;border-radius:4px;">${submission.comments}</p>` : ''}
+      <br/>
+      <p style="font-size:9pt;color:#777;">Submitted: ${submitted.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})} at ${submitted.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</p>
+    `;
+ 
+    printReport({
+      title: 'Evacuation Drill Evaluation Form',
+      preparedBy: submission.instructor_name,
+      contentHtml,
+    });
   };
 
   const total = (parseInt(formData.male_count) || 0) + (parseInt(formData.female_count) || 0);

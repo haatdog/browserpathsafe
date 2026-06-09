@@ -59,6 +59,8 @@ def get_my_evaluations():
             SELECT e.id, e.event_id, e.instructor_name, e.program_class,
                    e.classroom_office, e.male_count, e.female_count, e.comments,
                    e.submitted_by, e.submitted_at,
+                   e.infrastructure_type, e.infrastructure_name, e.infrastructure_others,
+                   e.region, e.quarter,
                    ev.title as event_title, ev.start_time as event_date, ev.event_type
             FROM evacuation_evaluations e
             JOIN events ev ON e.event_id = ev.id
@@ -123,8 +125,11 @@ def submit_evaluation():
         cursor.execute('''
             INSERT INTO evacuation_evaluations (
                 event_id, instructor_name, program_class, classroom_office,
-                male_count, female_count, comments, image_url, image_urls, submitted_by
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                male_count, female_count, comments, image_url, image_urls,
+                infrastructure_type, infrastructure_name, infrastructure_others,
+                region, quarter,
+                submitted_by
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id, submitted_at
         ''', (
             data['event_id'],
@@ -135,6 +140,11 @@ def submit_evaluation():
             (data.get('comments') or '').strip(),
             data.get('image_url'),
             json.dumps(data.get('image_urls', [])),
+            data.get('infrastructure_type') or None,
+            (data.get('infrastructure_name') or '').strip() or None,
+            (data.get('infrastructure_others') or '').strip() or None,
+            (data.get('region') or '').strip() or None,
+            (data.get('quarter') or '').strip() or None,
             user_id,
         ))
         result = cursor.fetchone()
@@ -164,7 +174,7 @@ def get_recent_drills():
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute('SELECT role FROM user_profiles WHERE id = %s', (user_id,))
         user = cursor.fetchone()
-        if not user or user['role'] != 'coordinator':
+        if not user or user['role'] not in ['coordinator', 'admin']:
             cursor.close(); conn.close()
             return jsonify({'error': 'Executive role required'}), 403
 
@@ -212,7 +222,7 @@ def get_event_evaluations(event_id):
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         cursor.execute('SELECT role FROM user_profiles WHERE id = %s', (user_id,))
         user = cursor.fetchone()
-        if not user or user['role'] != 'coordinator':
+        if not user or user['role'] not in ['coordinator', 'admin']:
             cursor.close(); conn.close()
             return jsonify({'error': 'Executive role required'}), 403
 
@@ -223,10 +233,15 @@ def get_event_evaluations(event_id):
             return jsonify({'error': 'Event not found'}), 404
 
         cursor.execute('''
-            SELECT e.*, u.email as submitted_by_email
+            SELECT e.*, u.email as submitted_by_email, u.role as submitted_by_role,
+                   u.first_name as submitted_by_first_name, u.last_name as submitted_by_last_name,
+                   e.infrastructure_type, e.infrastructure_name, e.infrastructure_others,
+                   e.region, e.quarter
             FROM evacuation_evaluations e
             JOIN user_profiles u ON e.submitted_by = u.id
-            WHERE e.event_id = %s ORDER BY e.submitted_at DESC
+            WHERE e.event_id = %s
+              AND u.role = 'member'
+            ORDER BY e.submitted_at DESC
         ''', (event_id,))
         evals = cursor.fetchall()
         cursor.close(); conn.close()
