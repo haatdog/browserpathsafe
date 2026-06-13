@@ -3,6 +3,20 @@ import { useRef, useEffect, useState, useCallback } from 'react';
 import { X, Download, Printer } from 'lucide-react';
 import { T, C } from '../design/DesignTokens';
 import { printReport } from '../components/PrintTemplate';
+import { profileAPI, type UserProfile } from '../lib/api';
+
+function getDisplayName(profile: UserProfile): string {
+  if (profile.first_name || profile.last_name)
+    return [profile.first_name, profile.last_name].filter(Boolean).join(' ');
+  return profile.email.split('@')[0];
+}
+
+function formatPreparedBy(profile: UserProfile | null): string {
+  if (!profile) return 'PathSafe System';
+  const name = getDisplayName(profile).toUpperCase();
+  const role = profile.role.charAt(0).toUpperCase() + profile.role.slice(1);
+  return `<strong>${name}</strong><br/>${role}`;
+}
 
 interface PathVisualizationProps {
   projectData: any;
@@ -193,6 +207,7 @@ export default function PathVisualization({ projectData, simulationResults, onCl
   const containerRef = useRef<HTMLDivElement>(null);
   const [zoom,       setZoom]   = useState(1);
   const [offset,     setOffset] = useState({ x: 0, y: 0 });
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const isPanningRef     = useRef(false);
   const panStartRef      = useRef<{ x: number; y: number } | null>(null);
   const lastPinchDistRef = useRef<number | null>(null);
@@ -229,6 +244,10 @@ export default function PathVisualization({ projectData, simulationResults, onCl
 
   const allPaths = collectAllPaths(simulationResults?.paths);
   const pathCount = allPaths.length;
+
+  useEffect(() => {
+    profileAPI.getMe().then(setUserProfile).catch(() => {});
+  }, []);
 
   // ── Draw helpers ──────────────────────────────────────────────────────────
 
@@ -427,7 +446,7 @@ export default function PathVisualization({ projectData, simulationResults, onCl
 
   const resetView = () => { setZoom(1); setOffset({ x:0, y:0 }); };
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     const w = gridWidth  * cellSize;
     const h = gridHeight * cellSize;
     const tmp = document.createElement('canvas');
@@ -440,6 +459,11 @@ export default function PathVisualization({ projectData, simulationResults, onCl
     objects.forEach(obj => drawMapObject(tctx, obj));
     allPaths.forEach((path, idx) => drawPath(tctx, path, idx));
     const dataUrl = tmp.toDataURL('image/png');
+
+    let profile = userProfile;
+    if (!profile) {
+      try { profile = await profileAPI.getMe(); setUserProfile(profile); } catch {}
+    }
 
     // const { printReport } = require('../components/PrintTemplate');
 
@@ -463,7 +487,7 @@ export default function PathVisualization({ projectData, simulationResults, onCl
 
     printReport({
       title: 'Evacuation Path Visualization',
-      preparedBy: 'PathSafe System',
+      preparedBy: formatPreparedBy(profile),
       contentHtml,
     });
   };

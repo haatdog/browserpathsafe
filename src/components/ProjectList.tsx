@@ -180,11 +180,6 @@ function SimulationProgress({
                phase === 'completed' ? 'Done! Loading results…' :
                phase === 'cancelled' ? 'Cancelled' : 'Something went wrong'}
             </p>
-            {phase === 'running' && (
-              <p className="text-xs text-gray-400">
-                {eta ? `~${eta} remaining` : 'Calculating…'}
-              </p>
-            )}
           </div>
         </div>
 

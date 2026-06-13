@@ -6,9 +6,23 @@ import {
   Download, FileText, PlusCircle, CheckCircle, AlertCircle,
   Upload, ChevronLeft, ChevronRight, Images, Printer
 } from 'lucide-react';
-import { evaluationAPI } from '../lib/api';
+import { evaluationAPI, profileAPI, type UserProfile } from '../lib/api';
 
 const API = import.meta.env.VITE_PYTHON_API_URL || 'https://browserpathsafe.onrender.com';
+
+function getDisplayName(profile: UserProfile): string {
+  if (profile.first_name || profile.last_name)
+    return [profile.first_name, profile.last_name].filter(Boolean).join(' ');
+  return profile.email.split('@')[0];
+}
+
+function getPreparedByFromProfile(profile: UserProfile | null) {
+  if (!profile) return { prepName: 'PATHSAFE SYSTEM', prepRole: 'System' };
+  return {
+    prepName: getDisplayName(profile).toUpperCase(),
+    prepRole: profile.role.charAt(0).toUpperCase() + profile.role.slice(1),
+  };
+}
 const authHeaders = () => {
   const token = localStorage.getItem('pathsafe_token');
   return { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
@@ -165,8 +179,13 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
   const [submitting,    setSubmitting]    = useState(false);
   const [submitError,   setSubmitError]   = useState('');
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [userProfile,   setUserProfile]   = useState<UserProfile | null>(null);
 
   useEffect(() => { loadAll(); }, [event.id]);
+
+  useEffect(() => {
+    profileAPI.getMe().then(setUserProfile).catch(() => {});
+  }, []);
 
   const loadAll = async () => {
     setLoading(true); setMyEvalLoading(true); setFetchError('');
@@ -211,12 +230,14 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
   };
 
   // ── Coordinator's own evaluation PDF ──────────────────────────────────────
-  const handlePrintMyEval = () => {
+  const handlePrintMyEval = async () => {
     if (!myEval) return;
+    let profile = userProfile;
+    if (!profile) {
+      try { profile = await profileAPI.getMe(); setUserProfile(profile); } catch {}
+    }
+    const { prepName, prepRole } = getPreparedByFromProfile(profile);
     const logoSrc  = `${window.location.origin}/Pathsafe2.png`;
-    const prepName = myEval.instructor_name.toUpperCase();
-    const prepDesc = (myEval.program_class && myEval.program_class !== 'N/A') ? myEval.program_class : '[USER DESCRIPTION]';
-    const prepLoc  = myEval.classroom_office || '[LOCATION OF EVALUATION]';
 
     const school   = myEval.infrastructure_type === 'school'   ? (myEval.infrastructure_name || '✓') : '';
     const hospital = myEval.infrastructure_type === 'hospital' ? (myEval.infrastructure_name || '✓') : '';
@@ -317,8 +338,7 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
   <div class="prepared">
     <p style="margin-bottom:20px;">Prepared by:</p>
     <p style="font-weight:bold;">${prepName}</p>
-    <p>${prepDesc}</p>
-    <p>${prepLoc}</p>
+    <p>${prepRole}</p>
   </div>
 </div>
 
@@ -348,7 +368,13 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
   };
 
   // ── Aggregate member report — NSEDPD format ──────────────────────────────
-  const handleDownloadMemberReport = () => {
+  const handleDownloadMemberReport = async () => {
+    let profile = userProfile;
+    if (!profile) {
+      try { profile = await profileAPI.getMe(); setUserProfile(profile); } catch {}
+    }
+    const { prepName, prepRole } = getPreparedByFromProfile(profile);
+
     const totalMale   = memberEvalList.reduce((s, e) => s + e.male_count, 0);
     const totalFemale = memberEvalList.reduce((s, e) => s + e.female_count, 0);
     const rows = memberEvalList.map(ev => {
@@ -376,10 +402,6 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
         <td style="border:1px solid #000;"></td>
         <td style="border:1px solid #000;"></td>
       </tr>`).join('');
-
-    const prepName = (myEval?.instructor_name || 'COORDINATOR NAME').toUpperCase();
-    const prepDesc = (myEval?.program_class && myEval.program_class !== 'N/A') ? myEval.program_class : '[USER DESCRIPTION]';
-    const prepLoc  = myEval?.classroom_office || '[LOCATION OF EVALUATION]';
 
     const logoSrc = `${window.location.origin}/Pathsafe2.png`;
 
@@ -460,8 +482,7 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
   <div class="prepared">
     <p style="margin-bottom:20px;">Prepared by:</p>
     <p style="font-weight:bold;">${prepName}</p>
-    <p>${prepDesc}</p>
-    <p>${prepLoc}</p>
+    <p>${prepRole}</p>
   </div>
 </div>
 
