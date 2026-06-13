@@ -213,39 +213,27 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
   // ── Coordinator's own evaluation PDF ──────────────────────────────────────
   const handlePrintMyEval = () => {
     if (!myEval) return;
-    const imgs      = getImages(myEval);
-    const date      = new Date(event.start_time);
-    const submitted = new Date(myEval.submitted_at);
-    const total     = myEval.male_count + myEval.female_count;
-    const logoSrc   = `${window.location.origin}/Pathsafe2.png`;
-    const displayDate = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
-    const drillType = event.event_type.replace(/_/g,' ').replace(/\b\w/g,(c:string)=>c.toUpperCase());
+    const logoSrc  = `${window.location.origin}/Pathsafe2.png`;
+    const prepName = myEval.instructor_name.toUpperCase();
+    const prepDesc = (myEval.program_class && myEval.program_class !== 'N/A') ? myEval.program_class : '[USER DESCRIPTION]';
+    const prepLoc  = myEval.classroom_office || '[LOCATION OF EVALUATION]';
 
-    const photosSection = imgs.length > 0 ? `
-      <p style="font-weight:bold;font-size:10pt;text-transform:uppercase;border-bottom:1px solid #ccc;padding-bottom:4px;margin:16px 0 10px;">Photo Evidence</p>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
-        ${imgs.map((src,i) => `
-          <div style="border:1px solid #ccc;border-radius:4px;overflow:hidden;">
-            <img src="${src}" style="width:100%;aspect-ratio:4/3;object-fit:cover;display:block;"/>
-            ${i===0?'<div style="background:rgba(0,0,0,.5);color:#fff;font-size:8pt;text-align:center;padding:2px;">Cover Photo</div>':''}
-          </div>`).join('')}
-      </div>` : '';
+    const school   = myEval.infrastructure_type === 'school'   ? (myEval.infrastructure_name || '✓') : '';
+    const hospital = myEval.infrastructure_type === 'hospital' ? (myEval.infrastructure_name || '✓') : '';
+    const others   = myEval.infrastructure_type === 'others'   ? (myEval.infrastructure_name || myEval.infrastructure_others || '✓') : '';
 
-    const infraSection = myEval.infrastructure_type ? `
-      <p style="font-weight:bold;font-size:10pt;text-transform:uppercase;border-bottom:1px solid #ccc;padding-bottom:4px;margin:16px 0 10px;">Critical Infrastructure Covered</p>
-      <table style="width:100%;border-collapse:collapse;font-size:10pt;margin-bottom:14px;">
-        <tr><td style="width:200px;font-weight:bold;padding:5px 0;">Type:</td><td style="padding:5px 0;border-bottom:1px solid #ccc;text-transform:capitalize;">${myEval.infrastructure_type}</td></tr>
-        ${myEval.infrastructure_name ? `<tr><td style="font-weight:bold;padding:5px 0;">Establishment:</td><td style="padding:5px 0;border-bottom:1px solid #ccc;">${myEval.infrastructure_name}</td></tr>` : ''}
-        ${myEval.infrastructure_others ? `<tr><td style="font-weight:bold;padding:5px 0;">Specified as:</td><td style="padding:5px 0;border-bottom:1px solid #ccc;">${myEval.infrastructure_others}</td></tr>` : ''}
-      </table>` : '';
+    // Filler rows to pad table to at least 10 rows (1 coordinator row + fillers)
+    const fillerRows = Array.from({length: 9}).map(() => `
+      <tr style="height:22px;">
+        <td style="border:1px solid #000;"></td>
+        <td style="border:1px solid #000;"></td>
+        <td style="border:1px solid #000;"></td>
+        <td style="border:1px solid #000;"></td>
+        <td style="border:1px solid #000;"></td>
+        <td style="border:1px solid #000;"></td>
+      </tr>`).join('');
 
-    const commentsSection = myEval.comments ? `
-      <p style="font-weight:bold;font-size:10pt;text-transform:uppercase;border-bottom:1px solid #ccc;padding-bottom:4px;margin:16px 0 10px;">Comments &amp; Observations</p>
-      <div style="border:1px solid #ccc;padding:10px;min-height:50px;border-radius:4px;font-size:10pt;white-space:pre-wrap;">${myEval.comments}</div>` : '';
-
-    const win = window.open('', '_blank');
-    if (!win) return;
-    win.document.write(`<!DOCTYPE html>
+    const html = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8"/>
@@ -257,17 +245,14 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
     .header{display:flex;align-items:center;gap:16px;margin-bottom:36px;padding-bottom:16px;border-bottom:2px solid #000;}
     .header img{width:72px;height:72px;object-fit:contain;flex-shrink:0;}
     .header-title{font-size:10pt;font-weight:bold;line-height:1.5;text-align:center;flex:1;}
-    .date{text-align:right;margin-bottom:28px;font-size:11pt;}
-    .report-title{text-align:center;font-weight:bold;font-size:13pt;margin-bottom:28px;}
-    .section-title{font-weight:bold;font-size:10pt;text-transform:uppercase;border-bottom:1px solid #ccc;padding-bottom:4px;margin:16px 0 10px;}
-    table{width:100%;border-collapse:collapse;font-size:10pt;margin-bottom:14px;}
-    td{padding:5px 0;}
-    .uline{border-bottom:1px solid #000;display:inline-block;flex:1;padding-bottom:1px;}
-    .count-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:14px;}
-    .count-box{border:1px solid #ccc;padding:10px;text-align:center;border-radius:4px;}
-    .count-num{font-size:18pt;font-weight:bold;}
-    .count-lbl{font-size:9pt;color:#555;margin-top:4px;}
-    .prepared{margin-top:36px;}
+    .report-title{text-align:center;font-weight:bold;font-size:11pt;margin-bottom:16px;}
+    .meta-table{margin-bottom:14px;font-size:10pt;}
+    .meta-table td{padding:2px 0;}
+    .meta-underline{border-bottom:1px solid #000;display:inline-block;min-width:200px;padding-bottom:1px;}
+    table.main{width:100%;border-collapse:collapse;font-size:9pt;}
+    table.main th,table.main td{border:1px solid #000;}
+    .prepared{margin-top:32px;font-size:10pt;}
+    .prepared p{margin-bottom:4px;}
     .no-print{position:fixed;bottom:20px;right:20px;}
     @media print{.no-print{display:none!important}body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
   </style>
@@ -282,61 +267,76 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
       SEARCH ALGORITHM
     </div>
   </div>
-  <div class="date">${displayDate}</div>
-  <div class="report-title">Evacuation Drill — Coordinator Evaluation Report</div>
 
-  <p class="section-title">Event Information</p>
-  <table>
-    <tr><td style="width:200px;font-weight:bold;">Event Title:</td><td style="border-bottom:1px solid #ccc;">${event.title}</td></tr>
-    <tr><td style="font-weight:bold;">Drill Type:</td><td style="border-bottom:1px solid #ccc;">${drillType}</td></tr>
-    <tr><td style="font-weight:bold;">Date Conducted:</td><td style="border-bottom:1px solid #ccc;">${date.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</td></tr>
-    <tr><td style="font-weight:bold;">Time:</td><td style="border-bottom:1px solid #ccc;">${date.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</td></tr>
-    ${myEval.region ? `<tr><td style="font-weight:bold;">Region:</td><td style="border-bottom:1px solid #ccc;">${myEval.region}</td></tr>` : ''}
-    ${myEval.quarter ? `<tr><td style="font-weight:bold;">Quarter:</td><td style="border-bottom:1px solid #ccc;">${myEval.quarter}</td></tr>` : ''}
+  <p class="report-title">NATIONAL SIMULTANEOUS EARTHQUAKE DRILL PARTICIPATION DATA</p>
+
+  <table class="meta-table">
+    <tr><td style="padding-right:8px;">Region:</td><td><span class="meta-underline">${myEval.region || '&nbsp;'}</span></td></tr>
+    <tr><td style="padding-right:8px;">Quarter:</td><td><span class="meta-underline">${myEval.quarter || '&nbsp;'}</span></td></tr>
   </table>
 
-  <p class="section-title">Coordinator Information</p>
-  <table>
-    <tr><td style="width:200px;font-weight:bold;">Name / Representative:</td><td style="border-bottom:1px solid #ccc;">${myEval.instructor_name}</td></tr>
-    <tr><td style="font-weight:bold;">Program / Class:</td><td style="border-bottom:1px solid #ccc;">${myEval.program_class}</td></tr>
-    <tr><td style="font-weight:bold;">Classroom / Office:</td><td style="border-bottom:1px solid #ccc;">${myEval.classroom_office}</td></tr>
+  <table class="main">
+    <thead>
+      <tr>
+        <th rowspan="2" style="padding:5px;text-align:left;vertical-align:middle;width:34%;">Agency/Office/Organization:</th>
+        <th colspan="2" style="padding:5px;text-align:center;">No. Participants</th>
+        <th colspan="3" style="padding:5px;text-align:center;">Critical Infrastructure Covered<br/><span style="font-weight:normal;font-style:italic;font-size:8pt;">(Indicate name of establishment)</span></th>
+      </tr>
+      <tr>
+        <th style="padding:4px;text-align:center;">Male</th>
+        <th style="padding:4px;text-align:center;">Female</th>
+        <th style="padding:4px;text-align:center;">Schools</th>
+        <th style="padding:4px;text-align:center;">Hospitals</th>
+        <th style="padding:4px;text-align:center;">Others (Pls. specify)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="border:1px solid #000;padding:4px 6px;font-size:9pt;">${myEval.classroom_office}</td>
+        <td style="border:1px solid #000;padding:4px 6px;text-align:center;font-size:9pt;">${myEval.male_count}</td>
+        <td style="border:1px solid #000;padding:4px 6px;text-align:center;font-size:9pt;">${myEval.female_count}</td>
+        <td style="border:1px solid #000;padding:4px 6px;font-size:9pt;">${school}</td>
+        <td style="border:1px solid #000;padding:4px 6px;font-size:9pt;">${hospital}</td>
+        <td style="border:1px solid #000;padding:4px 6px;font-size:9pt;">${others}</td>
+      </tr>
+      ${fillerRows}
+      <tr style="font-weight:bold;">
+        <td style="padding:5px;text-align:center;">TOTAL</td>
+        <td style="padding:5px;text-align:center;">${myEval.male_count}</td>
+        <td style="padding:5px;text-align:center;">${myEval.female_count}</td>
+        <td colspan="3"></td>
+      </tr>
+      <tr style="font-weight:bold;">
+        <td style="padding:5px;text-align:center;">GRAND TOTAL</td>
+        <td style="padding:5px;text-align:center;" colspan="2">${myEval.male_count + myEval.female_count}</td>
+        <td colspan="3"></td>
+      </tr>
+    </tbody>
   </table>
-
-  ${infraSection}
-
-  <p class="section-title">Evacuation Headcount</p>
-  <div class="count-grid">
-    <div class="count-box"><div class="count-num">${myEval.male_count}</div><div class="count-lbl">Male</div></div>
-    <div class="count-box"><div class="count-num">${myEval.female_count}</div><div class="count-lbl">Female</div></div>
-    <div class="count-box"><div class="count-num">${total}</div><div class="count-lbl">Total</div></div>
-  </div>
-
-  ${commentsSection}
-  ${photosSection}
 
   <div class="prepared">
     <p style="margin-bottom:20px;">Prepared by:</p>
-    <p style="font-weight:bold;">${myEval.instructor_name.toUpperCase()}</p>
-    ${myEval.program_class && myEval.program_class !== 'N/A' ? `<p>${myEval.program_class}</p>` : ''}
-    <p>${myEval.classroom_office}</p>
+    <p style="font-weight:bold;">${prepName}</p>
+    <p>${prepDesc}</p>
+    <p>${prepLoc}</p>
   </div>
-  <p style="font-size:9pt;color:#777;margin-top:16px;">Submitted: ${submitted.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})} at ${submitted.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</p>
 </div>
+
 <div class="no-print">
   <button onclick="window.print()" style="padding:10px 22px;background:#166534;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;">🖨️ Print / Save as PDF</button>
 </div>
+
 <script>
   window.addEventListener('DOMContentLoaded',function(){
-    var imgs=document.querySelectorAll('img');
-    if(!imgs.length){setTimeout(function(){window.focus();window.print();},400);return;}
-    var loaded=0;
-    function chk(){loaded++;if(loaded>=imgs.length){window.focus();window.print();}}
-    imgs.forEach(function(img){if(img.complete)chk();else{img.onload=chk;img.onerror=chk;}});
-    setTimeout(function(){window.focus();window.print();},2000);
+    setTimeout(function(){window.focus();window.print();},500);
   });
 </script>
 </body>
-</html>`);
+</html>`;
+
+    const win = window.open('', '_blank');
+    if (!win) return;
+    win.document.write(html);
     win.document.close();
   };
 
@@ -469,7 +469,6 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
   <button onclick="window.print()" style="padding:10px 22px;background:#166534;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;">🖨️ Print / Save as PDF</button>
 </div>
 
-
 </body>
 </html>`;
 
@@ -486,16 +485,16 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
       <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
 
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-600 to-purple-700 px-6 py-4 flex items-center justify-between flex-shrink-0">
+        <div className="bg-gradient-to-r from-green-600 to-green-700 px-6 py-4 flex items-center justify-between flex-shrink-0">
           <div>
             <h2 className="text-white" style={T.pageTitle}>Evacuation Evaluations</h2>
-            <p className="text-purple-100 mt-0.5" style={T.body}>{event.title}</p>
+            <p className="text-green-100 mt-0.5" style={T.body}>{event.title}</p>
           </div>
-          <button onClick={onClose} className="text-white hover:bg-purple-800 rounded-lg p-2 transition"><X className="w-5 h-5" /></button>
+          <button onClick={onClose} className="text-white hover:bg-green-800 rounded-lg p-2 transition"><X className="w-5 h-5" /></button>
         </div>
 
         {/* Stats bar */}
-        <div className="bg-purple-50 border-b border-purple-200 px-6 py-3 flex-shrink-0">
+        <div className="bg-green-50 border-b border-green-200 px-6 py-3 flex-shrink-0">
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
             <div><p className="text-xs text-gray-500">Event Date</p><p className="font-semibold">{new Date(event.start_time).toLocaleDateString()}</p></div>
             <div><p className="text-xs text-gray-500">Submissions</p><p className="font-semibold">{memberEvalList.length}</p></div>
@@ -512,9 +511,9 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
             { key: 'submit', icon: <PlusCircle className="w-4 h-4" />, label: 'My Evaluation',      badge: null },
           ].map(t => (
             <button key={t.key} onClick={() => { setActiveTab(t.key as any); setSubmitSuccess(false); }}
-              className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition border-b-2 ${activeTab === t.key ? 'border-purple-600 text-purple-700 bg-purple-50' : 'border-transparent text-gray-600 hover:bg-gray-50'}`}>
+              className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition border-b-2 ${activeTab === t.key ? 'border-green-600 text-green-700 bg-green-50' : 'border-transparent text-gray-600 hover:bg-gray-50'}`}>
               {t.icon}{t.label}
-              {t.badge !== null && t.badge > 0 && <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs">{t.badge}</span>}
+              {t.badge !== null && t.badge > 0 && <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs">{t.badge}</span>}
               {t.key === 'submit' && myEval && <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs">Submitted</span>}
             </button>
           ))}
@@ -532,7 +531,7 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
                   <FileText className="w-4 h-4" />Submissions ({evaluations.length})
                 </h3>
                 {loading ? (
-                  <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600" /></div>
+                  <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" /></div>
                 ) : fetchError ? (
                   <div className="text-center py-8 text-red-600 text-sm"><AlertCircle className="w-8 h-8 mx-auto mb-2" />{fetchError}</div>
                 ) : evaluations.length === 0 ? (
@@ -543,7 +542,7 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
                       const imgCount = getImages(ev).length;
                       return (
                         <button key={ev.id} onClick={() => setSelectedEval(ev)}
-                          className={`w-full text-left p-3 rounded-lg border transition ${selectedEval?.id === ev.id ? 'bg-purple-50 border-purple-300' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
+                          className={`w-full text-left p-3 rounded-lg border transition ${selectedEval?.id === ev.id ? 'bg-green-50 border-green-300' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
                           <div className="font-medium text-gray-900 text-sm">{ev.instructor_name}</div>
                           <div className="text-xs text-gray-500 mt-0.5">{ev.program_class} · {ev.classroom_office}</div>
                           <div className="flex items-center justify-between mt-1.5">
@@ -565,9 +564,9 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
                     <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 space-y-4">
                       <h3 style={T.cardTitle}>Evaluation Details</h3>
                       {[
-                        { icon: <User className="w-4 h-4 text-purple-600" />,         label: 'Instructor / Representative', val: selectedEval.instructor_name },
-                        { icon: <GraduationCap className="w-4 h-4 text-purple-600" />, label: 'Program / Class',             val: selectedEval.program_class   },
-                        { icon: <MapPin className="w-4 h-4 text-purple-600" />,        label: 'Classroom / Office',          val: selectedEval.classroom_office },
+                        { icon: <User className="w-4 h-4 text-green-600" />,         label: 'Instructor / Representative', val: selectedEval.instructor_name },
+                        { icon: <GraduationCap className="w-4 h-4 text-green-600" />, label: 'Program / Class',             val: selectedEval.program_class   },
+                        { icon: <MapPin className="w-4 h-4 text-green-600" />,        label: 'Classroom / Office',          val: selectedEval.classroom_office },
                       ].map(f => (
                         <div key={f.label}>
                           <div className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-1">{f.icon}{f.label}</div>
@@ -683,7 +682,7 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
                     </div>
 
                     <button onClick={handlePrintMyEval}
-                      className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition font-medium">
+                      className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl transition font-medium">
                       <Printer className="w-4 h-4" /> Print / Save PDF
                     </button>
                   </div>
@@ -826,7 +825,7 @@ export default function ExecutiveEvaluationModal({ event, onClose }: ExecutiveEv
           <p style={{...T.body, color: C.inkMuted}}>{memberEvalList.length} member submission{memberEvalList.length !== 1 ? 's' : ''} · {stats.total} total ({stats.totalMale}M / {stats.totalFemale}F)</p>
           <div className="flex items-center gap-2">
             <button onClick={handleDownloadMemberReport} disabled={evaluations.length === 0}
-              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition text-sm font-medium">
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition text-sm font-medium">
               <Download className="w-4 h-4" />Member Report
             </button>
             <button onClick={onClose} className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm">Close</button>
