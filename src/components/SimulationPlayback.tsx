@@ -30,7 +30,25 @@ interface Agent {
 // ── Draw a single map object onto a canvas context ────────────────────────────
 function drawMapObject(ctx: CanvasRenderingContext2D, obj: any) {
   const t = obj.type;
-
+  // ── Label ──────────────────────────────────────────────────────────────────
+  if (t === 'label') {
+    const text = obj.text || 'Label';
+    ctx.save();
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const metrics = ctx.measureText(text);
+    const padX = 6, padY = 3;
+    const boxW = metrics.width + padX * 2;
+    const boxH = 11 + padY * 2;
+    ctx.fillStyle = 'rgba(200,200,200,0.5)'; // transparent light gray background
+    if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(obj.x, obj.y, boxW, boxH, 3); ctx.fill(); }
+    else ctx.fillRect(obj.x, obj.y, boxW, boxH);
+    ctx.fillStyle = '#000000'; // black text
+    ctx.fillText(text, obj.x + boxW / 2, obj.y + boxH / 2);
+    ctx.restore();
+    return;
+  }
   // ── Safety markers ─────────────────────────────────────────────────────────
   if (t && t.startsWith('marker_')) {
     const MARKER_COLORS: Record<string, { bg: string; border: string; text: string; viewBox: string; svg: string }> = {
@@ -768,7 +786,7 @@ export default function SimulationPlayback({ simulation, projectData, onClose }:
   const total        = agents.filter(a => a.spawned).length;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-[70]">
       <div className="bg-gray-900 rounded-2xl shadow-2xl max-w-7xl w-full h-[90vh] flex flex-col">
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 rounded-t-2xl flex items-center justify-between">

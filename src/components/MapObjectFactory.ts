@@ -69,6 +69,9 @@ export const createMapObject = (
     case 'path_danger':
       return { ...baseObj, label: 'Dangerous Path', id: Date.now() };
 
+    case 'label':
+      return { ...baseObj, type: 'label', text: 'Label', id: Date.now() };
+
     default:
       return baseObj;
   }

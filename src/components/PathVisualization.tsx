@@ -4,6 +4,7 @@ import { X, Download, Printer } from 'lucide-react';
 import { T, C } from '../design/DesignTokens';
 import { printReport } from '../components/PrintTemplate';
 import { profileAPI, type UserProfile } from '../lib/api';
+import { getMarkerDef, isSafetyMarker } from '../components/SafetyMarkers';
 
 function getDisplayName(profile: UserProfile): string {
   if (profile.first_name || profile.last_name)
@@ -27,6 +28,24 @@ interface PathVisualizationProps {
 // ── Shared object renderer ────────────────────────────────────────────────────
 function drawMapObject(ctx: CanvasRenderingContext2D, obj: any) {
   const t = obj.type;
+
+  if (t === 'label') {
+    const text = obj.text || 'Label';
+    ctx.save();
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const metrics = ctx.measureText(text);
+    const padX = 6, padY = 3;
+    const boxW = metrics.width + padX * 2;
+    const boxH = 11 + padY * 2;
+    ctx.fillStyle = 'rgba(200,200,200,0.5)';
+    if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(obj.x, obj.y, boxW, boxH, 3); ctx.fill(); }
+    else ctx.fillRect(obj.x, obj.y, boxW, boxH);
+    ctx.fillStyle = '#000000';
+    ctx.fillText(text, obj.x + boxW / 2, obj.y + boxH / 2);
+    ctx.restore();
+    return;
+  }
   // ── Safety markers ───────────────────────────────────────────────────────
   if (t && t.startsWith('marker_')) {
     const colors: Record<string,{bg:string;border:string;text:string;vb:string;s:string}> = {
@@ -447,6 +466,9 @@ export default function PathVisualization({ projectData, simulationResults, onCl
   const resetView = () => { setZoom(1); setOffset({ x:0, y:0 }); };
 
   const handlePrint = async () => {
+    const disasterType = simulationResults?.disaster_type || 'fire';
+    const disasterLabel = disasterType.charAt(0).toUpperCase() + disasterType.slice(1);
+    const title = `${disasterLabel} Evacuation Plan`;
     const w = gridWidth  * cellSize;
     const h = gridHeight * cellSize;
     const tmp = document.createElement('canvas');
@@ -467,26 +489,47 @@ export default function PathVisualization({ projectData, simulationResults, onCl
 
     // const { printReport } = require('../components/PrintTemplate');
 
+    const presentMarkerTypes = Array.from(
+      new Set(objects.filter(o => isSafetyMarker(o.type)).map(o => o.type))
+    );
+    
+    const markerLegendHtml = presentMarkerTypes.map(type => {
+      const def = getMarkerDef(type);
+      if (!def) return '';
+      return `
+        <span style="display:flex;align-items:center;gap:6px;">
+          <span style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;background:${def.color};border:1.5px solid ${def.borderColor};border-radius:2px;">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="${def.viewBox}" width="10" height="10">${def.svg}</svg>
+          </span>
+          ${def.label}
+        </span>
+      `;
+    }).join('');
+    
     const contentHtml = `
-      <p style="font-size:10pt;color:#374151;margin-bottom:12px;">
-        ${pathCount} evacuation path${pathCount !== 1 ? 's' : ''} recorded
-      </p>
-      <div style="text-align:center;margin-bottom:16px;">
-        <img src="${dataUrl}" alt="Evacuation Path Map"
-          style="max-width:100%;border:1px solid #e5e7eb;border-radius:4px;" />
-      </div>
-      <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:9pt;margin-top:8px;">
-        <span style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:16px;height:4px;background:#3b82f6;border-radius:2px;"></span>Path</span>
-        <span style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:10px;height:10px;background:#3b82f6;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #3b82f6;"></span>Spawn Origin</span>
-        <span style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:12px;height:12px;border:2px solid #22c55e;"></span>Exit</span>
-        <span style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:12px;height:12px;border:2px solid #f59e0b;"></span>Stairs</span>
-        <span style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:12px;height:12px;border:2px solid #0ea5e9;"></span>Safe Zone</span>
-        <span style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:12px;height:12px;border:2px solid #1e293b;background:#1e293b;"></span>Wall</span>
-      </div>
-    `;
-
+        <style>
+          @page { size: landscape; margin: 0; }
+          .header { display: none !important; }
+          .page { padding-top: 32px !important; }
+          .date { margin-bottom: 16px !important; }
+          .report-title { margin-bottom: 16px !important; }
+        </style>
+        <div style="text-align:center;margin-bottom:16px;">
+          <img src="${dataUrl}" alt="Evacuation Path Map"
+            style="width:900px;height:480px;object-fit:contain;border:1px solid #e5e7eb;border-radius:4px;" />
+        </div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:9pt;margin-top:8px;">
+          <span style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:16px;height:4px;background:#3b82f6;border-radius:2px;"></span>Path</span>
+          <span style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:12px;height:12px;border:2px solid #22c55e;"></span>Exit</span>
+          <span style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:12px;height:12px;border:2px solid #f59e0b;"></span>Stairs</span>
+          <span style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:12px;height:12px;border:2px solid #0ea5e9;"></span>Safe Zone</span>
+          <span style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:12px;height:12px;border:2px solid #1e293b;background:#1e293b;"></span>Wall</span>
+          ${markerLegendHtml}
+        </div>
+      `;
+    
     printReport({
-      title: 'Evacuation Path Visualization',
+      title,
       preparedBy: formatPreparedBy(profile),
       contentHtml,
     });
@@ -513,7 +556,7 @@ export default function PathVisualization({ projectData, simulationResults, onCl
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl max-h-[95vh] overflow-hidden border border-gray-200 flex flex-col" style={{ height: '90vh' }}>
 
         {/* Header */}

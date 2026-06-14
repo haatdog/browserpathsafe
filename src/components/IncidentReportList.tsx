@@ -6,8 +6,175 @@ import {
 } from 'lucide-react';
 import CreateIncidentModal from './CreateIncidentModal';
 import { T, C } from '../design/DesignTokens';
-import { profileAPI } from '../lib/api';
+import { printReport } from '../components/PrintTemplate';
+import { profileAPI, type UserProfile } from '../lib/api';
 
+function getDisplayName(profile: UserProfile): string {
+  if (profile.first_name || profile.last_name)
+    return [profile.first_name, profile.last_name].filter(Boolean).join(' ');
+  return profile.email.split('@')[0];
+}
+
+function formatPreparedBy(profile: UserProfile | null): string {
+  if (!profile) return 'PathSafe System';
+  const name = getDisplayName(profile).toUpperCase();
+  const role = profile.role.charAt(0).toUpperCase() + profile.role.slice(1);
+  return `<strong>${name}</strong><br/>${role}`;
+}
+
+async function downloadIncidentPDF(incident: Incident) {
+  let rich: RichData | null = null;
+  try { rich = JSON.parse(incident.description); } catch { /* plain text */ }
+
+  const fmtLong = (s?: string) => {
+    if (!s) return '';
+    try { return new Date(s).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }); }
+    catch { return s; }
+  };
+
+  const chk = (v?: boolean | null) => v === true ? '&#9746;' : '&#9744;';
+  const esc = (s?: string) => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  const persons = rich?.persons_involved?.length
+    ? rich.persons_involved
+    : [{ name: '', role: '', contact: '' }, { name: '', role: '', contact: '' }, { name: '', role: '', contact: '' }];
+
+  const witnesses = rich?.witnesses?.length
+    ? rich.witnesses
+    : [{ name: '', role: '', contact: '' }, { name: '', role: '', contact: '' }];
+
+  const personRows = persons.map((p) => `
+    <div class="field-row">
+      <span class="label">Name:</span><span class="uline" style="width:200px">${esc(p.name)}</span>
+      <span class="label" style="margin-left:24px">Role:</span><span class="uline" style="flex:1">${esc(p.role)}</span>
+    </div>
+    <div class="field-row">
+      <span class="label">Contact Information:</span><span class="uline" style="flex:1">${esc(p.contact)}</span>
+    </div>`).join('');
+
+  const witnessRows = witnesses.map((w) => `
+    <div class="field-row">
+      <span class="label">Witness Name:</span><span class="uline" style="width:260px">${esc(w.name)}</span>
+    </div>
+    <div class="field-row">
+      <span class="label">Contact Information:</span><span class="uline" style="flex:1">${esc(w.contact)}</span>
+    </div>`).join('');
+
+  let timeDisp = rich?.incident_time || '';
+  let isAM = false;
+  let isPM = false;
+  if (timeDisp) {
+    const h = parseInt(timeDisp.split(':')[0]);
+    isAM = h < 12;
+    isPM = h >= 12;
+    timeDisp = `${h % 12 || 12}:${timeDisp.split(':')[1]}`;
+  }
+
+  const descText = esc(rich?.description || incident.description);
+  const injDesc  = esc(rich?.injury_description);
+  const dmgDesc  = esc(rich?.damage_description);
+  const actDesc  = esc(rich?.actions_taken);
+
+  const blankLines = (n: number) => Array(n).fill('<div class="desc-line"></div>').join('');
+
+  const contentHtml = `
+    <style>
+      .report-title {
+      padding-bottom: 16px;
+      margin-bottom: 32px;
+      border-bottom: 1.5px solid #333;
+    }
+      .field-row{display:flex;align-items:baseline;margin-bottom:9px;gap:4px;font-size:10.5pt}
+      .label{white-space:nowrap;font-size:10pt}
+      .uline{border-bottom:1px solid #000;display:inline-block;min-width:40px;padding-bottom:1px}
+      .desc-line{border-bottom:1px solid #000;width:100%;min-height:18px;margin-bottom:7px;padding-bottom:2px}
+      .two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:4px}
+      .cb{font-size:11pt}
+      .row{display:flex;gap:10px;align-items:baseline;margin-bottom:8px;flex-wrap:wrap}
+      .sig-row{display:grid;grid-template-columns:2fr 1fr;gap:48px;margin-top:36px}
+      .sig-line{border-bottom:1px solid #000;margin-top:22px}
+      .sig-label{font-size:9pt;margin-top:4px;color:#333}
+      .sec{font-weight:bold;font-size:10.5pt;margin:16px 0 8px}
+    </style>
+
+    <div class="field-row">
+      <span class="label">Date of Report:</span>
+      <span class="uline" style="width:280px">${fmtLong(rich?.report_date || incident.incident_date)}</span>
+    </div>
+
+    <div class="sec">Person(s) Involved</div>
+    ${personRows}
+
+    <div class="sec">Incident Details</div>
+    <div class="field-row">
+      <span class="label">Date of Incident:</span>
+      <span class="uline" style="width:200px">${fmtLong(rich?.incident_date || incident.incident_date)}</span>
+      <span class="label" style="margin-left:20px">Time:</span>
+      <span class="uline" style="width:72px">${timeDisp}</span>
+      <span style="margin-left:8px">
+        <span class="cb">${chk(isAM)}</span> AM &nbsp;
+        <span class="cb">${chk(isPM)}</span> PM
+      </span>
+    </div>
+    <div class="field-row">
+      <span class="label">Location:</span>
+      <span class="uline" style="flex:1">${esc(rich?.location || incident.location)}</span>
+    </div>
+    <div class="field-row">
+      <span class="label">Description of Incident:</span>
+      <span class="uline" style="flex:1">${descText}</span>
+    </div>
+    ${blankLines(2)}
+
+    <div class="sec">Damages and Injuries</div>
+    <div class="row">
+      <span>Were there any injuries?</span>
+      <span class="cb">${chk(rich?.has_injuries)}</span> Yes &nbsp;
+      <span class="cb">${chk(rich?.has_injuries === false)}</span> No
+      <span style="margin-left:32px">Were there any property damages?</span>
+      <span class="cb">${chk(rich?.has_property_damage)}</span> Yes &nbsp;
+      <span class="cb">${chk(rich?.has_property_damage === false)}</span> No
+    </div>
+    <div class="two-col">
+      <div>
+        <div style="margin-bottom:4px">Describe the injuries:</div>
+        <div class="desc-line">${injDesc}</div>
+        ${blankLines(2)}
+      </div>
+      <div>
+        <div style="margin-bottom:4px">Describe the property damage:</div>
+        <div class="desc-line">${dmgDesc}</div>
+        ${blankLines(2)}
+      </div>
+    </div>
+
+    <div class="sec">Witness(es)</div>
+    <div class="row">
+      <span>Were there any witnesses to the incident?</span>
+      <span class="cb">${chk(rich?.has_witnesses)}</span> Yes &nbsp;
+      <span class="cb">${chk(rich?.has_witnesses === false)}</span> No
+    </div>
+    ${witnessRows}
+
+    <div class="sec">Actions Taken</div>
+    <div class="desc-line">${actDesc}</div>
+    ${blankLines(2)}
+
+    <div class="sig-row">
+      <div><div class="sig-line"></div><div class="sig-label">Signature of Reporter</div></div>
+      <div><div class="sig-line"></div><div class="sig-label">Date</div></div>
+    </div>
+  `;
+
+  let profile: UserProfile | null = null;
+  try { profile = await profileAPI.getMe(); } catch {}
+
+  printReport({
+    title: `Incident Report`,
+    preparedBy: formatPreparedBy(profile),
+    contentHtml,
+  });
+}
 const API_BASE =
   (import.meta.env.VITE_API_URL as string) ??
   (import.meta.env.VITE_PYTHON_API_URL as string) ??
@@ -90,169 +257,6 @@ function BoolBadge({ value, trueLabel, falseLabel }: { value: boolean; trueLabel
   );
 }
 
-// ── PDF generator ─────────────────────────────────────────────────────────────
-function downloadIncidentPDF(incident: Incident) {
-  let rich: RichData | null = null;
-  try { rich = JSON.parse(incident.description); } catch { /* plain text */ }
-
-  const fmtLong = (s?: string) => {
-    if (!s) return '';
-    try { return new Date(s).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }); }
-    catch { return s; }
-  };
-
-  const chk = (v?: boolean | null) => v === true ? '&#9746;' : '&#9744;';
-  const esc = (s?: string) => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
-  const persons = rich?.persons_involved?.length
-    ? rich.persons_involved
-    : [{ name: '', role: '', contact: '' }, { name: '', role: '', contact: '' }, { name: '', role: '', contact: '' }];
-
-  const witnesses = rich?.witnesses?.length
-    ? rich.witnesses
-    : [{ name: '', role: '', contact: '' }, { name: '', role: '', contact: '' }];
-
-  const personRows = persons.map((p) => `
-    <div class="field-row">
-      <span class="label">Name:</span><span class="uline" style="width:200px">${esc(p.name)}</span>
-      <span class="label" style="margin-left:24px">Role:</span><span class="uline" style="flex:1">${esc(p.role)}</span>
-    </div>
-    <div class="field-row">
-      <span class="label">Contact Information:</span><span class="uline" style="flex:1">${esc(p.contact)}</span>
-    </div>`).join('');
-
-  const witnessRows = witnesses.map((w) => `
-    <div class="field-row">
-      <span class="label">Witness Name:</span><span class="uline" style="width:260px">${esc(w.name)}</span>
-    </div>
-    <div class="field-row">
-      <span class="label">Contact Information:</span><span class="uline" style="flex:1">${esc(w.contact)}</span>
-    </div>`).join('');
-
-  let timeDisp = rich?.incident_time || '';
-  let isAM = false;
-  let isPM = false;
-  if (timeDisp) {
-    const h = parseInt(timeDisp.split(':')[0]);
-    isAM = h < 12;
-    isPM = h >= 12;
-    timeDisp = `${h % 12 || 12}:${timeDisp.split(':')[1]}`;
-  }
-
-  const descText = esc(rich?.description || incident.description);
-  const injDesc  = esc(rich?.injury_description);
-  const dmgDesc  = esc(rich?.damage_description);
-  const actDesc  = esc(rich?.actions_taken);
-
-  const blankLines = (n: number) => Array(n).fill('<div class="desc-line"></div>').join('');
-
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/>
-  <title>Incident Report #${incident.id}</title>
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:Arial,sans-serif;font-size:10.5pt;color:#000;padding:36px 48px;max-width:780px;margin:0 auto}
-    h1{text-align:center;font-size:17pt;font-weight:bold;letter-spacing:1.5px;margin-bottom:3px}
-    .thick{border:none;border-top:3px solid #000;margin-bottom:2px}
-    .thin{border:none;border-top:1px solid #000;margin-bottom:18px}
-    .sec{font-weight:bold;font-size:10.5pt;margin:16px 0 8px}
-    .field-row{display:flex;align-items:baseline;margin-bottom:9px;gap:4px}
-    .label{white-space:nowrap;font-size:10pt}
-    .uline{border-bottom:1px solid #000;display:inline-block;min-width:40px;padding-bottom:1px}
-    .desc-line{border-bottom:1px solid #000;width:100%;min-height:18px;margin-bottom:7px;padding-bottom:2px}
-    .two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:4px}
-    .cb{font-size:11pt}
-    .row{display:flex;gap:10px;align-items:baseline;margin-bottom:8px;flex-wrap:wrap}
-    .sig-row{display:grid;grid-template-columns:2fr 1fr;gap:48px;margin-top:36px}
-    .sig-line{border-bottom:1px solid #000;margin-top:22px}
-    .sig-label{font-size:9pt;margin-top:4px;color:#333}
-    .footer{margin-top:20px;font-size:8pt;color:#777;display:flex;justify-content:space-between;border-top:1px solid #ddd;padding-top:8px}
-    @media print{body{padding:18px 28px}}
-  </style></head><body>
-
-  <h1>INCIDENT REPORT</h1>
-  <hr class="thick"/><hr class="thin"/>
-
-  <div class="field-row">
-    <span class="label">Date of Report:</span>
-    <span class="uline" style="width:280px">${fmtLong(rich?.report_date || incident.incident_date)}</span>
-  </div>
-
-  <div class="sec">Person(s) Involved</div>
-  ${personRows}
-
-  <div class="sec">Incident Details</div>
-  <div class="field-row">
-    <span class="label">Date of Incident:</span>
-    <span class="uline" style="width:200px">${fmtLong(rich?.incident_date || incident.incident_date)}</span>
-    <span class="label" style="margin-left:20px">Time:</span>
-    <span class="uline" style="width:72px">${timeDisp}</span>
-    <span style="margin-left:8px">
-      <span class="cb">${chk(isAM)}</span> AM &nbsp;
-      <span class="cb">${chk(isPM)}</span> PM
-    </span>
-  </div>
-  <div class="field-row">
-    <span class="label">Location:</span>
-    <span class="uline" style="flex:1">${esc(rich?.location || incident.location)}</span>
-  </div>
-  <div class="field-row">
-    <span class="label">Description of Incident:</span>
-    <span class="uline" style="flex:1">${descText}</span>
-  </div>
-  ${blankLines(2)}
-
-  <div class="sec">Damages and Injuries</div>
-  <div class="row">
-    <span>Were there any injuries?</span>
-    <span class="cb">${chk(rich?.has_injuries)}</span> Yes &nbsp;
-    <span class="cb">${chk(rich?.has_injuries === false)}</span> No
-    <span style="margin-left:32px">Were there any property damages?</span>
-    <span class="cb">${chk(rich?.has_property_damage)}</span> Yes &nbsp;
-    <span class="cb">${chk(rich?.has_property_damage === false)}</span> No
-  </div>
-  <div class="two-col">
-    <div>
-      <div style="margin-bottom:4px">Describe the injuries:</div>
-      <div class="desc-line">${injDesc}</div>
-      ${blankLines(2)}
-    </div>
-    <div>
-      <div style="margin-bottom:4px">Describe the property damage:</div>
-      <div class="desc-line">${dmgDesc}</div>
-      ${blankLines(2)}
-    </div>
-  </div>
-
-  <div class="sec">Witness(es)</div>
-  <div class="row">
-    <span>Were there any witnesses to the incident?</span>
-    <span class="cb">${chk(rich?.has_witnesses)}</span> Yes &nbsp;
-    <span class="cb">${chk(rich?.has_witnesses === false)}</span> No
-  </div>
-  ${witnessRows}
-
-  <div class="sec">Actions Taken</div>
-  <div class="desc-line">${actDesc}</div>
-  ${blankLines(2)}
-
-  <div class="sig-row">
-    <div><div class="sig-line"></div><div class="sig-label">Signature of Reporter</div></div>
-    <div><div class="sig-line"></div><div class="sig-label">Date</div></div>
-  </div>
-
-  <div class="footer">
-    <span>Incident #${incident.id} &middot; ${esc(incident.reporter_email)}</span>
-    <span>Generated: ${new Date().toLocaleString()}</span>
-  </div>
-
-  <script>window.onload = () => { window.focus(); window.print(); }<\/script>
-  </body></html>`;
-
-  const w = window.open('', '_blank', 'width=860,height=960');
-  if (!w) { alert('Allow popups to download the PDF.'); return; }
-  w.document.write(html);
-  w.document.close();
-}
 
 // ── Incident card ─────────────────────────────────────────────────────────────
 function IncidentCard({ incident, onClick }: { incident: Incident; onClick: () => void }) {

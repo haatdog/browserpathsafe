@@ -6,6 +6,7 @@ import {
   Database, FolderOpen, X, Users, DoorOpen, Shield, DoorClosed,
   Fence as FenceIcon, Square, Minus as LineIcon, ArrowUp as StairsIcon,
   Eraser, Flame, Undo2, Redo2, Maximize, Minimize, UserRoundPlus, Route, Trash2,
+  Type,
 } from 'lucide-react';
 
 import type { Point, MapObject, ObjectType, ToolType, MapEditorProps } from './MapEditorTypes';
@@ -814,6 +815,8 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
       return;
     }
 
+
+
     // Safety marker — single click, snapped to cell, exactly cellSize × cellSize
     // But first check if we're clicking an existing object (to select/delete it)
     if (isSafetyMarker(currentTool)) {
@@ -855,6 +858,37 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
         return next;
       });
       setSelectedIndex(null);
+      return;
+    }
+
+    if (currentTool === 'label') {
+      for (let i = objects.length - 1; i >= 0; i--) {
+        const obj = objects[i];
+        if (obj.type === 'line') continue;
+        if (wx >= obj.x && wx <= obj.x + obj.w && wy >= obj.y && wy <= obj.y + obj.h) {
+          setSelectedIndex(i);
+          setSelectedNPC(null); setSelectedStairs(null); setSelectedGate(null); setSelectedNPCCount(null);
+          return;
+        }
+      }
+      const newObj: MapObject = {
+        type: 'label',
+        x: snapToGrid(wx),
+        y: snapToGrid(wy),
+        w: cellSize * 3,
+        h: cellSize,
+        text: 'Label',
+        id: Date.now(),
+      };
+      setObjects(prev => {
+        const next = [...prev, newObj];
+        historyRef.current = historyRef.current.slice(0, historyIdxRef.current + 1);
+        historyRef.current.push(next);
+        historyIdxRef.current = historyRef.current.length - 1;
+        return next;
+      });
+      setSelectedIndex(objects.length);
+      setSelectedNPC(null); setSelectedStairs(null); setSelectedGate(null); setSelectedNPCCount(null);
       return;
     }
 
@@ -1257,6 +1291,7 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
       else if (e.key === 'q')                    { setCurrentTool('npc_count'); }
       else if (e.key === 'v' && !e.ctrlKey)        { setCurrentTool('path_walkable'); }
       else if (e.key === 'h' && !e.ctrlKey)        { setCurrentTool('path_danger'); }
+      else if (e.key === 't' && !e.ctrlKey)      { setCurrentTool('label'); }
       else if (e.key === 's' && !e.ctrlKey)      { setCurrentTool('safezone'); }
       else if (e.key === 'g' && !e.shiftKey)     { setCurrentTool('gate'); }
       else if (e.key === 'f')                    { setCurrentTool('fence'); }
@@ -1307,12 +1342,14 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
   useEffect(() => {
     const selectedObj = selectedIndex !== null ? objects[selectedIndex] : null;
     const isMarkerSelected = selectedObj && isSafetyMarker(selectedObj.type);
+    const isLabelSelected  = selectedObj && selectedObj.type === 'label';
     setSidebarVisible(
       currentTool === 'npc' || selectedNPC !== null ||
       currentTool === 'npc_count' || selectedNPCCount !== null ||
       currentTool === 'concrete_stairs' || currentTool === 'fire_ladder' || selectedStairs !== null ||
       currentTool === 'gate' || selectedGate !== null ||
-      isSafetyMarker(currentTool) || !!isMarkerSelected
+      isSafetyMarker(currentTool) || !!isMarkerSelected ||
+      currentTool === 'label' || !!isLabelSelected
     );
   }, [currentTool, selectedNPC, selectedStairs, selectedGate, selectedNPCCount, selectedIndex, objects]);
 
@@ -1336,6 +1373,7 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
     fence:            { title: 'Fence / Barrier', desc: 'A solid impassable barrier. Agents cannot cross fences — they must go around.', usage: 'Draw along perimeter walls or barriers that agents cannot climb.', tip: 'Fences are thinner than walls but fully block agent movement.' },
     path_walkable:    { title: 'Walkable Path', desc: 'Paints cells as preferred walkable areas. Agents are guided toward these paths during evacuation.', usage: 'Paint over hallways and corridors to guide agent flow. Use brush size to cover larger areas.', tip: 'Paint main evacuation routes to create more realistic agent behavior.' },
     path_danger:      { title: 'Hazard Zone', desc: 'Marks cells as dangerous areas (fire spread, debris). Agents actively avoid these zones.', usage: 'Paint over fire hazard zones, collapsed areas, or obstacles agents should avoid.', tip: 'Combine with walkable paths to create realistic escape route alternatives.' },
+    label:            { title: 'Text Label', desc: 'Adds a free-text label anywhere on the map for annotations.', usage: 'Click to place. Edit the text in the sidebar panel.', tip: 'Use labels to name rooms, floors, or add instructions.' },
     // Safety markers
     marker_fire_extinguisher: { title: 'Fire Extinguisher',  desc: 'Marks the location of a fire extinguisher on the map.', usage: 'Click to place. Decorative only — no effect on simulation.' },
     marker_fire_exit:         { title: 'Fire Exit',           desc: 'Marks a designated fire exit door or route.', usage: 'Click to place. Decorative only.' },
@@ -1435,6 +1473,7 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
             <ToolBtn icon={Shield}   label="Safe"   tool="safezone" shortcut="S" color="text-sky-400" />
             <ToolBtn icon={DoorClosed} label="Gate" tool="gate"     shortcut="G" color="text-emerald-400" />
             <ToolBtn icon={FenceIcon}  label="Fence" tool="fence"   shortcut="F" color="text-yellow-600" />
+            <ToolBtn icon={Type} label="Label" tool="label" shortcut="T" color="text-slate-300" />
           </div>
 
           {/* Paths */}
@@ -1834,6 +1873,47 @@ export default function MapEditor({ initialProjectId }: MapEditorProps = {}) {
                 </div>
               );
             })()}
+            {selectedIndex !== null && objects[selectedIndex] && objects[selectedIndex].type === 'label' && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 pb-3 border-b border-slate-800">
+                  <div className="w-9 h-9 bg-slate-700/40 rounded-lg flex items-center justify-center">
+                    <Type size={18} className="text-slate-300" />
+                  </div>
+                  <div>
+                    <p className="text-white font-bold text-sm">Label</p>
+                    <p className="text-slate-500 text-xs">Text annotation</p>
+                  </div>
+                </div>
+                <div className="bg-slate-800/50 rounded-lg p-4">
+                  <label className="text-xs text-slate-400 mb-1 block">Text</label>
+                  <input
+                    type="text"
+                    value={objects[selectedIndex].text || ''}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setObjects(prev => prev.map((o, i) => i === selectedIndex ? { ...o, text: val } : o));
+                    }}
+                    onKeyDown={e => e.stopPropagation()}
+                    className="w-full px-3 py-2 bg-slate-900 text-white rounded-lg border border-slate-700 focus:border-blue-500 focus:outline-none text-sm"
+                    placeholder="Label text"
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    setObjects(prev => {
+                      const next = prev.filter((_, i) => i !== selectedIndex);
+                      historyRef.current = historyRef.current.slice(0, historyIdxRef.current + 1);
+                      historyRef.current.push(next);
+                      historyIdxRef.current = historyRef.current.length - 1;
+                      return next;
+                    });
+                    setSelectedIndex(null);
+                  }}
+                  className="w-full py-2 bg-red-900/40 hover:bg-red-800/60 text-red-400 rounded-lg text-sm transition flex items-center justify-center gap-2 border border-red-800/40">
+                  <Trash2 size={14} /> Delete Label
+                </button>
+              </div>
+            )}  
           </div>
         </div>
       )}

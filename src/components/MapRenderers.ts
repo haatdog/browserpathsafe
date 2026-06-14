@@ -521,6 +521,36 @@ export const drawObject = (
     ctx.lineWidth = Math.max(0.5, zoom * 0.8);
     ctx.strokeRect(sp.x, sp.y, sw, sh);
   }
+  // ── LABEL ────────────────────────────────────────────────────────────────────
+  else if (obj.type === 'label') {
+    const text = obj.text || 'Label';
+    ctx.save();
+    ctx.font = `bold ${Math.max(10, 12 * zoom)}px "JetBrains Mono", monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const metrics = ctx.measureText(text);
+    const padX = 8 * zoom, padY = 4 * zoom;
+    const boxW = metrics.width + padX * 2;
+    const boxH = Math.max(10, 12 * zoom) + padY * 2;
+  
+    ctx.fillStyle = isPreview ? 'rgba(200,200,200,0.35)' : 'rgba(200,200,200,0.5)';
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(sp.x, sp.y, boxW, boxH, 4 * zoom);
+    else ctx.rect(sp.x, sp.y, boxW, boxH);
+    ctx.fill();
+  
+    ctx.strokeStyle = isPreview ? 'rgba(148,163,184,0.5)' : 'rgba(148,163,184,0.8)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  
+    ctx.fillStyle = '#000000';
+    ctx.fillText(text, sp.x + boxW / 2, sp.y + boxH / 2);
+  
+    ctx.textBaseline = 'alphabetic';
+    ctx.textAlign = 'left';
+    ctx.restore();
+  }
+
 };
 
 // ── Eraser preview ────────────────────────────────────────────────────────────

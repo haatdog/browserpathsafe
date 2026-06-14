@@ -16,6 +16,7 @@ export type ObjectType =
   | 'npc_count'
   | 'path_walkable'   // brush-painted walkable path
   | 'path_danger'     // brush-painted dangerous/hazard path
+  | 'label'
   // ── Safety markers (decorative, no pathfinding effect) ─────────────────
   | 'marker_fire_extinguisher'
   | 'marker_fire_exit'
@@ -43,6 +44,7 @@ export interface MapObject {
   name?: string;
   label?: string;
   color?: string;
+  text?: string;
 
   // NPC / NPC_COUNT
   speed?: number;
