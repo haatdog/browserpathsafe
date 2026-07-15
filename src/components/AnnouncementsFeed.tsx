@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { T, C } from '../design/DesignTokens';
 import {
   MessageSquare, Heart, Pin, Trash2, Send, FileText, Edit,
-  AlertCircle, Upload, X, ChevronLeft, ChevronRight, Filter, Star
+  AlertCircle, Upload, X, ChevronLeft, ChevronRight, Filter, Star, Globe
 } from 'lucide-react';
 import { announcementAPI, organizationAPI } from '../lib/api';
 
@@ -14,6 +14,7 @@ interface Announcement {
   is_pinned: boolean; likes_count: number; comments_count: number;
   author_group_id?: number | null; author_group_name?: string | null; author_is_head?: boolean;
   target_group_id?: number | null; target_group_name?: string | null; target_heads_only?: boolean;
+  is_public?: boolean;
   created_at: string; updated_at: string;
 }
 interface Comment {
@@ -160,24 +161,38 @@ function fullName(first?: string | null, last?: string | null, fallback?: string
   return v || fallback || 'Unknown';
 }
 
+// ── Shared post state type ────────────────────────────────────────────────────
+interface PostFormState {
+  title: string;
+  content: string;
+  target_group_id: number | '';
+  target_heads_only: boolean;
+  is_public: boolean;
+}
+
+const EMPTY_POST_FORM: PostFormState = {
+  title: '', content: '', target_group_id: '',
+  target_heads_only: false, is_public: false,
+};
+
 export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFeedProps) {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [loading,        setLoading]        = useState(true);
-  const [authError,      setAuthError]      = useState(false);
-  const [showCreate,     setShowCreate]     = useState(false);
-  const [postError,      setPostError]      = useState('');
-  const [newPost,        setNewPost]        = useState({ title: '', content: '', target_group_id: '' as number | '', target_heads_only: false });
-  const [newImages,      setNewImages]      = useState<string[]>([]);
-  const [comments,       setComments]       = useState<Record<number, Comment[]>>({});
-  const [newComment,     setNewComment]     = useState<Record<number, string>>({});
-  const [showComments,   setShowComments]   = useState<Record<number, boolean>>({});
-  const [slideshow,      setSlideshow]      = useState<{ images: string[]; index: number; title: string } | null>(null);
-  const [editingId,      setEditingId]      = useState<number | null>(null);
-  const [editPost,       setEditPost]       = useState({ title: '', content: '', target_group_id: '' as number | '', target_heads_only: false });
-  const [editImages,     setEditImages]     = useState<string[]>([]);
-  const [newNotice,      setNewNotice]      = useState<{ count: number; latestTitle: string } | null>(null);
-  const [groups,         setGroups]         = useState<Group[]>([]);
-  const [filterGroup,    setFilterGroup]    = useState<number | 'heads' | ''>('');
+  const [loading,       setLoading]       = useState(true);
+  const [authError,     setAuthError]     = useState(false);
+  const [showCreate,    setShowCreate]    = useState(false);
+  const [postError,     setPostError]     = useState('');
+  const [newPost,       setNewPost]       = useState<PostFormState>({ ...EMPTY_POST_FORM });
+  const [newImages,     setNewImages]     = useState<string[]>([]);
+  const [comments,      setComments]      = useState<Record<number, Comment[]>>({});
+  const [newComment,    setNewComment]    = useState<Record<number, string>>({});
+  const [showComments,  setShowComments]  = useState<Record<number, boolean>>({});
+  const [slideshow,     setSlideshow]     = useState<{ images: string[]; index: number; title: string } | null>(null);
+  const [editingId,     setEditingId]     = useState<number | null>(null);
+  const [editPost,      setEditPost]      = useState<PostFormState>({ ...EMPTY_POST_FORM });
+  const [editImages,    setEditImages]    = useState<string[]>([]);
+  const [newNotice,     setNewNotice]     = useState<{ count: number; latestTitle: string } | null>(null);
+  const [groups,        setGroups]        = useState<Group[]>([]);
+  const [filterGroup,   setFilterGroup]   = useState<number | 'heads' | ''>('');
   const knownIds = useRef<Set<number>>(new Set());
 
   useEffect(() => { loadAnnouncements(); loadGroups(); }, []);
@@ -214,19 +229,23 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
     if (!newPost.content.trim()) { setPostError('Content is required.'); return; }
     try {
       await announcementAPI.create({
-        title: newPost.title, content: newPost.content,
-        image_url: newImages[0] || undefined, image_urls: newImages,
+        title: newPost.title,
+        content: newPost.content,
+        image_url: newImages[0] || undefined,
+        image_urls: newImages,
         target_group_id: newPost.target_group_id || null,
         target_heads_only: newPost.target_heads_only,
+        is_public: newPost.is_public,
       });
-      setNewPost({ title: '', content: '', target_group_id: '', target_heads_only: false });
+      setNewPost({ ...EMPTY_POST_FORM });
       setNewImages([]); setShowCreate(false); loadAnnouncements();
     } catch (err: any) { setPostError(err.message || 'Failed to create announcement.'); }
   };
 
   const resetCreate = () => {
-    setShowCreate(false); setPostError('');
-    setNewPost({ title: '', content: '', target_group_id: '', target_heads_only: false });
+    setShowCreate(false);
+    setPostError('');
+    setNewPost({ ...EMPTY_POST_FORM });
     setNewImages([]);
   };
 
@@ -236,24 +255,42 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
 
   const startEdit = (post: Announcement) => {
     setEditingId(post.id);
-    setEditPost({ title: post.title, content: post.content, target_group_id: post.target_group_id ?? '', target_heads_only: !!post.target_heads_only });
+    setEditPost({
+      title:             post.title,
+      content:           post.content,
+      target_group_id:   post.target_group_id ?? '',
+      target_heads_only: !!post.target_heads_only,
+      is_public:         !!post.is_public,
+    });
     setEditImages(getImages(post));
   };
-  const cancelEdit = () => { setEditingId(null); setEditPost({ title: '', content: '', target_group_id: '', target_heads_only: false }); setEditImages([]); };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditPost({ ...EMPTY_POST_FORM });
+    setEditImages([]);
+  };
+
   const saveEdit = async () => {
     if (!editingId || !editPost.title.trim() || !editPost.content.trim()) return;
     try {
       await announcementAPI.update(editingId, {
-        title: editPost.title, content: editPost.content,
-        image_url: editImages[0] || undefined, image_urls: editImages,
-        target_group_id: editPost.target_group_id || null, target_heads_only: editPost.target_heads_only,
+        title:             editPost.title,
+        content:           editPost.content,
+        image_url:         editImages[0] || undefined,
+        image_urls:        editImages,
+        target_group_id:   editPost.target_group_id || null,
+        target_heads_only: editPost.target_heads_only,
+        is_public:         editPost.is_public,
       });
       cancelEdit(); loadAnnouncements();
     } catch {}
   };
 
-  const loadComments   = async (id: number) => { try { const d = await announcementAPI.getComments(id); setComments(p => ({ ...p, [id]: d as Comment[] })); } catch {} };
-  const addComment     = async (id: number) => {
+  const loadComments = async (id: number) => {
+    try { const d = await announcementAPI.getComments(id); setComments(p => ({ ...p, [id]: d as Comment[] })); } catch {}
+  };
+  const addComment = async (id: number) => {
     const c = newComment[id]?.trim(); if (!c) return;
     try { await announcementAPI.addComment(id, c); setNewComment(p => ({ ...p, [id]: '' })); loadComments(id); loadAnnouncements(); } catch {}
   };
@@ -265,7 +302,8 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
   const timeAgo = (d: string) => {
     const diff = Date.now() - new Date(d).getTime();
     const m = Math.floor(diff / 60000), h = Math.floor(diff / 3600000), day = Math.floor(diff / 86400000);
-    if (m < 1) return 'Just now'; if (m < 60) return `${m}m ago`; if (h < 24) return `${h}h ago`; if (day < 7) return `${day}d ago`;
+    if (m < 1) return 'Just now'; if (m < 60) return `${m}m ago`;
+    if (h < 24) return `${h}h ago`; if (day < 7) return `${day}d ago`;
     return new Date(d).toLocaleDateString();
   };
   const canManage = (post: Announcement) => post.user_id === userId;
@@ -288,18 +326,46 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
     </select>
   );
 
+  // ── Reusable public checkbox ──────────────────────────────────────────────
+  const PublicCheckbox = ({ id, checked, onChange }: { id: string; checked: boolean; onChange: (v: boolean) => void }) => (
+    <div className="flex items-center gap-3 px-1 py-2 bg-green-50 border border-green-200 rounded-lg">
+      <input
+        type="checkbox"
+        id={id}
+        checked={checked}
+        onChange={e => onChange(e.target.checked)}
+        className="w-4 h-4 accent-green-600 rounded cursor-pointer flex-shrink-0"
+      />
+      <label htmlFor={id} className="text-sm font-medium text-gray-700 cursor-pointer select-none">
+        <span className="flex items-center gap-1.5">
+          <Globe className="w-3.5 h-3.5 text-green-600" />
+          Make this announcement public
+        </span>
+        <span className="block text-xs text-gray-400 font-normal mt-0.5">
+          Visible on the landing page without signing in
+        </span>
+      </label>
+    </div>
+  );
+
   return (
     <>
       <div className="space-y-4">
         {authError && (
           <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-            <div><p className="text-red-900 font-semibold">Session expired</p><p className="text-red-700 text-sm mt-1">Please refresh and log in again.</p></div>
+            <div>
+              <p className="text-red-900 font-semibold">Session expired</p>
+              <p className="text-red-700 text-sm mt-1">Please refresh and log in again.</p>
+            </div>
           </div>
         )}
+
         {newNotice && (
           <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-start justify-between gap-3">
-            <p className="text-green-700 text-sm">{newNotice.count > 1 ? `${newNotice.count} new announcements.` : `New: "${newNotice.latestTitle}"`}</p>
+            <p className="text-green-700 text-sm">
+              {newNotice.count > 1 ? `${newNotice.count} new announcements.` : `New: "${newNotice.latestTitle}"`}
+            </p>
             <button onClick={() => setNewNotice(null)} className="text-green-700 hover:text-green-900 text-sm font-medium">Dismiss</button>
           </div>
         )}
@@ -312,20 +378,25 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
             </button>
             <div className="flex items-center gap-2">
               <Filter className="w-4 h-4 text-gray-400 flex-shrink-0" />
-              <select value={filterGroup} onChange={e => { const v = e.target.value; setFilterGroup(v === '' ? '' : v === 'heads' ? 'heads' : Number(v)); }}
+              <select value={filterGroup}
+                onChange={e => { const v = e.target.value; setFilterGroup(v === '' ? '' : v === 'heads' ? 'heads' : Number(v)); }}
                 className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white">
                 <option value="">All</option>
                 <option value="heads">⭐ Heads Only</option>
                 {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
               </select>
-              {filterGroup !== '' && <button onClick={() => setFilterGroup('')} className="text-xs text-gray-500 hover:text-gray-800 px-2 py-1 rounded hover:bg-gray-100 transition">Clear</button>}
+              {filterGroup !== '' && (
+                <button onClick={() => setFilterGroup('')} className="text-xs text-gray-500 hover:text-gray-800 px-2 py-1 rounded hover:bg-gray-100 transition">Clear</button>
+              )}
             </div>
           </div>
         )}
 
         {pinned.length > 0 && (
           <div className="space-y-3">
-            <div className="flex items-center gap-2 text-sm font-semibold text-gray-600 uppercase tracking-wider"><Pin className="w-4 h-4" /><span>Pinned</span></div>
+            <div className="flex items-center gap-2 text-sm font-semibold text-gray-600 uppercase tracking-wider">
+              <Pin className="w-4 h-4" /><span>Pinned</span>
+            </div>
             {pinned.map(post => (
               <PostCard key={post.id} post={post} canManage={canManage(post)} canEdit={post.user_id === userId}
                 onEdit={startEdit} onPin={togglePin} onLike={toggleLike} onDelete={deletePost}
@@ -350,41 +421,65 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
           ))}
         </div>
 
-        {loading && <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" /></div>}
+        {loading && (
+          <div className="flex justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" />
+          </div>
+        )}
         {!loading && announcements.length === 0 && !authError && (
           <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
-            <p style={{...T.body, color: C.inkMuted}}>No announcements yet</p>
+            <p style={{ ...T.body, color: C.inkMuted }}>No announcements yet</p>
           </div>
         )}
       </div>
 
-      {/* Create modal */}
+      {/* ── Create modal ──────────────────────────────────────────────────── */}
       {showCreate && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
           <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-2xl max-h-[92vh] overflow-auto">
             <div className="p-4 sm:p-6 border-b border-gray-200 flex items-center justify-between">
               <h2 style={T.pageTitle}>Create Announcement</h2>
-              <button onClick={resetCreate} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition"><X className="w-5 h-5" /></button>
+              <button onClick={resetCreate} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition">
+                <X className="w-5 h-5" />
+              </button>
             </div>
             <div className="p-4 sm:p-6 space-y-4">
-              {postError && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{postError}</div>}
+              {postError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{postError}</div>
+              )}
               <div>
                 <label className="block mb-2 text-sm font-semibold text-gray-700">Title <span className="text-red-500">*</span></label>
-                <input type="text" value={newPost.title} onChange={e => setNewPost(p => ({ ...p, title: e.target.value }))}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="Announcement title..." />
+                <input type="text" value={newPost.title}
+                  onChange={e => setNewPost(p => ({ ...p, title: e.target.value }))}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  placeholder="Announcement title..." />
               </div>
               <div>
                 <label className="block mb-2 text-sm font-semibold text-gray-700">Content <span className="text-red-500">*</span></label>
-                <textarea value={newPost.content} onChange={e => setNewPost(p => ({ ...p, content: e.target.value }))} rows={6}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none" placeholder="What would you like to announce?" />
+                <textarea value={newPost.content}
+                  onChange={e => setNewPost(p => ({ ...p, content: e.target.value }))} rows={6}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
+                  placeholder="What would you like to announce?" />
               </div>
               <div>
                 <label className="block mb-2 text-sm font-semibold text-gray-700">Audience</label>
-                <AudienceSelect value={newPost.target_heads_only ? 'heads' : newPost.target_group_id}
-                  onChange={v => { if (v === 'heads') setNewPost(p => ({ ...p, target_heads_only: true, target_group_id: '' })); else if (v === '') setNewPost(p => ({ ...p, target_heads_only: false, target_group_id: '' })); else setNewPost(p => ({ ...p, target_heads_only: false, target_group_id: v as number })); }} />
+                <AudienceSelect
+                  value={newPost.target_heads_only ? 'heads' : newPost.target_group_id}
+                  onChange={v => {
+                    if (v === 'heads') setNewPost(p => ({ ...p, target_heads_only: true, target_group_id: '' }));
+                    else if (v === '') setNewPost(p => ({ ...p, target_heads_only: false, target_group_id: '' }));
+                    else setNewPost(p => ({ ...p, target_heads_only: false, target_group_id: v as number }));
+                  }} />
               </div>
+              <PublicCheckbox
+                id="create-is-public"
+                checked={newPost.is_public}
+                onChange={v => setNewPost(p => ({ ...p, is_public: v }))}
+              />
               <div>
-                <label className="block mb-2 text-sm font-semibold text-gray-700">Photos <span className="text-gray-400 font-normal">(Optional)</span></label>
+                <label className="block mb-2 text-sm font-semibold text-gray-700">
+                  Photos <span className="text-gray-400 font-normal">(Optional)</span>
+                </label>
                 <MultiImageUploader images={newImages} onChange={setNewImages} max={5} />
               </div>
             </div>
@@ -396,30 +491,44 @@ export default function AnnouncementsFeed({ userRole, userId }: AnnouncementsFee
         </div>
       )}
 
-      {/* Edit modal */}
+      {/* ── Edit modal ────────────────────────────────────────────────────── */}
       {editingId && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
           <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-2xl max-h-[92vh] overflow-auto">
             <div className="p-4 sm:p-6 border-b border-gray-200 flex items-center justify-between">
               <h2 style={T.pageTitle}>Edit Announcement</h2>
-              <button onClick={cancelEdit} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition"><X className="w-5 h-5" /></button>
+              <button onClick={cancelEdit} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition">
+                <X className="w-5 h-5" />
+              </button>
             </div>
             <div className="p-4 sm:p-6 space-y-4">
               <div>
                 <label className="block mb-2 text-sm font-semibold text-gray-700">Title</label>
-                <input type="text" value={editPost.title} onChange={e => setEditPost(p => ({ ...p, title: e.target.value }))}
+                <input type="text" value={editPost.title}
+                  onChange={e => setEditPost(p => ({ ...p, title: e.target.value }))}
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent" />
               </div>
               <div>
                 <label className="block mb-2 text-sm font-semibold text-gray-700">Content</label>
-                <textarea value={editPost.content} onChange={e => setEditPost(p => ({ ...p, content: e.target.value }))} rows={6}
+                <textarea value={editPost.content}
+                  onChange={e => setEditPost(p => ({ ...p, content: e.target.value }))} rows={6}
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none" />
               </div>
               <div>
                 <label className="block mb-2 text-sm font-semibold text-gray-700">Audience</label>
-                <AudienceSelect value={editPost.target_heads_only ? 'heads' : editPost.target_group_id}
-                  onChange={v => { if (v === 'heads') setEditPost(p => ({ ...p, target_heads_only: true, target_group_id: '' })); else if (v === '') setEditPost(p => ({ ...p, target_heads_only: false, target_group_id: '' })); else setEditPost(p => ({ ...p, target_heads_only: false, target_group_id: v as number })); }} />
+                <AudienceSelect
+                  value={editPost.target_heads_only ? 'heads' : editPost.target_group_id}
+                  onChange={v => {
+                    if (v === 'heads') setEditPost(p => ({ ...p, target_heads_only: true, target_group_id: '' }));
+                    else if (v === '') setEditPost(p => ({ ...p, target_heads_only: false, target_group_id: '' }));
+                    else setEditPost(p => ({ ...p, target_heads_only: false, target_group_id: v as number }));
+                  }} />
               </div>
+              <PublicCheckbox
+                id="edit-is-public"
+                checked={editPost.is_public}
+                onChange={v => setEditPost(p => ({ ...p, is_public: v }))}
+              />
               <div>
                 <label className="block mb-2 text-sm font-semibold text-gray-700">Photos</label>
                 <MultiImageUploader images={editImages} onChange={setEditImages} max={5} />
@@ -477,9 +586,18 @@ function PostCard({ post, canManage, canEdit, onEdit, onPin, onLike, onDelete, o
         </div>
         {canManage && (
           <div className="flex gap-1">
-            {canEdit && <button onClick={() => onEdit(post)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"><Edit className="w-4 h-4" /></button>}
-            <button onClick={() => onPin(post.id, post.is_pinned)} className={`p-2 rounded-lg transition ${post.is_pinned ? 'text-green-600 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-100'}`}><Pin className="w-4 h-4" /></button>
-            <button onClick={() => onDelete(post.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"><Trash2 className="w-4 h-4" /></button>
+            {canEdit && (
+              <button onClick={() => onEdit(post)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition">
+                <Edit className="w-4 h-4" />
+              </button>
+            )}
+            <button onClick={() => onPin(post.id, post.is_pinned)}
+              className={`p-2 rounded-lg transition ${post.is_pinned ? 'text-green-600 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-100'}`}>
+              <Pin className="w-4 h-4" />
+            </button>
+            <button onClick={() => onDelete(post.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition">
+              <Trash2 className="w-4 h-4" />
+            </button>
           </div>
         )}
       </div>
@@ -488,15 +606,28 @@ function PostCard({ post, canManage, canEdit, onEdit, onPin, onLike, onDelete, o
       <div className="px-4 pb-3">
         <h3 className="font-semibold text-gray-900 mb-2" style={T.pageTitle}>{post.title}</h3>
         <p className="text-gray-700 whitespace-pre-wrap" style={T.body}>{display}</p>
-        {isLong && <button onClick={() => setExpanded(e => !e)} className="mt-1 text-green-600 hover:text-green-700 text-sm font-medium">{expanded ? 'See less' : '…see more'}</button>}
+        {isLong && (
+          <button onClick={() => setExpanded(e => !e)} className="mt-1 text-green-600 hover:text-green-700 text-sm font-medium">
+            {expanded ? 'See less' : '…see more'}
+          </button>
+        )}
       </div>
 
-      {/* Audience badge */}
-      {(post.target_group_name || post.target_heads_only) && (
-        <div className="px-4 pb-3">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-xs font-medium">
-            {post.target_heads_only ? <><Star className="w-3 h-3 fill-amber-500 text-amber-500" /> Heads Only</> : <><Filter className="w-3 h-3" /> {post.target_group_name}</>}
-          </span>
+      {/* Badges */}
+      {(post.target_group_name || post.target_heads_only || post.is_public) && (
+        <div className="px-4 pb-3 flex flex-wrap gap-2">
+          {(post.target_group_name || post.target_heads_only) && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-xs font-medium">
+              {post.target_heads_only
+                ? <><Star className="w-3 h-3 fill-amber-500 text-amber-500" /> Heads Only</>
+                : <><Filter className="w-3 h-3" /> {post.target_group_name}</>}
+            </span>
+          )}
+          {post.is_public && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-50 text-green-700 border border-green-200 text-xs font-medium">
+              <Globe className="w-3 h-3" /> Public
+            </span>
+          )}
         </div>
       )}
 
@@ -549,7 +680,8 @@ function PostCard({ post, canManage, canEdit, onEdit, onPin, onLike, onDelete, o
               </div>
             ))}
             <div className="flex gap-2 pt-2">
-              <input type="text" value={newComment} onChange={e => onCommentChange(e.target.value)}
+              <input type="text" value={newComment}
+                onChange={e => onCommentChange(e.target.value)}
                 onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && onAddComment(post.id)}
                 className="flex-1 px-3 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
                 placeholder="Write a comment..." />

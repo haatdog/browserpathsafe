@@ -169,11 +169,14 @@ def init_db():
             image_urls JSONB DEFAULT '[]',
             target_group_id INTEGER REFERENCES groups(id) ON DELETE SET NULL,
             target_heads_only BOOLEAN DEFAULT FALSE,
+            is_public BOOLEAN DEFAULT FALSE,
             is_pinned BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )''',
         'CREATE INDEX IF NOT EXISTS idx_announcements_pinned ON announcements(is_pinned DESC, created_at DESC)',
+        'ALTER TABLE announcements ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT FALSE',
+        'CREATE INDEX IF NOT EXISTS idx_announcements_public ON announcements(is_public) WHERE is_public = TRUE',
         '''CREATE TABLE IF NOT EXISTS announcement_likes (
             id SERIAL PRIMARY KEY,
             announcement_id INTEGER REFERENCES announcements(id) ON DELETE CASCADE,

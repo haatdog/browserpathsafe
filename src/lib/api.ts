@@ -115,6 +115,7 @@ export interface Announcement {
   target_group_id?: number | null;      // ✅ ADD THIS
   target_group_name?: string | null;
   target_heads_only?: boolean;         // already used in your code
+  is_public?: boolean;
 
   created_at: string;
   updated_at: string;
@@ -347,12 +348,16 @@ export const announcementAPI = {
   getAll: (): Promise<any[]> =>
     pythonRequest('/api/announcements', { method: 'GET' }),
 
+  getPublic: (): Promise<any[]> =>
+    pythonRequest('/api/announcements/public', { method: 'GET' }),
+
   create: (data: {
     title: string;
     content: string;
     image_url?: string;
     image_urls?: string[];
     is_pinned?: boolean;
+    is_public?: boolean;
     target_group_id?: number | null;
     target_heads_only?: boolean;
   }) =>
@@ -369,6 +374,7 @@ export const announcementAPI = {
       content: string;
       image_url?: string;
       image_urls?: string[];
+      is_public?: boolean;
       target_group_id?: number | null;
       target_heads_only?: boolean;
     }

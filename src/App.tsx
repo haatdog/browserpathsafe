@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { authService } from './lib/api';
 import AuthPage from './pages/AuthPage';
 import DashboardPage from './pages/DashboardPage';
+import LandingPage from './pages/LandingPage';
 
 interface User {
   id: string;
@@ -9,9 +10,12 @@ interface User {
   role: 'admin' | 'coordinator' | 'member';
 }
 
+type UnauthView = 'landing' | 'auth';
+
 function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [unauthView, setUnauthView] = useState<UnauthView>('landing');
 
   // ✅ Check authentication on mount
   useEffect(() => {
@@ -63,13 +67,15 @@ function App() {
     );
   }
 
-  // ✅ Show dashboard if user exists (authenticated)
-  // ✅ Show auth page if no user (not authenticated)
-  return user ? (
-    <DashboardPage onLogout={handleLogout} />
-  ) : (
-    <AuthPage onLogin={handleLogin} />
-  );
+  if (user) {
+    return <DashboardPage onLogout={handleLogout} />;
+  }
+
+  if (unauthView === 'landing') {
+    return <LandingPage onGoToSignIn={() => setUnauthView('auth')} />;
+  }
+
+  return <AuthPage onLogin={handleLogin} onBackToLanding={() => setUnauthView('landing')} />;
 }
 
 export default App;

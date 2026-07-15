@@ -1,12 +1,15 @@
+// Authpage.tsx
 import { useState } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import LoginForm from '../components/LoginForm';
 import SignupForm from '../components/SignupForm';
 
 interface AuthPageProps {
   onLogin: () => void;
+  onBackToLanding?: () => void;
 }
 
-export default function AuthPage({ onLogin }: AuthPageProps) {
+export default function AuthPage({ onLogin, onBackToLanding }: AuthPageProps) {
   const [isLogin, setIsLogin] = useState(true);
   const [error,   setError]   = useState<string | null>(null);
 
@@ -15,6 +18,15 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
+        {onBackToLanding && (
+          <button
+            onClick={onBackToLanding}
+            className="mb-4 flex items-center gap-2 text-gray-600 hover:text-gray-900 text-sm font-medium transition"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to announcements
+          </button>
+        )}
         <div className="bg-white rounded-2xl shadow-xl p-8">
 
           {/* Logo + Title */}
